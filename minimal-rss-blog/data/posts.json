@@ -1,9 +1,9 @@
 {
   "site": {
-    "title": "Your Name",
-    "url": "https://example.com",
-    "author": "Your Name",
-    "authorEmail": "you@example.com",
+    "title": "Rommy Ghaly",
+    "url": "https://fingerguns.github.io",
+    "author": "Rommy Ghaly",
+    "authorEmail": "rommy@gha.ly",
     "description": "Short notes and longer essays.",
     "feedPath": "/feed.xml"
   },
