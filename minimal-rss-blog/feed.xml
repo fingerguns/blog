@@ -18,12 +18,4 @@
     <published>2026-04-26T12:00:00.000Z</published>
     <summary type="text">I developed this blog in Cursor. This is my first post.</summary>
   </entry>
-  <entry>
-    <title>A second post</title>
-    <link href="https://fingerguns.github.io/blog/posts/second-post.html" rel="alternate" type="text/html" />
-    <id>https://fingerguns.github.io/blog/posts/second-post.html</id>
-    <updated>2026-04-15T12:00:00.000Z</updated>
-    <published>2026-04-15T12:00:00.000Z</published>
-    <summary type="text">Template content — replace with your own writing.</summary>
-  </entry>
 </feed>

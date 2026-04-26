@@ -13,18 +13,12 @@
       "title": "Hello from Cursor",
       "date": "2026-04-26",
       "summary": "I developed this blog in Cursor. This is my first post."
-    },
-    {
-      "slug": "second-post",
-      "title": "A second post",
-      "date": "2026-04-15",
-      "summary": "Template content — replace with your own writing."
     }
   ],
   "links": [
     {
       "label": "GitHub",
-      "url": "https://github.com/"
+      "url": "http://github.com/fingerguns"
     }
   ],
   "optionalColophon": "Built as static files. No trackers."
