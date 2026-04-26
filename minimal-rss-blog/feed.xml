@@ -4,19 +4,19 @@
   <link href="https://fingerguns.github.io/blog/feed.xml" rel="self" type="application/atom+xml" />
   <link href="https://fingerguns.github.io/blog/" rel="alternate" type="text/html" />
   <id>https://fingerguns.github.io/blog/</id>
-  <updated>2026-04-20T12:00:00.000Z</updated>
+  <updated>2026-04-26T12:00:00.000Z</updated>
   <author>
     <name>Rommy Ghaly</name>
     <email>rommy@gha.ly</email>
   </author>
   <subtitle type="text">Short notes and longer essays.</subtitle>
   <entry>
-    <title>Hello, world</title>
-    <link href="https://fingerguns.github.io/blog/posts/hello-world.html" rel="alternate" type="text/html" />
-    <id>https://fingerguns.github.io/blog/posts/hello-world.html</id>
-    <updated>2026-04-20T12:00:00.000Z</updated>
-    <published>2026-04-20T12:00:00.000Z</published>
-    <summary type="text">How this site is built and what to change first.</summary>
+    <title>Hello from Cursor</title>
+    <link href="https://fingerguns.github.io/blog/posts/hello-from-cursor.html" rel="alternate" type="text/html" />
+    <id>https://fingerguns.github.io/blog/posts/hello-from-cursor.html</id>
+    <updated>2026-04-26T12:00:00.000Z</updated>
+    <published>2026-04-26T12:00:00.000Z</published>
+    <summary type="text">I developed this blog in Cursor. This is my first post.</summary>
   </entry>
   <entry>
     <title>A second post</title>

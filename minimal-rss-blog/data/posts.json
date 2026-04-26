@@ -9,10 +9,10 @@
   },
   "posts": [
     {
-      "slug": "hello-world",
-      "title": "Hello, world",
-      "date": "2026-04-20",
-      "summary": "How this site is built and what to change first."
+      "slug": "hello-from-cursor",
+      "title": "Hello from Cursor",
+      "date": "2026-04-26",
+      "summary": "I developed this blog in Cursor. This is my first post."
     },
     {
       "slug": "second-post",
