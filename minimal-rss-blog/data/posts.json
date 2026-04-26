@@ -1,0 +1,31 @@
+{
+  "site": {
+    "title": "Your Name",
+    "url": "https://example.com",
+    "author": "Your Name",
+    "authorEmail": "you@example.com",
+    "description": "Short notes and longer essays.",
+    "feedPath": "/feed.xml"
+  },
+  "posts": [
+    {
+      "slug": "hello-world",
+      "title": "Hello, world",
+      "date": "2026-04-20",
+      "summary": "How this site is built and what to change first."
+    },
+    {
+      "slug": "second-post",
+      "title": "A second post",
+      "date": "2026-04-15",
+      "summary": "Template content — replace with your own writing."
+    }
+  ],
+  "links": [
+    {
+      "label": "GitHub",
+      "url": "https://github.com/"
+    }
+  ],
+  "optionalColophon": "Built as static files. No trackers."
+}

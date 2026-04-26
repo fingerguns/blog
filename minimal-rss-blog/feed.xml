@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+  <title>Your Name</title>
+  <link href="https://example.com/feed.xml" rel="self" type="application/atom+xml" />
+  <link href="https://example.com/" rel="alternate" type="text/html" />
+  <id>https://example.com/</id>
+  <updated>2026-04-20T12:00:00.000Z</updated>
+  <author>
+    <name>Your Name</name>
+    <email>you@example.com</email>
+  </author>
+  <subtitle type="text">Short notes and longer essays.</subtitle>
+  <entry>
+    <title>Hello, world</title>
+    <link href="https://example.com/posts/hello-world.html" rel="alternate" type="text/html" />
+    <id>https://example.com/posts/hello-world.html</id>
+    <updated>2026-04-20T12:00:00.000Z</updated>
+    <published>2026-04-20T12:00:00.000Z</published>
+    <summary type="text">How this site is built and what to change first.</summary>
+  </entry>
+  <entry>
+    <title>A second post</title>
+    <link href="https://example.com/posts/second-post.html" rel="alternate" type="text/html" />
+    <id>https://example.com/posts/second-post.html</id>
+    <updated>2026-04-15T12:00:00.000Z</updated>
+    <published>2026-04-15T12:00:00.000Z</published>
+    <summary type="text">Template content — replace with your own writing.</summary>
+  </entry>
+</feed>

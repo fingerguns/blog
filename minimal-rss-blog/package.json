@@ -1,0 +1,8 @@
+{
+  "name": "minimal-rss-blog",
+  "private": true,
+  "description": "Static minimalist blog with Atom feed; optional Node build for index + feed",
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  }
+}
