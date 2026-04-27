@@ -1,5 +1,5 @@
 /**
- * Rebuilds index.html and feed.xml from data/posts.json
+ * Rebuilds index.html, feed.xml, robots.txt, and sitemap.xml from data/posts.json
  * Run from project root: node scripts/build.mjs
  */
 import { readFileSync, writeFileSync } from "node:fs";
@@ -163,6 +163,32 @@ ${entries}
 </feed>
 `;
 
+const robotsTxt = `User-agent: *
+Allow: /
+
+Sitemap: ${base}/sitemap.xml
+`;
+
+const urls = [
+  `${base}/`,
+  `${base}/feed.xml`,
+  ...ordered.map((p) => `${base}/posts/${safeSlug(p.slug)}/`),
+];
+
+const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls
+  .map(
+    (u) => `  <url>
+    <loc>${escXml(u)}</loc>
+  </url>`
+  )
+  .join("\n")}
+</urlset>
+`;
+
 writeFileSync(join(root, "index.html"), indexHtml, "utf8");
 writeFileSync(join(root, "feed.xml"), feedXml, "utf8");
-console.log("Wrote index.html and feed.xml");
+writeFileSync(join(root, "robots.txt"), robotsTxt, "utf8");
+writeFileSync(join(root, "sitemap.xml"), sitemapXml, "utf8");
+console.log("Wrote index.html, feed.xml, robots.txt, and sitemap.xml");
