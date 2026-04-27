@@ -205,6 +205,12 @@ footer.site-footer a:hover {
   font-size: 0.9rem;
 }
 
+.site-copyright {
+  margin: 2rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
