@@ -175,6 +175,7 @@ ${linksHtml}
       </section>
 
       <footer class="site-footer">
+        <p class="site-copyright">&copy; 2026 ${escHtml(site.author)}</p>
         <p>
           Subscribe via
           <a href="feed.xml" type="application/atom+xml">Atom feed</a>
@@ -185,8 +186,6 @@ ${linksHtml}
       <section class="colophon" aria-label="Colophon">
         <p>${escHtml(optionalColophon || "")}</p>
       </section>
-
-      <p class="site-copyright">&copy; 2026 ${escHtml(site.author)}</p>
     </main>
   </body>
 </html>
