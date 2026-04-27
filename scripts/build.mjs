@@ -109,7 +109,6 @@ const thinkingSection =
         <h2 id="thinking-heading">Thinking</h2>
         <ol class="post-list">
           <li>
-            <span class="post-date">${escHtml(thinking.date)}</span>
             <span>${escHtml(thinking.text)}</span>
           </li>
         </ol>
