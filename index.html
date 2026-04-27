@@ -62,17 +62,5 @@
         <p>Built as static files. No trackers.</p>
       </section>
     </main>
-    <script>
-      for (const a of document.querySelectorAll('a[href]')) {
-        const href = a.getAttribute('href') || '';
-        if (href.startsWith('#')) continue;
-        a.target = '_blank';
-        const rel = (a.getAttribute('rel') || '').split(/\s+/).filter(Boolean);
-        for (const token of ['noopener', 'noreferrer']) {
-          if (!rel.includes(token)) rel.push(token);
-        }
-        a.setAttribute('rel', rel.join(' ').trim());
-      }
-    </script>
   </body>
 </html>
