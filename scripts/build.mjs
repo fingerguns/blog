@@ -10,7 +10,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
 
 const data = JSON.parse(readFileSync(join(root, "data/posts.json"), "utf8"));
-const { site, posts, linklog, links, optionalColophon } = data;
+const { site, posts, reading, linklog, links, optionalColophon } = data;
 
 const base = site.url.replace(/\/$/, "");
 const toSortableMs = (p) => {
@@ -62,6 +62,23 @@ const postListHtml = ordered
     (p) => `          <li>
             <span class="post-date">${escHtml(p.date)}</span>
             <a href="posts/${escHtml(safeSlug(p.slug))}/">${escHtml(p.title)}</a>
+          </li>`
+  )
+  .join("\n");
+
+const orderedReading = [...(reading || [])].sort((a, b) => {
+  const aYm = String(a.ym || "");
+  const bYm = String(b.ym || "");
+  if (aYm !== bYm) return aYm < bYm ? 1 : -1;
+  return String(a.title || "").localeCompare(String(b.title || ""));
+});
+const readingHtml = orderedReading
+  .map(
+    (r) => `          <li>
+            <span class="post-date">${escHtml(r.ym)}</span>
+            <a href="${escHtml(r.url)}" target="_blank" rel="noopener noreferrer">${escHtml(
+              r.title
+            )}</a>
           </li>`
   )
   .join("\n");
@@ -121,8 +138,15 @@ ${postListHtml}
         </ol>
       </section>
 
+      <section aria-labelledby="reading-heading">
+        <h2 id="reading-heading">Reading</h2>
+        <ol class="post-list" reversed>
+${readingHtml}
+        </ol>
+      </section>
+
       <section aria-labelledby="linklog-heading">
-        <h2 id="linklog-heading">Links</h2>
+        <h2 id="linklog-heading">Sharing</h2>
         <ol class="post-list" reversed>
 ${linklogHtml}
         </ol>
