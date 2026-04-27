@@ -61,7 +61,7 @@ const postListHtml = ordered
   .map(
     (p) => `          <li>
             <span class="post-date">${escHtml(p.date)}</span>
-            <a href="posts/${escHtml(safeSlug(p.slug))}.html">${escHtml(p.title)}</a>
+            <a href="posts/${escHtml(safeSlug(p.slug))}/">${escHtml(p.title)}</a>
           </li>`
   )
   .join("\n");
@@ -134,7 +134,7 @@ ${linksHtml}
 
 const entries = ordered
   .map((p) => {
-    const id = `${base}/posts/${safeSlug(p.slug)}.html`;
+    const id = `${base}/posts/${safeSlug(p.slug)}/`;
     const t = toIsoZ(p);
     return `  <entry>
     <title>${escXml(p.title)}</title>
