@@ -116,6 +116,15 @@ const thinkingSection =
 `
     : "";
 
+const colophonText =
+  typeof optionalColophon === "string" ? optionalColophon.trim() : "";
+const colophonSection = colophonText
+  ? `      <section class="colophon" aria-label="Colophon">
+        <p>${escHtml(colophonText)}</p>
+      </section>
+`
+  : "";
+
 const indexHtml = `<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -183,10 +192,7 @@ ${linksHtml}
         </p>
       </footer>
 
-      <section class="colophon" aria-label="Colophon">
-        <p>${escHtml(optionalColophon || "")}</p>
-      </section>
-    </main>
+${colophonSection}    </main>
   </body>
 </html>
 `;
