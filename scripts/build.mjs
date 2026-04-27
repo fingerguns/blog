@@ -69,10 +69,23 @@ const postListHtml = ordered
 const linksHtml = (links || [])
   .map(
     (l) => `          <li>
-            <a href="${escHtml(l.url)}" rel="me noopener">${escHtml(l.label)}</a>
+            <a href="${escHtml(l.url)}" rel="me noopener" target="_blank">${escHtml(l.label)}</a>
           </li>`
   )
   .join("\n");
+
+const openLinksNewTabScript = `    <script>
+      for (const a of document.querySelectorAll('a[href]')) {
+        const href = a.getAttribute('href') || '';
+        if (href.startsWith('#')) continue;
+        a.target = '_blank';
+        const rel = (a.getAttribute('rel') || '').split(/\\s+/).filter(Boolean);
+        for (const token of ['noopener', 'noreferrer']) {
+          if (!rel.includes(token)) rel.push(token);
+        }
+        a.setAttribute('rel', rel.join(' ').trim());
+      }
+    </script>`;
 
 const indexHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -126,6 +139,7 @@ ${linksHtml}
         <p>${escHtml(optionalColophon || "")}</p>
       </section>
     </main>
+${openLinksNewTabScript}
   </body>
 </html>
 `;

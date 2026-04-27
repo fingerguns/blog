@@ -42,7 +42,10 @@
         <h2 id="links-heading">Elsewhere</h2>
         <ul class="link-list">
           <li>
-            <a href="http://github.com/fingerguns" rel="me noopener">GitHub</a>
+            <a href="https://farcaster.xyz/fingerguns" rel="me noopener" target="_blank">Farcaster</a>
+          </li>
+          <li>
+            <a href="http://github.com/fingerguns" rel="me noopener" target="_blank">GitHub</a>
           </li>
         </ul>
       </section>
@@ -59,5 +62,17 @@
         <p>Built as static files. No trackers.</p>
       </section>
     </main>
+    <script>
+      for (const a of document.querySelectorAll('a[href]')) {
+        const href = a.getAttribute('href') || '';
+        if (href.startsWith('#')) continue;
+        a.target = '_blank';
+        const rel = (a.getAttribute('rel') || '').split(/\s+/).filter(Boolean);
+        for (const token of ['noopener', 'noreferrer']) {
+          if (!rel.includes(token)) rel.push(token);
+        }
+        a.setAttribute('rel', rel.join(' ').trim());
+      }
+    </script>
   </body>
 </html>

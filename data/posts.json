@@ -25,6 +25,10 @@
   ],
   "links": [
     {
+      "label": "Farcaster",
+      "url": "https://farcaster.xyz/fingerguns"
+    },
+    {
       "label": "GitHub",
       "url": "http://github.com/fingerguns"
     }
