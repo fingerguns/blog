@@ -13,7 +13,11 @@ const data = JSON.parse(readFileSync(join(root, "data/posts.json"), "utf8"));
 const { site, posts, links, optionalColophon } = data;
 
 const base = site.url.replace(/\/$/, "");
-const sortDesc = (a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
+const sortDesc = (a, b) => {
+  if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+  // deterministic tie-break for same-day posts
+  return String(a.slug || "").localeCompare(String(b.slug || ""));
+};
 const ordered = [...posts].sort(sortDesc);
 
 function escXml(s) {

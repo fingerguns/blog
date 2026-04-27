@@ -9,6 +9,12 @@
   },
   "posts": [
     {
+      "slug": "vibes-coded",
+      "title": "Vibes...coded.",
+      "date": "2026-04-26",
+      "summary": "A first repo, a minimalist blog, and the strange joy of building with vibes."
+    },
+    {
       "slug": "hello-from-cursor",
       "title": "Hello from Cursor",
       "date": "2026-04-26",
