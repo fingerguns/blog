@@ -84,6 +84,8 @@ const indexHtml = `<!DOCTYPE html>
       name="description"
       content="${escHtml(site.description)}"
     />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="styles.css" />
