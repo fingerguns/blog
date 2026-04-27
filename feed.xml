@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
-  <title>Rommy Ghaly</title>
-  <link href="https://fingerguns.github.io/blog/feed.xml" rel="self" type="application/atom+xml" />
-  <link href="https://fingerguns.github.io/blog/" rel="alternate" type="text/html" />
-  <id>https://fingerguns.github.io/blog/</id>
+  <title>rommy.blog</title>
+  <link href="https://rommy.blog/feed.xml" rel="self" type="application/atom+xml" />
+  <link href="https://rommy.blog/" rel="alternate" type="text/html" />
+  <id>https://rommy.blog/</id>
   <updated>2026-04-26T12:00:00.000Z</updated>
   <author>
     <name>Rommy Ghaly</name>
@@ -12,8 +12,8 @@
   <subtitle type="text">Short notes and longer essays.</subtitle>
   <entry>
     <title>Hello from Cursor</title>
-    <link href="https://fingerguns.github.io/blog/posts/hello-from-cursor.html" rel="alternate" type="text/html" />
-    <id>https://fingerguns.github.io/blog/posts/hello-from-cursor.html</id>
+    <link href="https://rommy.blog/posts/hello-from-cursor.html" rel="alternate" type="text/html" />
+    <id>https://rommy.blog/posts/hello-from-cursor.html</id>
     <updated>2026-04-26T12:00:00.000Z</updated>
     <published>2026-04-26T12:00:00.000Z</published>
     <summary type="text">I developed this blog in Cursor. This is my first post.</summary>
