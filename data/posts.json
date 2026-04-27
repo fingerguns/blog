@@ -12,12 +12,14 @@
       "slug": "vibes-coded",
       "title": "Vibes...coded.",
       "date": "2026-04-26",
+      "datetime": "2026-04-26T21:00:00Z",
       "summary": "A first repo, a minimalist blog, and the strange joy of building with vibes."
     },
     {
       "slug": "hello-from-cursor",
       "title": "Hello from Cursor",
       "date": "2026-04-26",
+      "datetime": "2026-04-26T20:00:00Z",
       "summary": "I developed this blog in Cursor. This is my first post."
     }
   ],

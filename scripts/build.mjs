@@ -13,9 +13,19 @@ const data = JSON.parse(readFileSync(join(root, "data/posts.json"), "utf8"));
 const { site, posts, links, optionalColophon } = data;
 
 const base = site.url.replace(/\/$/, "");
+const toSortableMs = (p) => {
+  // Prefer full datetime for same-day ordering; fall back to date at noon UTC.
+  const dt = p.datetime ? new Date(p.datetime) : new Date(`${p.date}T12:00:00.000Z`);
+  const ms = dt.getTime();
+  return Number.isFinite(ms) ? ms : 0;
+};
+
 const sortDesc = (a, b) => {
-  if (a.date !== b.date) return a.date < b.date ? 1 : -1;
-  // deterministic tie-break for same-day posts
+  const aMs = toSortableMs(a);
+  const bMs = toSortableMs(b);
+  if (aMs !== bMs) return bMs - aMs; // newest first
+
+  // deterministic tie-break
   return String(a.slug || "").localeCompare(String(b.slug || ""));
 };
 const ordered = [...posts].sort(sortDesc);
@@ -37,13 +47,13 @@ function escHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
-function toIsoZ(dateStr) {
-  const d = new Date(dateStr + "T12:00:00.000Z");
+function toIsoZ(p) {
+  const d = p.datetime ? new Date(p.datetime) : new Date(`${p.date}T12:00:00.000Z`);
   return d.toISOString();
 }
 
 const latest = ordered[0];
-const feedUpdated = latest ? toIsoZ(latest.date) : toIsoZ("2020-01-01");
+const feedUpdated = latest ? toIsoZ(latest) : new Date("2020-01-01T12:00:00.000Z").toISOString();
 
 const safeSlug = (s) => String(s).replace(/[^a-zA-Z0-9-_]/g, "");
 
@@ -123,7 +133,7 @@ ${linksHtml}
 const entries = ordered
   .map((p) => {
     const id = `${base}/posts/${safeSlug(p.slug)}.html`;
-    const t = toIsoZ(p.date);
+    const t = toIsoZ(p);
     return `  <entry>
     <title>${escXml(p.title)}</title>
     <link href="${id}" rel="alternate" type="text/html" />
