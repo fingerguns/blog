@@ -10,7 +10,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
 
 const data = JSON.parse(readFileSync(join(root, "data/posts.json"), "utf8"));
-const { site, posts, reading, linklog, links, optionalColophon } = data;
+const { site, thinking, posts, reading, linklog, links, optionalColophon } = data;
 
 const base = site.url.replace(/\/$/, "");
 const toSortableMs = (p) => {
@@ -103,6 +103,20 @@ const linksHtml = (links || [])
   )
   .join("\n");
 
+const thinkingSection =
+  thinking && thinking.text
+    ? `      <section aria-labelledby="thinking-heading">
+        <h2 id="thinking-heading">Thinking</h2>
+        <ol class="post-list">
+          <li>
+            <span class="post-date">${escHtml(thinking.date)}</span>
+            <span>${escHtml(thinking.text)}</span>
+          </li>
+        </ol>
+      </section>
+`
+    : "";
+
 const indexHtml = `<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -130,6 +144,8 @@ const indexHtml = `<!DOCTYPE html>
       <h1 class="site-title">${escHtml(site.title)}</h1>
       <hr class="hr" />
       <p class="lead">${escHtml(site.description)}</p>
+
+${thinkingSection}
 
       <section aria-labelledby="posts-heading">
         <h2 id="posts-heading">Writing</h2>
