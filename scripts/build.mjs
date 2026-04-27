@@ -10,7 +10,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
 
 const data = JSON.parse(readFileSync(join(root, "data/posts.json"), "utf8"));
-const { site, posts, links, optionalColophon } = data;
+const { site, posts, linklog, links, optionalColophon } = data;
 
 const base = site.url.replace(/\/$/, "");
 const toSortableMs = (p) => {
@@ -66,6 +66,18 @@ const postListHtml = ordered
   )
   .join("\n");
 
+const orderedLinklog = [...(linklog || [])].sort(sortDesc);
+const linklogHtml = orderedLinklog
+  .map(
+    (l) => `          <li>
+            <span class="post-date">${escHtml(l.date)}</span>
+            <a href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer">${escHtml(
+              l.title
+            )}</a>
+          </li>`
+  )
+  .join("\n");
+
 const linksHtml = (links || [])
   .map(
     (l) => `          <li>
@@ -106,6 +118,13 @@ const indexHtml = `<!DOCTYPE html>
         <h2 id="posts-heading">Writing</h2>
         <ol class="post-list" reversed>
 ${postListHtml}
+        </ol>
+      </section>
+
+      <section aria-labelledby="linklog-heading">
+        <h2 id="linklog-heading">Links</h2>
+        <ol class="post-list" reversed>
+${linklogHtml}
         </ol>
       </section>
 
