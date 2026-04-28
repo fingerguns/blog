@@ -128,6 +128,43 @@ h2 {
   text-decoration-color: currentColor;
 }
 
+/* About page */
+.about-header {
+  margin-bottom: 2rem;
+  overflow: hidden;
+}
+
+.about-text h1 {
+  font-size: 1.65rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.75rem;
+}
+
+.about-text p {
+  margin: 0;
+  line-height: 1.65;
+}
+
+.about-avatar {
+  float: right;
+  width: 305px;
+  height: 305px;
+  object-fit: cover;
+  border-radius: 4px;
+  margin: 0 0 1rem 1.5rem;
+}
+
+@media (max-width: 480px) {
+  .about-avatar {
+    float: none;
+    display: block;
+    width: 100%;
+    height: auto;
+    margin: 0 0 1.25rem 0;
+  }
+}
+
 /* Post page */
 article.post {
   max-width: var(--max);

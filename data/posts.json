@@ -67,6 +67,11 @@
   ],
   "links": [
     {
+      "label": "About",
+      "url": "/about/",
+      "internal": true
+    },
+    {
       "label": "LinkedIn",
       "url": "https://linkedin.com/in/rommyghaly"
     },

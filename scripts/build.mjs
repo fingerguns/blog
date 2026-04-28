@@ -97,7 +97,12 @@ const linklogHtml = orderedLinklog
 
 const linksHtml = (links || [])
   .map(
-    (l) => `          <li>
+    (l) =>
+      l.internal
+        ? `          <li>
+            <a href="${escHtml(l.url)}">${escHtml(l.label)}</a>
+          </li>`
+        : `          <li>
             <a href="${escHtml(l.url)}" rel="me noopener" target="_blank">${escHtml(l.label)}</a>
           </li>`
   )
