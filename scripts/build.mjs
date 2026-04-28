@@ -2,7 +2,7 @@
  * Rebuilds index.html, feed.xml, robots.txt, and sitemap.xml from data/posts.json
  * Run from project root: node scripts/build.mjs
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -57,14 +57,13 @@ const feedUpdated = latest ? toIsoZ(latest) : new Date("2020-01-01T12:00:00.000Z
 
 const safeSlug = (s) => String(s).replace(/[^a-zA-Z0-9-_]/g, "");
 
-const postListHtml = ordered
-  .map(
-    (p) => `          <li>
+const MAX_PER_SECTION = 5;
+
+const renderPostItem = (p, absolute = false) =>
+  `          <li>
             <span class="post-date">${escHtml(p.date)}</span>
-            <a href="posts/${escHtml(safeSlug(p.slug))}/">${escHtml(p.title)}</a>
-          </li>`
-  )
-  .join("\n");
+            <a href="${absolute ? `/posts/${escHtml(safeSlug(p.slug))}/` : `posts/${escHtml(safeSlug(p.slug))}/`}">${escHtml(p.title)}</a>
+          </li>`;
 
 const orderedReading = [...(reading || [])].sort((a, b) => {
   const aYm = String(a.ym || "");
@@ -72,30 +71,33 @@ const orderedReading = [...(reading || [])].sort((a, b) => {
   if (aYm !== bYm) return aYm < bYm ? 1 : -1;
   return String(a.title || "").localeCompare(String(b.title || ""));
 });
-const readingHtml = orderedReading
-  .map(
-    (r) => `          <li>
+const renderReadingItem = (r) =>
+  `          <li>
             <span class="post-date">${escHtml(r.ym)}</span>
-            <a href="${escHtml(r.url)}" target="_blank" rel="noopener noreferrer">${escHtml(
-              r.title
-            )}</a>
-          </li>`
-  )
-  .join("\n");
+            <a href="${escHtml(r.url)}" target="_blank" rel="noopener noreferrer">${escHtml(r.title)}</a>
+          </li>`;
 
 const stripHashtags = (s) => String(s).replace(/\s*#\S+/g, "").trim();
 
 const orderedLinklog = [...(linklog || [])].sort(sortDesc);
-const linklogHtml = orderedLinklog
-  .map(
-    (l) => `          <li>
+const renderLinklogItem = (l) =>
+  `          <li>
             <span class="post-date">${escHtml(l.date)}</span>
-            <a href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer">${escHtml(
-              stripHashtags(l.title)
-            )}</a>
-          </li>`
-  )
-  .join("\n");
+            <a href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer">${escHtml(stripHashtags(l.title))}</a>
+          </li>`;
+
+// Homepage lists (capped at MAX_PER_SECTION)
+const postListHtml = ordered.slice(0, MAX_PER_SECTION).map((p) => renderPostItem(p)).join("\n");
+const hasMorePosts = ordered.length > MAX_PER_SECTION;
+const postListAllHtml = ordered.map((p) => renderPostItem(p, true)).join("\n");
+
+const readingHtml = orderedReading.slice(0, MAX_PER_SECTION).map(renderReadingItem).join("\n");
+const hasMoreReading = orderedReading.length > MAX_PER_SECTION;
+const readingAllHtml = orderedReading.map(renderReadingItem).join("\n");
+
+const linklogHtml = orderedLinklog.slice(0, MAX_PER_SECTION).map(renderLinklogItem).join("\n");
+const hasMoreLinklog = orderedLinklog.length > MAX_PER_SECTION;
+const linklogAllHtml = orderedLinklog.map(renderLinklogItem).join("\n");
 
 const linksHtml = (links || [])
   .map(
@@ -174,6 +176,7 @@ ${thinkingSection}
         <ol class="post-list" reversed>
 ${postListHtml}
         </ol>
+        ${hasMorePosts ? '<a class="see-more" href="/writing/">See more →</a>' : ""}
       </section>
 
       <section aria-labelledby="reading-heading">
@@ -181,6 +184,7 @@ ${postListHtml}
         <ol class="post-list" reversed>
 ${readingHtml}
         </ol>
+        ${hasMoreReading ? '<a class="see-more" href="/reading/">See more →</a>' : ""}
       </section>
 
       <section aria-labelledby="linklog-heading">
@@ -188,6 +192,7 @@ ${readingHtml}
         <ol class="post-list" reversed>
 ${linklogHtml}
         </ol>
+        ${hasMoreLinklog ? '<a class="see-more" href="/sharing/">See more →</a>' : ""}
       </section>
 
       <section aria-labelledby="links-heading">
@@ -247,9 +252,69 @@ Allow: /
 Sitemap: ${base}/sitemap.xml
 `;
 
+// Archive pages
+const archiveHead = (title) => `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escHtml(title)} — ${escHtml(site.title)}</title>
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="/styles.css" />
+    <link
+      rel="alternate"
+      type="application/atom+xml"
+      title="${escHtml(site.title)} (Atom)"
+      href="/feed.xml"
+    />
+  </head>
+  <body>
+    <article class="post">
+      <a class="post-back" href="/">← Home</a>
+      <h1>${escHtml(title)}</h1>`;
+
+const archiveFoot = `      <footer class="site-footer">
+        <p class="site-copyright">&copy; 2026 ${escHtml(site.author)}</p>
+        <p>
+          <a href="/feed.xml" type="application/atom+xml">Atom feed</a>
+        </p>
+      </footer>
+    </article>
+  </body>
+</html>
+`;
+
+const writingPageHtml = `${archiveHead("Writing")}
+      <ol class="post-list" reversed>
+${postListAllHtml}
+      </ol>
+${archiveFoot}`;
+
+const readingPageHtml = `${archiveHead("Reading")}
+      <ol class="post-list" reversed>
+${readingAllHtml}
+      </ol>
+${archiveFoot}`;
+
+const sharingPageHtml = `${archiveHead("Sharing")}
+      <ol class="post-list" reversed>
+${linklogAllHtml}
+      </ol>
+${archiveFoot}`;
+
+const archiveUrls = [
+  ...(hasMorePosts ? [`${base}/writing/`] : []),
+  ...(hasMoreReading ? [`${base}/reading/`] : []),
+  ...(hasMoreLinklog ? [`${base}/sharing/`] : []),
+];
+
 const urls = [
   `${base}/`,
   `${base}/feed.xml`,
+  ...archiveUrls,
   ...ordered.map((p) => `${base}/posts/${safeSlug(p.slug)}/`),
 ];
 
@@ -269,4 +334,19 @@ writeFileSync(join(root, "index.html"), indexHtml, "utf8");
 writeFileSync(join(root, "feed.xml"), feedXml, "utf8");
 writeFileSync(join(root, "robots.txt"), robotsTxt, "utf8");
 writeFileSync(join(root, "sitemap.xml"), sitemapXml, "utf8");
+
+// Archive pages: written when section exceeds MAX_PER_SECTION, removed when it doesn't
+const manageArchive = (needed, dir, html) => {
+  if (needed) {
+    mkdirSync(join(root, dir), { recursive: true });
+    writeFileSync(join(root, dir, "index.html"), html, "utf8");
+  } else {
+    rmSync(join(root, dir), { recursive: true, force: true });
+  }
+};
+
+manageArchive(hasMorePosts, "writing", writingPageHtml);
+manageArchive(hasMoreReading, "reading", readingPageHtml);
+manageArchive(hasMoreLinklog, "sharing", sharingPageHtml);
+
 console.log("Wrote index.html, feed.xml, robots.txt, and sitemap.xml");
