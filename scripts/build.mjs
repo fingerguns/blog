@@ -103,6 +103,16 @@ const linksHtml = (links || [])
   )
   .join("\n");
 
+const descriptionText = typeof site.description === "string" ? site.description.trim() : "";
+const descriptionMeta = descriptionText
+  ? `    <meta
+      name="description"
+      content="${escHtml(descriptionText)}"
+    />
+`
+  : "";
+const subtitleHtml = descriptionText ? `      <p class="lead">${escHtml(descriptionText)}</p>\n\n` : "";
+
 const thinkingSection =
   thinking && thinking.text
     ? `      <section aria-labelledby="thinking-heading">
@@ -131,10 +141,7 @@ const indexHtml = `<!DOCTYPE html>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escHtml(site.title)}</title>
-    <meta
-      name="description"
-      content="${escHtml(site.description)}"
-    />
+${descriptionMeta}
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -151,7 +158,7 @@ const indexHtml = `<!DOCTYPE html>
     <main>
       <h1 class="site-title">${escHtml(site.title)}</h1>
       <hr class="hr" />
-      <p class="lead">${escHtml(site.description)}</p>
+${subtitleHtml}
 
 ${thinkingSection}
 
@@ -223,8 +230,7 @@ const feedXml = `<?xml version="1.0" encoding="utf-8"?>
     <name>${escXml(site.author)}</name>
     <email>${escXml(site.authorEmail)}</email>
   </author>
-  <subtitle type="text">${escXml(site.description)}</subtitle>
-${entries}
+${descriptionText ? `  <subtitle type="text">${escXml(descriptionText)}</subtitle>\n` : ""}${entries}
 </feed>
 `;
 
