@@ -83,13 +83,15 @@ const readingHtml = orderedReading
   )
   .join("\n");
 
+const stripHashtags = (s) => String(s).replace(/\s*#\S+/g, "").trim();
+
 const orderedLinklog = [...(linklog || [])].sort(sortDesc);
 const linklogHtml = orderedLinklog
   .map(
     (l) => `          <li>
             <span class="post-date">${escHtml(l.date)}</span>
             <a href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer">${escHtml(
-              l.title
+              stripHashtags(l.title)
             )}</a>
           </li>`
   )
