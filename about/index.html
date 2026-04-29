@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>About — rommy.blog</title>
     <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);}());</script>
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="About — rommy.blog" />
+    <meta property="og:description" content="My name is Rommy. I live in Brooklyn." />
+    <meta property="og:url" content="https://rommy.blog/about/" />
+    <meta property="og:site_name" content="rommy.blog" />
+    <meta property="og:image" content="https://rommy.blog/favicon.png" />
     <link rel="icon" href="../favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="../favicon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -32,6 +38,7 @@
         <p>
           <a href="../feed.xml" type="application/atom+xml">Atom feed</a>
         </p>
+        <p><a href="/changelog/">Changelog</a></p>
       </footer>
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>

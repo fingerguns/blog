@@ -225,6 +225,26 @@ h2 {
   }
 }
 
+/* Reading time */
+.reading-time {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: -1.25rem 0 1.75rem;
+}
+
+/* Back to top */
+.back-to-top {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-decoration: none;
+  margin-top: 2.5rem;
+}
+
+.back-to-top:hover {
+  color: var(--link-hover);
+}
+
 /* Post page */
 article.post {
   max-width: var(--max);

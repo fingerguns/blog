@@ -2,6 +2,7 @@
  * Rebuilds index.html, feed.xml, robots.txt, and sitemap.xml from data/posts.json
  * Run from project root: node scripts/build.mjs
  */
+import { execSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -58,6 +59,25 @@ const feedUpdated = latest ? toIsoZ(latest) : new Date("2020-01-01T12:00:00.000Z
 const safeSlug = (s) => String(s).replace(/[^a-zA-Z0-9-_]/g, "");
 
 const MAX_PER_SECTION = 5;
+
+// Changelog from git log
+let changelogEntries = [];
+try {
+  const raw = execSync(
+    'git log --pretty=format:"%H|||%ad|||%s" --date=format:"%Y-%m-%d"',
+    { cwd: root, encoding: "utf8" }
+  );
+  changelogEntries = raw
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const parts = line.split("|||");
+      return { hash: parts[0], date: parts[1], message: parts.slice(2).join("|||") };
+    });
+} catch (e) {
+  changelogEntries = [];
+}
 
 const renderPostItem = (p, absolute = false) =>
   `          <li>
@@ -151,7 +171,12 @@ const indexHtml = `<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escHtml(site.title)}</title>
     <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);}());</script>
-${descriptionMeta}
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="${escHtml(site.title)}" />
+    <meta property="og:url" content="${escHtml(site.url)}/" />
+    <meta property="og:site_name" content="${escHtml(site.title)}" />
+    <meta property="og:image" content="${escHtml(site.url)}/favicon.png" />
+${descriptionText ? `    <meta property="og:description" content="${escHtml(descriptionText)}" />\n` : ""}${descriptionMeta}
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -210,6 +235,7 @@ ${linksHtml}
           <a href="feed.xml" type="application/atom+xml">Atom feed</a>
           (add <code>feed.xml</code> to your reader).
         </p>
+        <p><a href="/changelog/">Changelog</a></p>
       </footer>
 
 ${colophonSection}    </main>
@@ -261,6 +287,11 @@ const archiveHead = (title) => `<!DOCTYPE html>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escHtml(title)} — ${escHtml(site.title)}</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="${escHtml(title)} — ${escHtml(site.title)}" />
+    <meta property="og:url" content="${escHtml(site.url)}/${escHtml(title.toLowerCase())}/" />
+    <meta property="og:site_name" content="${escHtml(site.title)}" />
+    <meta property="og:image" content="${escHtml(site.url)}/favicon.png" />
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -284,9 +315,11 @@ const archiveFoot = `      <footer class="site-footer">
         <p>
           <a href="/feed.xml" type="application/atom+xml">Atom feed</a>
         </p>
+        <p><a href="/changelog/">Changelog</a></p>
       </footer>
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
+    <script>(function(){var BATCH=10;var list=document.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++)items[i].hidden=true;var shown=BATCH;var sentinel=document.createElement('div');list.parentNode.insertBefore(sentinel,list.nextSibling);var obs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++)items[i].hidden=false;shown=next;if(shown>=items.length)obs.disconnect();},{rootMargin:'200px'});obs.observe(sentinel);}());</script>
   </body>
 </html>
 `;
@@ -309,6 +342,24 @@ ${linklogAllHtml}
       </ol>
 ${archiveFoot}`;
 
+const changelogListHtml = changelogEntries.length > 0
+  ? changelogEntries
+      .map(
+        (c) =>
+          `          <li>
+            <span class="post-date">${escHtml(c.date)}</span>
+            <a href="https://github.com/fingerguns/blog/commit/${escHtml(c.hash)}" target="_blank" rel="noopener">${escHtml(c.message)}</a>
+          </li>`
+      )
+      .join("\n")
+  : `          <li><span>No changelog entries yet.</span></li>`;
+
+const changelogPageHtml = `${archiveHead("Changelog")}
+      <ol class="post-list" reversed>
+${changelogListHtml}
+      </ol>
+${archiveFoot}`;
+
 const archiveUrls = [
   ...(hasMorePosts ? [`${base}/writing/`] : []),
   ...(hasMoreReading ? [`${base}/reading/`] : []),
@@ -318,6 +369,7 @@ const archiveUrls = [
 const urls = [
   `${base}/`,
   `${base}/feed.xml`,
+  `${base}/changelog/`,
   ...archiveUrls,
   ...ordered.map((p) => `${base}/posts/${safeSlug(p.slug)}/`),
 ];
@@ -353,4 +405,7 @@ manageArchive(hasMorePosts, "writing", writingPageHtml);
 manageArchive(hasMoreReading, "reading", readingPageHtml);
 manageArchive(hasMoreLinklog, "sharing", sharingPageHtml);
 
-console.log("Wrote index.html, feed.xml, robots.txt, and sitemap.xml");
+mkdirSync(join(root, "changelog"), { recursive: true });
+writeFileSync(join(root, "changelog/index.html"), changelogPageHtml, "utf8");
+
+console.log("Wrote index.html, feed.xml, robots.txt, sitemap.xml, and changelog/index.html");
