@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>I asked Cursor to describe this blog as a web designer — rommy.blog</title>
+    <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);}());</script>
     <meta
       name="description"
       content="What Cursor said when I asked it to describe this site's design language."
@@ -67,11 +68,12 @@
         </p>
       </div>
       <footer class="site-footer">
-        <p class="site-copyright">&copy; 2026 Rommy Ghaly</p>
+        <p class="footer-row">&copy; 2026 Rommy Ghaly<a href="#" class="theme-toggle" id="theme-toggle"></a></p>
         <p>
           <a href="../../feed.xml" type="application/atom+xml">Atom feed</a>
         </p>
       </footer>
     </article>
+    <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
   </body>
 </html>

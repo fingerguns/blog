@@ -13,6 +13,21 @@
   --space: 1.5rem;
 }
 
+[data-theme="dark"] {
+  --bg: #0d0d0d;
+  --text: #e8e8e8;
+  --muted: #888888;
+  --rule: #2e2e2e;
+  --link: #e8e8e8;
+  --link-hover: #aaaaaa;
+}
+
+[data-theme="dark"] .post .body code,
+[data-theme="dark"] main code {
+  background: #1e1e1e;
+  color: #e0e0e0;
+}
+
 *,
 *::before,
 *::after {
@@ -248,6 +263,12 @@ footer.site-footer {
 
 footer.site-footer p {
   margin: 0;
+}
+
+.footer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
 }
 
 footer.site-footer a {

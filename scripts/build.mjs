@@ -150,6 +150,7 @@ const indexHtml = `<!DOCTYPE html>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escHtml(site.title)}</title>
+    <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);}());</script>
 ${descriptionMeta}
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
@@ -203,7 +204,7 @@ ${linksHtml}
       </section>
 
       <footer class="site-footer">
-        <p class="site-copyright">&copy; 2026 ${escHtml(site.author)}</p>
+        <p class="footer-row">&copy; 2026 ${escHtml(site.author)}<a href="#" class="theme-toggle" id="theme-toggle"></a></p>
         <p>
           Subscribe via
           <a href="feed.xml" type="application/atom+xml">Atom feed</a>
@@ -212,6 +213,7 @@ ${linksHtml}
       </footer>
 
 ${colophonSection}    </main>
+    <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
   </body>
 </html>
 `;
@@ -264,6 +266,7 @@ const archiveHead = (title) => `<!DOCTYPE html>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="/styles.css" />
+    <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);}());</script>
     <link
       rel="alternate"
       type="application/atom+xml"
@@ -277,12 +280,13 @@ const archiveHead = (title) => `<!DOCTYPE html>
       <h1>${escHtml(title)}</h1>`;
 
 const archiveFoot = `      <footer class="site-footer">
-        <p class="site-copyright">&copy; 2026 ${escHtml(site.author)}</p>
+        <p class="footer-row">&copy; 2026 ${escHtml(site.author)}<a href="#" class="theme-toggle" id="theme-toggle"></a></p>
         <p>
           <a href="/feed.xml" type="application/atom+xml">Atom feed</a>
         </p>
       </footer>
     </article>
+    <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
   </body>
 </html>
 `;
