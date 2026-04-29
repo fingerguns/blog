@@ -112,14 +112,23 @@ h2 {
   padding: 0;
 }
 
-.post-list li,
+.post-list li {
+  margin: 0.35rem 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 6.5rem 1fr;
+  column-gap: 0.6rem;
+  align-items: baseline;
+}
+
+/* Items with only a span (e.g. NOW section) span both columns */
+.post-list li > span:only-child {
+  grid-column: 1 / -1;
+}
+
 .link-list li {
   margin: 0.35rem 0;
   padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.6rem;
-  align-items: baseline;
 }
 
 .post-date,
@@ -127,8 +136,7 @@ h2 {
   font-variant-numeric: tabular-nums;
   color: var(--muted);
   font-size: 0.85rem;
-  flex-shrink: 0;
-  min-width: 5.2rem;
+  white-space: nowrap;
 }
 
 .post-list a,
@@ -197,23 +205,9 @@ h2 {
     font-size: 1.35rem;
   }
 
-  .post-list li {
-    display: grid;
-    grid-template-columns: 6.5rem 1fr;
-    column-gap: 0.6rem;
-    row-gap: 0;
-    align-items: baseline;
-  }
-
   .post-date,
   .meta {
-    white-space: nowrap;
     overflow: hidden;
-  }
-
-  /* NOW section li has only a span, no date — let it span both columns */
-  .post-list li > span:only-child {
-    grid-column: 1 / -1;
   }
 
   .about-avatar {
