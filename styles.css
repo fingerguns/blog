@@ -112,14 +112,18 @@ h2 {
   padding: 0;
 }
 
-.post-list li,
+.post-list li {
+  margin: 0.35rem 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 5.2rem 1fr;
+  column-gap: 0.6rem;
+  align-items: baseline;
+}
+
 .link-list li {
   margin: 0.35rem 0;
   padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.6rem;
-  align-items: baseline;
 }
 
 .post-date,
@@ -127,14 +131,14 @@ h2 {
   font-variant-numeric: tabular-nums;
   color: var(--muted);
   font-size: 0.85rem;
-  flex-shrink: 0;
-  min-width: 5.2rem;
 }
 
 .post-list a,
 .link-list a {
   text-decoration: none;
   font-weight: 500;
+  overflow-wrap: break-word;
+  min-width: 0;
 }
 
 .post-list a:hover,
@@ -186,6 +190,15 @@ h2 {
 }
 
 @media (max-width: 480px) {
+  body {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+
+  .post h1 {
+    font-size: 1.35rem;
+  }
+
   .about-avatar {
     float: none;
     display: block;
