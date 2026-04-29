@@ -127,6 +127,8 @@ h2 {
   font-variant-numeric: tabular-nums;
   color: var(--muted);
   font-size: 0.85rem;
+  flex-shrink: 0;
+  min-width: 5.2rem;
 }
 
 .post-list a,
