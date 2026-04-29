@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Now — rommy.blog</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Now — rommy.blog" />
+    <meta property="og:url" content="https://rommy.blog/now/" />
+    <meta property="og:site_name" content="rommy.blog" />
+    <meta property="og:image" content="https://rommy.blog/favicon.png" />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="/styles.css" />
+    <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);}());</script>
+    <link
+      rel="alternate"
+      type="application/atom+xml"
+      title="rommy.blog (Atom)"
+      href="/feed.xml"
+    />
+  </head>
+  <body>
+    <article class="post">
+      <a class="post-back" href="/">← Home</a>
+      <h1>Now</h1>
+      <p class="lead">Updated April 2026 &middot; Brooklyn, NY &middot; <a href="https://nownownow.com/about" target="_blank" rel="noopener">What's this?</a></p>
+      <div class="body">
+        <h2>Thinking</h2>
+        <p>Canyon Coffee at 7am. Line out the door. It's been discovered.</p>
+        <h2>Reading</h2>
+        <p><a href="https://bookshop.org/p/books/ten-planets-stories-yuri-herrera/16c67df3287d127f?ean=9781644452233&amp;next=t" target="_blank" rel="noopener">Ten Planets: Stories</a></p>
+        <h2>Working</h2>
+        <p>Data by day. Writing when I can. Walking more than I should have to explain.</p>
+        <h2>Living</h2>
+        <p>Brooklyn, NY.</p>
+      </div>
+      <footer class="site-footer">
+        <p class="footer-row">&copy; 2026 Rommy Ghaly<a href="#" class="theme-toggle" id="theme-toggle"></a></p>
+        <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a></span><a href="/changelog/">Changelog</a></p>
+      </footer>
+    </article>
+    <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
+    <script>(function(){var BATCH=10;var list=document.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++)items[i].hidden=true;var shown=BATCH;var sentinel=document.createElement('div');list.parentNode.insertBefore(sentinel,list.nextSibling);var obs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++)items[i].hidden=false;shown=next;if(shown>=items.length)obs.disconnect();},{rootMargin:'200px'});obs.observe(sentinel);}());</script>
+  </body>
+</html>

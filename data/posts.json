@@ -98,6 +98,11 @@
   ],
   "links": [
     {
+      "label": "Now",
+      "url": "/now/",
+      "internal": true
+    },
+    {
       "label": "About",
       "url": "/about/",
       "internal": true

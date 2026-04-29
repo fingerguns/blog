@@ -334,6 +334,23 @@ ${linklogAllHtml}
       </ol>
 ${archiveFoot}`;
 
+// /now page
+const nowMonthYear = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
+const currentBook = orderedReading[0];
+const nowPageHtml = `${archiveHead("Now")}
+      <p class="lead">Updated ${escHtml(nowMonthYear)} &middot; Brooklyn, NY &middot; <a href="https://nownownow.com/about" target="_blank" rel="noopener">What's this?</a></p>
+      <div class="body">
+${thinking && thinking.text ? `        <h2>Thinking</h2>
+        <p>${escHtml(thinking.text)}</p>
+` : ""}${currentBook ? `        <h2>Reading</h2>
+        <p><a href="${escHtml(currentBook.url)}" target="_blank" rel="noopener">${escHtml(currentBook.title)}</a></p>
+` : ""}        <h2>Working</h2>
+        <p>Data by day. Writing when I can. Walking more than I should have to explain.</p>
+        <h2>Living</h2>
+        <p>Brooklyn, NY.</p>
+      </div>
+${archiveFoot}`;
+
 const changelogListHtml = changelogEntries.length > 0
   ? changelogEntries
       .map(
@@ -361,6 +378,7 @@ const archiveUrls = [
 const urls = [
   `${base}/`,
   `${base}/feed.xml`,
+  `${base}/now/`,
   `${base}/changelog/`,
   ...archiveUrls,
   ...ordered.map((p) => `${base}/posts/${safeSlug(p.slug)}/`),
@@ -397,7 +415,10 @@ manageArchive(hasMorePosts, "writing", writingPageHtml);
 manageArchive(hasMoreReading, "reading", readingPageHtml);
 manageArchive(hasMoreLinklog, "sharing", sharingPageHtml);
 
+mkdirSync(join(root, "now"), { recursive: true });
+writeFileSync(join(root, "now/index.html"), nowPageHtml, "utf8");
+
 mkdirSync(join(root, "changelog"), { recursive: true });
 writeFileSync(join(root, "changelog/index.html"), changelogPageHtml, "utf8");
 
-console.log("Wrote index.html, feed.xml, robots.txt, sitemap.xml, and changelog/index.html");
+console.log("Wrote index.html, feed.xml, robots.txt, sitemap.xml, now/index.html, and changelog/index.html");
