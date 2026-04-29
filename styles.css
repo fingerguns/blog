@@ -112,18 +112,14 @@ h2 {
   padding: 0;
 }
 
-.post-list li {
-  margin: 0.35rem 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: 5.2rem 1fr;
-  column-gap: 0.6rem;
-  align-items: baseline;
-}
-
+.post-list li,
 .link-list li {
   margin: 0.35rem 0;
   padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.6rem;
+  align-items: baseline;
 }
 
 .post-date,
@@ -197,6 +193,19 @@ h2 {
 
   .post h1 {
     font-size: 1.35rem;
+  }
+
+  .post-list li {
+    display: grid;
+    grid-template-columns: 5.2rem 1fr;
+    column-gap: 0.6rem;
+    row-gap: 0;
+    align-items: baseline;
+  }
+
+  /* NOW section li has only a span, no date — let it span both columns */
+  .post-list li > span:only-child {
+    grid-column: 1 / -1;
   }
 
   .about-avatar {
