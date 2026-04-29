@@ -124,8 +124,8 @@ const subtitleHtml = descriptionText ? `      <p class="lead">${escHtml(descript
 
 const thinkingSection =
   thinking && thinking.text
-    ? `      <section aria-labelledby="thinking-heading">
-        <h2 id="thinking-heading">Thinking</h2>
+    ? `      <section aria-labelledby="now-heading">
+        <h2 id="now-heading">Now</h2>
         <ol class="post-list">
           <li>
             <span>${escHtml(thinking.text)}</span>
