@@ -230,12 +230,7 @@ ${linksHtml}
 
       <footer class="site-footer">
         <p class="footer-row">&copy; 2026 ${escHtml(site.author)}<a href="#" class="theme-toggle" id="theme-toggle"></a></p>
-        <p>
-          Subscribe via
-          <a href="feed.xml" type="application/atom+xml">Atom feed</a>
-          (add <code>feed.xml</code> to your reader).
-        </p>
-        <p><a href="/changelog/">Changelog</a></p>
+        <p class="footer-row"><span>Subscribe via <a href="feed.xml" type="application/atom+xml">Atom feed</a> (add <code>feed.xml</code> to your reader).</span><a href="/changelog/">Changelog</a></p>
       </footer>
 
 ${colophonSection}    </main>
@@ -312,10 +307,7 @@ const archiveHead = (title) => `<!DOCTYPE html>
 
 const archiveFoot = `      <footer class="site-footer">
         <p class="footer-row">&copy; 2026 ${escHtml(site.author)}<a href="#" class="theme-toggle" id="theme-toggle"></a></p>
-        <p>
-          <a href="/feed.xml" type="application/atom+xml">Atom feed</a>
-        </p>
-        <p><a href="/changelog/">Changelog</a></p>
+        <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a></span><a href="/changelog/">Changelog</a></p>
       </footer>
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
