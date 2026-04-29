@@ -3,12 +3,12 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 
 :root {
-  --bg: #000000;
-  --text: #ffffff;
-  --muted: #a3a3a3;
-  --rule: #333333;
-  --link: #ffffff;
-  --link-hover: #d4d4d4;
+  --bg: #f5f0e8;
+  --text: #1a1a1a;
+  --muted: #767676;
+  --rule: #d5cfc4;
+  --link: #1a1a1a;
+  --link-hover: #444444;
   --max: 40rem;
   --space: 1.5rem;
 }
@@ -229,8 +229,8 @@ article.post {
 main code {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 0.9em;
-  background: #141414;
-  color: #e5e5e5;
+  background: #e8e2d8;
+  color: #1a1a1a;
   padding: 0.1em 0.35em;
   border-radius: 0.2rem;
 }
