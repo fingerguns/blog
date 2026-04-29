@@ -223,7 +223,6 @@ h2 {
 .reading-time {
   font-size: 0.85rem;
   color: var(--muted);
-  margin: -1.25rem 0 1.75rem;
 }
 
 /* Back to top */
@@ -266,7 +265,9 @@ article.post {
 }
 
 .post time {
-  display: block;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
   font-size: 0.9rem;
   color: var(--muted);
   margin-bottom: 1.75rem;
