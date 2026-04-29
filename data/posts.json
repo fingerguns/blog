@@ -12,10 +12,10 @@
   "posts": [
     {
       "slug": "i-asked-cursor-to-describe-this-blog-as-a-web-designer",
-      "title": "[AI] I asked Cursor to describe this blog as a web designer",
+      "title": "[AI] I asked Sonnet 4.6 to describe this blog as a web designer",
       "date": "2026-04-28",
       "datetime": "2026-04-28T23:23:30Z",
-      "summary": "What Cursor said when I asked it to describe this site's design language."
+      "summary": "What Sonnet 4.6 said when I asked it to describe this site's design language."
     },
     {
       "slug": "on-walking-a-lot",
