@@ -11,6 +11,13 @@
   },
   "posts": [
     {
+      "slug": "its-the-beginning-of-spring-its-the-end-of-spring",
+      "title": "It's the beginning of spring, it's the end of spring. Long live spring.",
+      "date": "2026-05-10",
+      "datetime": "2026-05-10T09:17:00Z",
+      "summary": "On weather, winter's grip, a late-April trip to Mexico, and the joy of a May worth having."
+    },
+    {
       "slug": "i-asked-cursor-to-describe-this-blog-as-a-web-designer",
       "title": "[AI] I asked Sonnet 4.6 to describe this blog as a web designer",
       "date": "2026-04-28",
