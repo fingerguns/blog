@@ -278,6 +278,23 @@ article.post {
   margin: 0 0 1rem;
 }
 
+.post .body img {
+  float: right;
+  width: min(100%, 280px);
+  height: auto;
+  margin: 0 0 1rem 1.5rem;
+  border-radius: 4px;
+}
+
+@media (max-width: 480px) {
+  .post .body img {
+    float: none;
+    display: block;
+    width: 100%;
+    margin: 0 0 1.25rem 0;
+  }
+}
+
 .post .body h2 {
   font-size: 1.1rem;
   letter-spacing: 0;
