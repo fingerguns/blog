@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Admin — rommy.blog</title>
+    <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);}());</script>
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="stylesheet" href="/styles.css" />
+    <style>
+      .admin-form {
+        margin-top: 1.5rem;
+      }
+      .admin-form label {
+        display: block;
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0 0 0.5rem;
+      }
+      .admin-form input,
+      .admin-form textarea {
+        width: 100%;
+        font: inherit;
+        color: var(--text);
+        background: var(--bg);
+        border: 1px solid var(--rule);
+        border-radius: 0.25rem;
+        padding: 0.65rem 0.75rem;
+        margin-bottom: 1.25rem;
+      }
+      .admin-form textarea {
+        min-height: 7rem;
+        resize: vertical;
+        line-height: 1.55;
+      }
+      .admin-form button {
+        font: inherit;
+        font-weight: 600;
+        color: var(--bg);
+        background: var(--text);
+        border: 0;
+        border-radius: 0.25rem;
+        padding: 0.55rem 1.1rem;
+        cursor: pointer;
+      }
+      .admin-form button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .admin-status {
+        margin-top: 1rem;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+      .admin-status.ok {
+        color: var(--text);
+      }
+      .admin-status.err {
+        color: #b44;
+      }
+      [data-theme="dark"] .admin-status.err {
+        color: #e88;
+      }
+      .admin-note {
+        margin-top: 2rem;
+        font-size: 0.78rem;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <a class="post-back" href="/">← Home</a>
+      <h1 class="site-title">Thinking</h1>
+      <p class="lead">Update the THINKING section on your homepage.</p>
+
+      <form class="admin-form" id="admin-form">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required />
+
+        <label for="text">Thought</label>
+        <textarea id="text" name="text" maxlength="2000" required placeholder="What's on your mind?"></textarea>
+
+        <button type="submit" id="submit">Save</button>
+        <p class="admin-status" id="status" hidden></p>
+      </form>
+
+      <p class="admin-note">
+        Changes go live in about a minute after GitHub rebuilds the site.
+      </p>
+
+      <footer class="site-footer">
+        <p class="footer-row">&copy; 2026 Rommy Ghaly<a href="#" class="theme-toggle" id="theme-toggle"></a></p>
+      </footer>
+    </main>
+
+    <script>
+      // Set this to your deployed Cloudflare Worker URL after setup (see worker/README.md).
+      const API_URL = "https://rommy-blog-admin.YOUR-SUBDOMAIN.workers.dev";
+
+      (function () {
+        var b = document.getElementById("theme-toggle");
+        if (!b) return;
+        var h = document.documentElement;
+        function set(t) {
+          h.setAttribute("data-theme", t);
+          b.textContent = t === "dark" ? "Light mode" : "Dark mode";
+          localStorage.setItem("theme", t);
+        }
+        set(localStorage.getItem("theme") || "light");
+        b.addEventListener("click", function (e) {
+          e.preventDefault();
+          set(h.getAttribute("data-theme") === "dark" ? "light" : "dark");
+        });
+      })();
+
+      (function () {
+        var form = document.getElementById("admin-form");
+        var status = document.getElementById("status");
+        var submit = document.getElementById("submit");
+
+        if (API_URL.includes("YOUR-SUBDOMAIN")) {
+          showStatus("Admin API is not configured yet. See worker/README.md.", true);
+          submit.disabled = true;
+          return;
+        }
+
+        form.addEventListener("submit", async function (e) {
+          e.preventDefault();
+          submit.disabled = true;
+          showStatus("Saving…", false);
+
+          try {
+            var res = await fetch(API_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                password: document.getElementById("password").value,
+                text: document.getElementById("text").value,
+              }),
+            });
+            var data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Save failed");
+            showStatus("Saved. Site will rebuild shortly.", false, true);
+            document.getElementById("password").value = "";
+          } catch (err) {
+            showStatus(err.message || "Something went wrong.", true);
+          } finally {
+            submit.disabled = false;
+          }
+        });
+
+        function showStatus(msg, isErr, isOk) {
+          status.hidden = false;
+          status.textContent = msg;
+          status.className = "admin-status" + (isErr ? " err" : isOk ? " ok" : "");
+        }
+      })();
+    </script>
+  </body>
+</html>
