@@ -9,15 +9,35 @@
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="stylesheet" href="/styles.css" />
     <style>
-      .admin-section {
-        margin-top: 2.5rem;
-        padding-top: 2rem;
-        border-top: 1px solid var(--rule);
+      .admin-tabs {
+        display: flex;
+        gap: 0;
+        margin: 1.5rem 0 2rem;
+        border-bottom: 1px solid var(--rule);
       }
-      .admin-section:first-of-type {
-        margin-top: 1.5rem;
-        padding-top: 0;
-        border-top: none;
+      .admin-tab {
+        font: inherit;
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        padding: 0.5rem 1rem 0.6rem;
+        cursor: pointer;
+      }
+      .admin-tab.active {
+        color: var(--text);
+        border-bottom-color: var(--text);
+      }
+      .admin-section {
+        display: none;
+      }
+      .admin-section.active {
+        display: block;
       }
       .admin-form {
         margin-top: 1.25rem;
@@ -91,9 +111,13 @@
       <a class="post-back" href="/">← Home</a>
       <h1 class="site-title">Admin</h1>
 
+      <div class="admin-tabs">
+        <button class="admin-tab active" data-tab="thinking">Thinking</button>
+        <button class="admin-tab" data-tab="post">New Post</button>
+      </div>
+
       <!-- ── THINKING ─────────────────────────────── -->
-      <div class="admin-section">
-        <h2>Thinking</h2>
+      <div class="admin-section active" id="tab-thinking">
         <p class="lead">Update the THINKING section on the homepage.</p>
 
         <form class="admin-form" id="thinking-form">
@@ -109,8 +133,7 @@
       </div>
 
       <!-- ── NEW POST ──────────────────────────────── -->
-      <div class="admin-section">
-        <h2>New Post</h2>
+      <div class="admin-section" id="tab-post">
         <p class="lead">Publish a new writing post.</p>
 
         <form class="admin-form" id="post-form">
@@ -143,6 +166,21 @@
 
     <script>
       const API_URL = "https://rommy-blog-admin.fingerguns.workers.dev";
+
+      // Tab switching
+      (function () {
+        var tabs = document.querySelectorAll(".admin-tab");
+        var sections = document.querySelectorAll(".admin-section");
+        tabs.forEach(function (tab) {
+          tab.addEventListener("click", function () {
+            var target = tab.getAttribute("data-tab");
+            tabs.forEach(function (t) { t.classList.remove("active"); });
+            sections.forEach(function (s) { s.classList.remove("active"); });
+            tab.classList.add("active");
+            document.getElementById("tab-" + target).classList.add("active");
+          });
+        });
+      })();
 
       // Theme toggle
       (function () {
