@@ -114,6 +114,8 @@
       <div class="admin-tabs">
         <button class="admin-tab active" data-tab="thinking">Thinking</button>
         <button class="admin-tab" data-tab="post">Writing</button>
+        <button class="admin-tab" data-tab="reading">Reading</button>
+        <button class="admin-tab" data-tab="sharing">Sharing</button>
       </div>
 
       <!-- ── THINKING ─────────────────────────────── -->
@@ -152,6 +154,48 @@
 
           <button type="submit" id="p-submit">Publish</button>
           <p class="admin-status" id="p-status" hidden></p>
+        </form>
+      </div>
+
+      <!-- ── READING ──────────────────────────────── -->
+      <div class="admin-section" id="tab-reading">
+        <p class="lead">Add a book to the READING section.</p>
+
+        <form class="admin-form" id="reading-form">
+          <label for="r-password">Password</label>
+          <input id="r-password" type="password" autocomplete="current-password" required />
+
+          <label for="r-title">Book Title</label>
+          <input id="r-title" type="text" required placeholder="Title and author if you like" />
+
+          <label for="r-url">Bookshop.org URL</label>
+          <input id="r-url" type="url" required placeholder="https://bookshop.org/p/books/..." />
+
+          <label for="r-ym">Month (YYYY-MM)</label>
+          <input id="r-ym" type="text" pattern="\d{4}-\d{2}" placeholder="2026-05" />
+          <p class="admin-hint" style="margin-top:-0.9rem">Defaults to the current month if left blank.</p>
+
+          <button type="submit" id="r-submit">Add Book</button>
+          <p class="admin-status" id="r-status" hidden></p>
+        </form>
+      </div>
+
+      <!-- ── SHARING ──────────────────────────────── -->
+      <div class="admin-section" id="tab-sharing">
+        <p class="lead">Add a link to the SHARING section.</p>
+
+        <form class="admin-form" id="sharing-form">
+          <label for="s-password">Password</label>
+          <input id="s-password" type="password" autocomplete="current-password" required />
+
+          <label for="s-url">URL</label>
+          <input id="s-url" type="url" required placeholder="https://..." />
+
+          <label for="s-title">Title</label>
+          <input id="s-title" type="text" required placeholder="Link title" />
+
+          <button type="submit" id="s-submit">Share</button>
+          <p class="admin-status" id="s-status" hidden></p>
         </form>
       </div>
 
@@ -278,6 +322,65 @@
             document.getElementById("p-title").value = "";
             document.getElementById("p-summary").value = "";
             document.getElementById("p-body").value = "";
+          } catch (err) {
+            showStatus(status, err.message || "Something went wrong.", true);
+          } finally {
+            submit.disabled = false;
+          }
+        });
+      })();
+      // Reading form
+      (function () {
+        var form = document.getElementById("reading-form");
+        var status = document.getElementById("r-status");
+        var submit = document.getElementById("r-submit");
+
+        form.addEventListener("submit", async function (e) {
+          e.preventDefault();
+          submit.disabled = true;
+          showStatus(status, "Saving…", false);
+          try {
+            await callAPI({
+              action: "reading",
+              password: document.getElementById("r-password").value,
+              title: document.getElementById("r-title").value,
+              url: document.getElementById("r-url").value,
+              ym: document.getElementById("r-ym").value,
+            });
+            showStatus(status, "Added. Site will rebuild shortly.", false, true);
+            document.getElementById("r-password").value = "";
+            document.getElementById("r-title").value = "";
+            document.getElementById("r-url").value = "";
+            document.getElementById("r-ym").value = "";
+          } catch (err) {
+            showStatus(status, err.message || "Something went wrong.", true);
+          } finally {
+            submit.disabled = false;
+          }
+        });
+      })();
+
+      // Sharing form
+      (function () {
+        var form = document.getElementById("sharing-form");
+        var status = document.getElementById("s-status");
+        var submit = document.getElementById("s-submit");
+
+        form.addEventListener("submit", async function (e) {
+          e.preventDefault();
+          submit.disabled = true;
+          showStatus(status, "Saving…", false);
+          try {
+            await callAPI({
+              action: "sharing",
+              password: document.getElementById("s-password").value,
+              url: document.getElementById("s-url").value,
+              title: document.getElementById("s-title").value,
+            });
+            showStatus(status, "Shared. Site will rebuild shortly.", false, true);
+            document.getElementById("s-password").value = "";
+            document.getElementById("s-url").value = "";
+            document.getElementById("s-title").value = "";
           } catch (err) {
             showStatus(status, err.message || "Something went wrong.", true);
           } finally {

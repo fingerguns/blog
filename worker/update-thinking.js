@@ -72,6 +72,14 @@ export default {
       return handlePost(body, env.GITHUB_TOKEN, owner, repo, branch, cors);
     }
 
+    if (action === "reading") {
+      return handleReading(body, env.GITHUB_TOKEN, owner, repo, branch, cors);
+    }
+
+    if (action === "sharing") {
+      return handleSharing(body, env.GITHUB_TOKEN, owner, repo, branch, cors);
+    }
+
     return json({ error: "Unknown action" }, 400, cors);
   },
 };
@@ -228,6 +236,82 @@ ${parasHtml}
     return json({ ok: true, slug, url: `${SITE_URL}/posts/${slug}/` }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Post creation failed" }, 500, cors);
+  }
+}
+
+// ─── Reading ──────────────────────────────────────────────────────────────────
+
+async function handleReading(body, token, owner, repo, branch, cors) {
+  const { title, url, ym } = body;
+
+  if (typeof title !== "string" || !title.trim()) {
+    return json({ error: "Missing title" }, 400, cors);
+  }
+  if (typeof url !== "string" || !url.trim()) {
+    return json({ error: "Missing url" }, 400, cors);
+  }
+
+  const now = new Date();
+  const month = typeof ym === "string" && /^\d{4}-\d{2}$/.test(ym.trim())
+    ? ym.trim()
+    : now.toISOString().slice(0, 7);
+
+  const entry = { ym: month, title: title.trim(), url: url.trim() };
+
+  try {
+    const file = await githubGetFile(token, owner, repo, JSON_PATH, branch);
+    const data = JSON.parse(file.content);
+    data.reading = [entry, ...(data.reading || [])];
+
+    await githubPutFile(token, owner, repo, JSON_PATH, branch, {
+      message: `Add reading: ${entry.title}`,
+      content: toBase64(JSON.stringify(data, null, 2) + "\n"),
+      sha: file.sha,
+    });
+
+    return json({ ok: true, entry }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Update failed" }, 500, cors);
+  }
+}
+
+// ─── Sharing ──────────────────────────────────────────────────────────────────
+
+async function handleSharing(body, token, owner, repo, branch, cors) {
+  const { title, url } = body;
+
+  if (typeof title !== "string" || !title.trim()) {
+    return json({ error: "Missing title" }, 400, cors);
+  }
+  if (typeof url !== "string" || !url.trim()) {
+    return json({ error: "Missing url" }, 400, cors);
+  }
+
+  const now = new Date();
+  const dateStr = toDateStr(now);
+  const datetimeStr = now.toISOString();
+
+  const entry = {
+    url: url.trim(),
+    title: title.trim(),
+    date: dateStr,
+    datetime: datetimeStr,
+  };
+
+  try {
+    const file = await githubGetFile(token, owner, repo, JSON_PATH, branch);
+    const data = JSON.parse(file.content);
+    data.linklog = [entry, ...(data.linklog || [])];
+
+    await githubPutFile(token, owner, repo, JSON_PATH, branch, {
+      message: `Add sharing: ${entry.title}`,
+      content: toBase64(JSON.stringify(data, null, 2) + "\n"),
+      sha: file.sha,
+    });
+
+    return json({ ok: true, entry }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Update failed" }, 500, cors);
   }
 }
 
