@@ -84,6 +84,10 @@ export default {
       return handleFetchTitle(body, cors);
     }
 
+    if (action === "fetch-book") {
+      return handleFetchBook(body, cors);
+    }
+
     return json({ error: "Unknown action" }, 400, cors);
   },
 };
@@ -371,6 +375,67 @@ async function handleFetchTitle(body, cors) {
       .trim();
 
     return json({ ok: true, title }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Fetch failed" }, 502, cors);
+  }
+}
+
+// ─── Fetch Book (Bookshop.org search) ────────────────────────────────────────
+
+async function handleFetchBook(body, cors) {
+  const { query } = body;
+  if (typeof query !== "string" || !query.trim()) {
+    return json({ error: "Missing query" }, 400, cors);
+  }
+
+  const searchUrl =
+    "https://bookshop.org/search?q=" + encodeURIComponent(query.trim());
+
+  try {
+    const res = await fetch(searchUrl, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml",
+      },
+      redirect: "follow",
+    });
+
+    if (!res.ok) {
+      return json({ error: `Bookshop.org returned ${res.status}` }, 502, cors);
+    }
+
+    // Read first 80 KB — enough to find first result
+    const reader = res.body.getReader();
+    let html = "";
+    let bytes = 0;
+    const decoder = new TextDecoder();
+    while (bytes < 80000) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      html += decoder.decode(value, { stream: true });
+      bytes += value.length;
+      if (html.includes('class="title"') || html.includes("/p/books/")) break;
+    }
+    reader.cancel();
+
+    // Match first /p/books/ product link
+    const linkMatch = html.match(/href="(\/p\/books\/[^"]+)"/);
+    if (!linkMatch) {
+      return json({ error: "No results found" }, 404, cors);
+    }
+
+    const bookUrl = "https://bookshop.org" + linkMatch[1].split("?")[0];
+
+    // Also try to extract the book title from the first result
+    const titleMatch = html.match(
+      /class="[^"]*title[^"]*"[^>]*>\s*<[^>]+>([^<]+)<\/[^>]+>/i
+    );
+    const bookTitle = titleMatch
+      ? titleMatch[1].replace(/\s+/g, " ").trim()
+      : null;
+
+    return json({ ok: true, url: bookUrl, title: bookTitle }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Fetch failed" }, 502, cors);
   }
