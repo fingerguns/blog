@@ -9,8 +9,18 @@
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="stylesheet" href="/styles.css" />
     <style>
-      .admin-form {
+      .admin-section {
+        margin-top: 2.5rem;
+        padding-top: 2rem;
+        border-top: 1px solid var(--rule);
+      }
+      .admin-section:first-of-type {
         margin-top: 1.5rem;
+        padding-top: 0;
+        border-top: none;
+      }
+      .admin-form {
+        margin-top: 1.25rem;
       }
       .admin-form label {
         display: block;
@@ -37,6 +47,9 @@
         resize: vertical;
         line-height: 1.55;
       }
+      .admin-form textarea.body-field {
+        min-height: 18rem;
+      }
       .admin-form button {
         font: inherit;
         font-weight: 600;
@@ -56,14 +69,14 @@
         font-size: 0.85rem;
         color: var(--muted);
       }
-      .admin-status.ok {
-        color: var(--text);
-      }
-      .admin-status.err {
-        color: #b44;
-      }
-      [data-theme="dark"] .admin-status.err {
-        color: #e88;
+      .admin-status.ok { color: var(--text); }
+      .admin-status.err { color: #b44; }
+      [data-theme="dark"] .admin-status.err { color: #e88; }
+      .admin-hint {
+        font-size: 0.75rem;
+        color: var(--muted);
+        margin: -0.9rem 0 1.25rem;
+        line-height: 1.5;
       }
       .admin-note {
         margin-top: 2rem;
@@ -76,19 +89,48 @@
   <body>
     <main>
       <a class="post-back" href="/">← Home</a>
-      <h1 class="site-title">Thinking</h1>
-      <p class="lead">Update the THINKING section on your homepage.</p>
+      <h1 class="site-title">Admin</h1>
 
-      <form class="admin-form" id="admin-form">
-        <label for="password">Password</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required />
+      <!-- ── THINKING ─────────────────────────────── -->
+      <div class="admin-section">
+        <h2>Thinking</h2>
+        <p class="lead">Update the THINKING section on the homepage.</p>
 
-        <label for="text">Thought</label>
-        <textarea id="text" name="text" maxlength="2000" required placeholder="What's on your mind?"></textarea>
+        <form class="admin-form" id="thinking-form">
+          <label for="t-password">Password</label>
+          <input id="t-password" type="password" autocomplete="current-password" required />
 
-        <button type="submit" id="submit">Save</button>
-        <p class="admin-status" id="status" hidden></p>
-      </form>
+          <label for="t-text">Thought</label>
+          <textarea id="t-text" maxlength="2000" required placeholder="What's on your mind?"></textarea>
+
+          <button type="submit" id="t-submit">Save</button>
+          <p class="admin-status" id="t-status" hidden></p>
+        </form>
+      </div>
+
+      <!-- ── NEW POST ──────────────────────────────── -->
+      <div class="admin-section">
+        <h2>New Post</h2>
+        <p class="lead">Publish a new writing post.</p>
+
+        <form class="admin-form" id="post-form">
+          <label for="p-password">Password</label>
+          <input id="p-password" type="password" autocomplete="current-password" required />
+
+          <label for="p-title">Title</label>
+          <input id="p-title" type="text" required placeholder="Post title" />
+
+          <label for="p-summary">Summary</label>
+          <input id="p-summary" type="text" required placeholder="One sentence description for meta/feed" />
+
+          <label for="p-body">Body</label>
+          <p class="admin-hint">One paragraph per line. Blank lines between paragraphs are ignored — each non-empty line becomes its own &lt;p&gt;.</p>
+          <textarea id="p-body" class="body-field" required placeholder="First paragraph&#10;&#10;Second paragraph&#10;&#10;Third paragraph"></textarea>
+
+          <button type="submit" id="p-submit">Publish</button>
+          <p class="admin-status" id="p-status" hidden></p>
+        </form>
+      </div>
 
       <p class="admin-note">
         Changes go live in about a minute after GitHub rebuilds the site.
@@ -100,9 +142,9 @@
     </main>
 
     <script>
-      // Set this to your deployed Cloudflare Worker URL after setup (see worker/README.md).
       const API_URL = "https://rommy-blog-admin.fingerguns.workers.dev";
 
+      // Theme toggle
       (function () {
         var b = document.getElementById("theme-toggle");
         if (!b) return;
@@ -119,47 +161,91 @@
         });
       })();
 
-      (function () {
-        var form = document.getElementById("admin-form");
-        var status = document.getElementById("status");
-        var submit = document.getElementById("submit");
+      // Shared API call
+      async function callAPI(payload) {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Request failed");
+        return data;
+      }
 
-        if (API_URL.includes("YOUR-SUBDOMAIN")) {
-          showStatus("Admin API is not configured yet. See worker/README.md.", true);
-          submit.disabled = true;
-          return;
-        }
+      function showStatus(el, msg, isErr, isOk) {
+        el.hidden = false;
+        el.textContent = msg;
+        el.className = "admin-status" + (isErr ? " err" : isOk ? " ok" : "");
+      }
+
+      // Thinking form
+      (function () {
+        var form = document.getElementById("thinking-form");
+        var status = document.getElementById("t-status");
+        var submit = document.getElementById("t-submit");
 
         form.addEventListener("submit", async function (e) {
           e.preventDefault();
           submit.disabled = true;
-          showStatus("Saving…", false);
-
+          showStatus(status, "Saving…", false);
           try {
-            var res = await fetch(API_URL, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                password: document.getElementById("password").value,
-                text: document.getElementById("text").value,
-              }),
+            await callAPI({
+              action: "thinking",
+              password: document.getElementById("t-password").value,
+              text: document.getElementById("t-text").value,
             });
-            var data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Save failed");
-            showStatus("Saved. Site will rebuild shortly.", false, true);
-            document.getElementById("password").value = "";
+            showStatus(status, "Saved. Site will rebuild shortly.", false, true);
+            document.getElementById("t-password").value = "";
+            document.getElementById("t-text").value = "";
           } catch (err) {
-            showStatus(err.message || "Something went wrong.", true);
+            showStatus(status, err.message || "Something went wrong.", true);
           } finally {
             submit.disabled = false;
           }
         });
+      })();
 
-        function showStatus(msg, isErr, isOk) {
-          status.hidden = false;
-          status.textContent = msg;
-          status.className = "admin-status" + (isErr ? " err" : isOk ? " ok" : "");
-        }
+      // New post form
+      (function () {
+        var form = document.getElementById("post-form");
+        var status = document.getElementById("p-status");
+        var submit = document.getElementById("p-submit");
+
+        form.addEventListener("submit", async function (e) {
+          e.preventDefault();
+          submit.disabled = true;
+          showStatus(status, "Publishing…", false);
+          try {
+            const bodyText = document.getElementById("p-body").value;
+            const paragraphs = bodyText
+              .split(/\n+/)
+              .map((s) => s.trim())
+              .filter(Boolean);
+
+            if (paragraphs.length === 0) {
+              throw new Error("Body cannot be empty.");
+            }
+
+            const data = await callAPI({
+              action: "post",
+              password: document.getElementById("p-password").value,
+              title: document.getElementById("p-title").value,
+              summary: document.getElementById("p-summary").value,
+              paragraphs,
+            });
+
+            showStatus(status, "Published! Live at: " + data.url + " — rebuilding now.", false, true);
+            document.getElementById("p-password").value = "";
+            document.getElementById("p-title").value = "";
+            document.getElementById("p-summary").value = "";
+            document.getElementById("p-body").value = "";
+          } catch (err) {
+            showStatus(status, err.message || "Something went wrong.", true);
+          } finally {
+            submit.disabled = false;
+          }
+        });
       })();
     </script>
   </body>
