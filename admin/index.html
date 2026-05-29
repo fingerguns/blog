@@ -168,8 +168,8 @@
           <label for="r-title">Book Title / Author</label>
           <input id="r-title" type="text" required placeholder="e.g. Inside the Box David Epstein" />
 
-          <label for="r-url">Bookshop.org URL <span id="r-url-hint" style="font-weight:400;text-transform:none;letter-spacing:0;font-size:0.7rem;color:var(--muted)"></span></label>
-          <input id="r-url" type="url" required placeholder="Searching bookshop.org…" />
+          <label for="r-url">Bookshop.org URL</label>
+          <input id="r-url" type="url" placeholder="Auto-filled when you click Add Book" />
 
           <label for="r-ym">Month (YYYY-MM)</label>
           <input id="r-ym" type="text" pattern="\d{4}-\d{2}" placeholder="2026-05" />
@@ -329,59 +329,62 @@
           }
         });
       })();
-      // Reading form — auto-fetch bookshop.org URL from title/author
+      // Reading form — search bookshop.org on first submit, save on second
       (function () {
         var form = document.getElementById("reading-form");
         var status = document.getElementById("r-status");
         var submit = document.getElementById("r-submit");
         var titleInput = document.getElementById("r-title");
         var urlInput = document.getElementById("r-url");
-        var urlHint = document.getElementById("r-url-hint");
-        var fetchTimer = null;
-
-        async function fetchBook(query) {
-          if (!query) return;
-          urlHint.textContent = "searching…";
-          urlInput.placeholder = "Searching bookshop.org…";
-          try {
-            var data = await callAPI({ action: "fetch-book", query });
-            urlInput.value = data.url;
-            urlHint.textContent = "found — edit if needed";
-            urlInput.placeholder = "https://bookshop.org/p/books/…";
-          } catch (err) {
-            urlHint.textContent = "not found — enter URL manually";
-            urlInput.placeholder = "https://bookshop.org/p/books/…";
-          }
-        }
-
-        titleInput.addEventListener("input", function () {
-          clearTimeout(fetchTimer);
-          urlHint.textContent = "";
-          fetchTimer = setTimeout(function () {
-            fetchBook(titleInput.value.trim());
-          }, 900);
-        });
+        var urlFound = false; // true once URL is confirmed ready to save
 
         form.addEventListener("submit", async function (e) {
           e.preventDefault();
           submit.disabled = true;
-          showStatus(status, "Saving…", false);
+
+          // If we already have a URL (auto-found or manually entered), save now
+          if (urlInput.value.trim()) {
+            showStatus(status, "Saving…", false);
+            try {
+              await callAPI({
+                action: "reading",
+                password: document.getElementById("r-password").value,
+                title: titleInput.value,
+                url: urlInput.value,
+                ym: document.getElementById("r-ym").value,
+              });
+              showStatus(status, "Added. Site will rebuild shortly.", false, true);
+              document.getElementById("r-password").value = "";
+              titleInput.value = "";
+              urlInput.value = "";
+              document.getElementById("r-ym").value = "";
+              urlFound = false;
+            } catch (err) {
+              showStatus(status, err.message || "Something went wrong.", true);
+            } finally {
+              submit.disabled = false;
+            }
+            return;
+          }
+
+          // No URL yet — search bookshop.org first
+          showStatus(status, "Searching Bookshop.org…", false);
           try {
-            await callAPI({
-              action: "reading",
-              password: document.getElementById("r-password").value,
-              title: titleInput.value,
-              url: urlInput.value,
-              ym: document.getElementById("r-ym").value,
+            var data = await callAPI({
+              action: "fetch-book",
+              query: titleInput.value.trim(),
             });
-            showStatus(status, "Added. Site will rebuild shortly.", false, true);
-            document.getElementById("r-password").value = "";
-            titleInput.value = "";
-            urlInput.value = "";
-            urlHint.textContent = "";
-            document.getElementById("r-ym").value = "";
+            urlInput.value = data.url;
+            urlFound = true;
+            showStatus(status, "Found on Bookshop.org — click Add Book to save.", false, true);
           } catch (err) {
-            showStatus(status, err.message || "Something went wrong.", true);
+            showStatus(
+              status,
+              "Couldn't find automatically. Paste the Bookshop.org URL above and click Add Book.",
+              true
+            );
+            urlInput.placeholder = "https://bookshop.org/p/books/…";
+            urlInput.focus();
           } finally {
             submit.disabled = false;
           }
