@@ -80,6 +80,10 @@ export default {
       return handleSharing(body, env.GITHUB_TOKEN, owner, repo, branch, cors);
     }
 
+    if (action === "fetch-title") {
+      return handleFetchTitle(body, cors);
+    }
+
     return json({ error: "Unknown action" }, 400, cors);
   },
 };
@@ -312,6 +316,63 @@ async function handleSharing(body, token, owner, repo, branch, cors) {
     return json({ ok: true, entry }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
+  }
+}
+
+// ─── Fetch Title ─────────────────────────────────────────────────────────────
+
+async function handleFetchTitle(body, cors) {
+  const { url } = body;
+  if (typeof url !== "string" || !url.trim().startsWith("http")) {
+    return json({ error: "Invalid url" }, 400, cors);
+  }
+
+  try {
+    const res = await fetch(url.trim(), {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml",
+      },
+      redirect: "follow",
+    });
+
+    if (!res.ok) {
+      return json({ error: `Page returned ${res.status}` }, 502, cors);
+    }
+
+    // Read only the first 50 KB — enough for <head>
+    const reader = res.body.getReader();
+    let html = "";
+    let bytes = 0;
+    const decoder = new TextDecoder();
+    while (bytes < 50000) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      html += decoder.decode(value, { stream: true });
+      bytes += value.length;
+      // Stop early once we've passed </head>
+      if (html.includes("</head>")) break;
+    }
+    reader.cancel();
+
+    const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    if (!match) {
+      return json({ error: "No title found" }, 404, cors);
+    }
+
+    const title = match[1]
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    return json({ ok: true, title }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Fetch failed" }, 502, cors);
   }
 }
 

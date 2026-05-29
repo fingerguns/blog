@@ -191,8 +191,8 @@
           <label for="s-url">URL</label>
           <input id="s-url" type="url" required placeholder="https://..." />
 
-          <label for="s-title">Title</label>
-          <input id="s-title" type="text" required placeholder="Link title" />
+          <label for="s-title">Title <span id="s-title-hint" style="font-weight:400;text-transform:none;letter-spacing:0;font-size:0.7rem;color:var(--muted)"></span></label>
+          <input id="s-title" type="text" required placeholder="Fetching from page…" />
 
           <button type="submit" id="s-submit">Share</button>
           <p class="admin-status" id="s-status" hidden></p>
@@ -360,11 +360,43 @@
         });
       })();
 
-      // Sharing form
+      // Sharing form — auto-fetch title from URL
       (function () {
         var form = document.getElementById("sharing-form");
         var status = document.getElementById("s-status");
         var submit = document.getElementById("s-submit");
+        var urlInput = document.getElementById("s-url");
+        var titleInput = document.getElementById("s-title");
+        var titleHint = document.getElementById("s-title-hint");
+        var fetchTimer = null;
+
+        async function fetchTitle(url) {
+          if (!url || !url.startsWith("http")) return;
+          titleHint.textContent = "fetching…";
+          titleInput.placeholder = "Fetching…";
+          try {
+            var data = await callAPI({ action: "fetch-title", url });
+            titleInput.value = data.title;
+            titleHint.textContent = "auto-filled — edit if needed";
+          } catch (err) {
+            titleHint.textContent = "couldn't fetch — enter manually";
+            titleInput.placeholder = "Enter title manually";
+          }
+        }
+
+        urlInput.addEventListener("input", function () {
+          clearTimeout(fetchTimer);
+          fetchTimer = setTimeout(function () {
+            fetchTitle(urlInput.value.trim());
+          }, 800);
+        });
+
+        urlInput.addEventListener("paste", function () {
+          clearTimeout(fetchTimer);
+          fetchTimer = setTimeout(function () {
+            fetchTitle(urlInput.value.trim());
+          }, 300);
+        });
 
         form.addEventListener("submit", async function (e) {
           e.preventDefault();
@@ -374,13 +406,14 @@
             await callAPI({
               action: "sharing",
               password: document.getElementById("s-password").value,
-              url: document.getElementById("s-url").value,
-              title: document.getElementById("s-title").value,
+              url: urlInput.value,
+              title: titleInput.value,
             });
             showStatus(status, "Shared. Site will rebuild shortly.", false, true);
             document.getElementById("s-password").value = "";
-            document.getElementById("s-url").value = "";
-            document.getElementById("s-title").value = "";
+            urlInput.value = "";
+            titleInput.value = "";
+            titleHint.textContent = "";
           } catch (err) {
             showStatus(status, err.message || "Something went wrong.", true);
           } finally {
