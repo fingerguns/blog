@@ -85,12 +85,7 @@ const renderPostItem = (p, absolute = false) =>
             <a href="${absolute ? `/posts/${escHtml(safeSlug(p.slug))}/` : `posts/${escHtml(safeSlug(p.slug))}/`}">${escHtml(p.title)}</a>
           </li>`;
 
-const orderedReading = [...(reading || [])].sort((a, b) => {
-  const aYm = String(a.ym || "");
-  const bYm = String(b.ym || "");
-  if (aYm !== bYm) return aYm < bYm ? 1 : -1;
-  return String(a.title || "").localeCompare(String(b.title || ""));
-});
+const orderedReading = [...(reading || [])];
 const renderReadingItem = (r) =>
   `          <li>
             <span class="post-date">${escHtml(r.ym)}</span>
