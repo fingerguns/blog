@@ -315,7 +315,7 @@ const archiveHead = (title) => `<!DOCTYPE html>
   </head>
   <body>
     <article class="post">
-      <a class="post-back" href="/">← Home</a>
+      <a class="post-back" href="/">←</a>
       <h1>${escHtml(title)}</h1>`;
 
 const archiveFoot = `      <footer class="site-footer">

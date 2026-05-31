@@ -234,7 +234,7 @@ async function handlePost(body, token, owner, repo, branch, cors) {
   </head>
   <body>
     <article class="post">
-      <a class="post-back" href="../../index.html">← Home</a>
+      <a class="post-back" href="../../index.html">←</a>
       <h1>${escHtml(cleanTitle)}</h1>
       <time datetime="${dateStr}"><span>${displayDate}</span><span class="reading-time">${readMins} min read</span></time>
       <div class="body">
