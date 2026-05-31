@@ -384,12 +384,44 @@ ${archiveFoot}`;
 
 // Microblog page
 const formatMbDate = (iso) => `${iso.slice(0, 10)} // ${iso.slice(11, 16)}`;
+const mbSlug = (iso) => `${iso.slice(0, 10)}-${iso.slice(11, 13)}${iso.slice(14, 16)}`;
+
+const thinkingPostHead = (iso) => `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escHtml(formatMbDate(iso))} — ${escHtml(site.title)}</title>
+    <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);}());</script>
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="${escHtml(formatMbDate(iso))} — ${escHtml(site.title)}" />
+    <meta property="og:url" content="${escHtml(base)}/thinking/${escHtml(mbSlug(iso))}/" />
+    <meta property="og:site_name" content="${escHtml(site.title)}" />
+    <meta property="og:image" content="${escHtml(base)}/favicon.png" />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <article class="post">
+      <a class="post-back" href="/thinking/">←</a>`;
+
+const thinkingPostFoot = `      <footer class="site-footer">
+        <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><a href="#" class="theme-toggle" id="theme-toggle"></a></p>
+        <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><a href="/changelog/">Changelog</a></p>
+      </footer>
+    </article>
+    <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
+  </body>
+</html>`;
 
 const microblogEntriesHtml = microblogItems.length > 0
-  ? microblogItems.map((item) => `        <div class="microblog-entry">
+  ? microblogItems.map((item) => {
+      const slug = mbSlug(item.date_published);
+      return `        <div class="microblog-entry">
           <div class="microblog-body">${item.content_html}</div>
-          <time class="post-date" datetime="${escHtml(item.date_published)}"><a href="${escHtml(item.url)}" target="_blank" rel="noopener">${escHtml(formatMbDate(item.date_published))}</a></time>
-        </div>`).join("\n")
+          <time class="post-date" datetime="${escHtml(item.date_published)}"><a href="/thinking/${escHtml(slug)}/">${escHtml(formatMbDate(item.date_published))}</a></time>
+        </div>`;
+    }).join("\n")
   : `        <p style="color:var(--muted)">No posts yet.</p>`;
 
 const microblogPageHtml = `${archiveHead("Thinking")}
@@ -410,6 +442,7 @@ const urls = [
   `${base}/now/`,
   `${base}/changelog/`,
   `${base}/thinking/`,
+  ...microblogItems.map((item) => `${base}/thinking/${mbSlug(item.date_published)}/`),
   ...archiveUrls,
   ...ordered.map((p) => `${base}/posts/${safeSlug(p.slug)}/`),
 ];
@@ -454,5 +487,16 @@ writeFileSync(join(root, "changelog/index.html"), changelogPageHtml, "utf8");
 mkdirSync(join(root, "thinking"), { recursive: true });
 writeFileSync(join(root, "thinking/index.html"), microblogPageHtml, "utf8");
 rmSync(join(root, "microblog"), { recursive: true, force: true });
+
+// Individual thinking post pages
+for (const item of microblogItems) {
+  const slug = mbSlug(item.date_published);
+  const postHtml = `${thinkingPostHead(item.date_published)}
+      <div class="microblog-body" style="margin-top:1.5rem">${item.content_html}</div>
+      <time class="post-date" style="display:block;margin-top:0.75rem" datetime="${escHtml(item.date_published)}">${escHtml(formatMbDate(item.date_published))}</time>
+${thinkingPostFoot}`;
+  mkdirSync(join(root, "thinking", slug), { recursive: true });
+  writeFileSync(join(root, "thinking", slug, "index.html"), postHtml, "utf8");
+}
 
 console.log("Wrote index.html, feed.xml, robots.txt, sitemap.xml, now/index.html, changelog/index.html, and microblog/index.html");
