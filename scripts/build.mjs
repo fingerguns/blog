@@ -161,6 +161,7 @@ const thinkingSection =
             <span>${escHtml(thinking.text)}</span>
           </li>
         </ol>
+        <a class="see-more" href="/microblog/">See more →</a>
       </section>
 `
     : "";
