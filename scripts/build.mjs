@@ -69,7 +69,9 @@ try {
   });
   if (mbRes.ok) {
     const mbData = await mbRes.json();
-    microblogItems = (mbData.items || []).filter((item) => item.content_html);
+    microblogItems = (mbData.items || []).filter(
+      (item) => item.content_html && item.date_published >= "2026"
+    );
   }
 } catch (e) {
   // Graceful fallback — page still builds without network
