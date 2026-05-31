@@ -144,6 +144,11 @@ async function handleThinking(body, token, owner, repo, branch, cors, env) {
       }
     }
 
+    // 4. Trigger a second rebuild so the /thinking/ page catches the new micro.blog post.
+    //    The push-triggered build may race micro.blog's indexing; this queued dispatch
+    //    runs ~1–2 min later, by which point micro.blog's feed is up to date.
+    githubTriggerDispatch(token, owner, repo, branch).catch(() => {});
+
     return json({ ok: true, text: trimmed, microblogWarning, blueskyWarning }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
@@ -553,6 +558,23 @@ async function githubGetFile(token, owner, repo, path, ref) {
   const meta = await res.json();
   const content = decodeURIComponent(escape(atob(meta.content.replace(/\n/g, ""))));
   return { content, sha: meta.sha };
+}
+
+async function githubTriggerDispatch(token, owner, repo, ref) {
+  await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/actions/workflows/build.yml/dispatches`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "User-Agent": "rommy-blog-admin-worker",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ ref }),
+    }
+  );
+  // Errors are swallowed by the caller — the hourly cron is the fallback.
 }
 
 async function githubPutFile(token, owner, repo, path, branch, payload) {
