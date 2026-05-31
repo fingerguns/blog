@@ -352,7 +352,7 @@ const nowMonthYear = new Date().toLocaleDateString("en-US", { month: "long", yea
 const currentBook = orderedReading[0];
 const nowPageHtml = `${archiveHead("Now")}
       <p class="lead">Updated ${escHtml(nowMonthYear)} &middot; Brooklyn, NY &middot; <a href="https://nownownow.com/about" target="_blank" rel="noopener">What's this?</a></p>
-      <div class="body">
+      <div class="now-body">
 ${thinking && thinking.text ? `        <h2>Thinking</h2>
         <p>${escHtml(thinking.text)}</p>
 ` : ""}${currentBook ? `        <h2>Reading</h2>
