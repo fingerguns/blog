@@ -385,7 +385,7 @@ const formatMbDate = (iso) => iso.slice(0, 10);
 
 const microblogEntriesHtml = microblogItems.length > 0
   ? microblogItems.map((item) => `        <div class="microblog-entry">
-          <time class="post-date" datetime="${escHtml(item.date_published)}">${escHtml(formatMbDate(item.date_published))}</time>
+          <time class="post-date" datetime="${escHtml(item.date_published)}"><a href="${escHtml(item.url)}" target="_blank" rel="noopener">${escHtml(formatMbDate(item.date_published))}</a></time>
           <div class="microblog-body">${item.content_html}</div>
         </div>`).join("\n")
   : `        <p style="color:var(--muted)">No posts yet.</p>`;
