@@ -268,7 +268,7 @@ h2 {
 .contact-form textarea:focus { outline: none; border-color: var(--link); }
 .contact-form button {
   padding: 0.55rem 1.4rem;
-  background: var(--fg);
+  background: var(--text);
   color: var(--bg);
   border: none;
   border-radius: 3px;
