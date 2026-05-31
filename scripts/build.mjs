@@ -48,6 +48,13 @@ function escHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
+// Renders plain text as microblog-style HTML: double newlines → <p> paragraphs,
+// single newlines → <br>. Matches how micro.blog formats posts.
+function textToMicroblogHtml(text) {
+  const paras = String(text).split(/\n\n+/);
+  return `<div class="microblog-body">${paras.map(p => `<p>${escHtml(p).replace(/\n/g, "<br>")}</p>`).join("")}</div>`;
+}
+
 function toIsoZ(p) {
   const d = p.datetime ? new Date(p.datetime) : new Date(`${p.date}T12:00:00.000Z`);
   return d.toISOString();
@@ -160,7 +167,7 @@ const thinkingSection =
         <h2 id="now-heading">Thinking</h2>
         <ol class="post-list">
           <li>
-            <span>${escHtml(thinking.text).replace(/\n/g, "<br>")}</span>
+            ${textToMicroblogHtml(thinking.text)}
           </li>
         </ol>
         <a class="see-more" href="/thinking/">→</a>
@@ -354,7 +361,7 @@ const nowPageHtml = `${archiveHead("Now")}
       <p class="lead">Updated ${escHtml(nowMonthYear)} &middot; Brooklyn, NY &middot; <a href="https://nownownow.com/about" target="_blank" rel="noopener">What's this?</a></p>
       <div class="now-body">
 ${thinking && thinking.text ? `        <h2>Thinking</h2>
-        <p>${escHtml(thinking.text).replace(/\n/g, "<br>")}</p>
+        ${textToMicroblogHtml(thinking.text)}
 ` : ""}${currentBook ? `        <h2>Reading</h2>
         <p><a href="${escHtml(currentBook.url)}" target="_blank" rel="noopener">${escHtml(currentBook.title)}</a></p>
 ` : ""}        <h2>Working</h2>
