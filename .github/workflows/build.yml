@@ -6,6 +6,8 @@ on:
     paths:
       - "data/**"
       - "scripts/**"
+  schedule:
+    - cron: "0 * * * *"  # every hour on the hour
   workflow_dispatch:
 
 permissions:
