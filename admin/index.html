@@ -146,6 +146,30 @@
         line-height: 1.55;
       }
 
+      /* ── Mobile responsive ── */
+      @media (max-width: 480px) {
+        /* Prevent iOS auto-zoom on any interactive element */
+        input, textarea, select, button { font-size: 16px !important; }
+
+        .admin-tabs {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+        }
+        .admin-tabs::-webkit-scrollbar { display: none; }
+
+        /* Quill toolbar wraps gracefully on small screens */
+        .ql-toolbar.ql-snow {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          white-space: nowrap;
+        }
+        .ql-toolbar.ql-snow .ql-formats {
+          display: inline-flex;
+          margin-right: 6px;
+        }
+      }
+
       /* Quill editor skin to match admin theme */
       .ql-toolbar.ql-snow {
         border: 1px solid var(--rule);
@@ -492,6 +516,10 @@
           ],
         },
       });
+
+      // Prevent Quill from stealing focus (causes iOS zoom) when tab switches
+      quill.root.setAttribute("data-gramm", "false");
+      quill.blur();
 
       // ── Writing form ───────────────────────────────────────────────────────
 
