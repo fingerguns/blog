@@ -60,6 +60,10 @@ export default {
       return json({ error: "Invalid password" }, 401, cors);
     }
 
+    if (action === "verify") {
+      return json({ ok: true }, 200, cors);
+    }
+
     const owner = env.GITHUB_OWNER || "fingerguns";
     const repo = env.GITHUB_REPO || "blog";
     const branch = env.GITHUB_BRANCH || "main";

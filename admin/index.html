@@ -84,6 +84,46 @@
         opacity: 0.5;
         cursor: not-allowed;
       }
+      .admin-remember {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1.25rem;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+      .admin-remember input[type="checkbox"] {
+        width: auto;
+        margin: 0;
+        padding: 0;
+        accent-color: var(--text);
+      }
+      .admin-signed-in {
+        margin-top: 1.25rem;
+      }
+      .admin-signed-in p {
+        font-size: 0.9rem;
+        color: var(--muted);
+        margin-bottom: 1rem;
+      }
+      .admin-signed-in p strong {
+        color: var(--text);
+      }
+      .admin-signout-btn {
+        font: inherit;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--muted);
+        background: none;
+        border: 1px solid var(--rule);
+        border-radius: 0.25rem;
+        padding: 0.45rem 0.9rem;
+        cursor: pointer;
+      }
+      .admin-signout-btn:hover {
+        color: var(--text);
+        border-color: var(--text);
+      }
       .admin-status {
         margin-top: 1rem;
         font-size: 0.85rem;
@@ -112,20 +152,48 @@
       <h1 class="site-title">Admin</h1>
 
       <div class="admin-tabs">
-        <button class="admin-tab active" data-tab="thinking">Thinking</button>
+        <button class="admin-tab active" data-tab="login">Login</button>
+        <button class="admin-tab" data-tab="thinking">Thinking</button>
         <button class="admin-tab" data-tab="post">Writing</button>
         <button class="admin-tab" data-tab="reading">Reading</button>
         <button class="admin-tab" data-tab="sharing">Sharing</button>
       </div>
 
+      <!-- ── LOGIN ────────────────────────────────── -->
+      <div class="admin-section active" id="tab-login">
+
+        <!-- Logged out state -->
+        <div id="login-out">
+          <p class="lead">Sign in to manage your blog.</p>
+          <form class="admin-form" id="login-form">
+            <label for="login-password">Password</label>
+            <input id="login-password" type="password" autocomplete="current-password" required />
+
+            <div class="admin-remember">
+              <input type="checkbox" id="remember-me" checked />
+              <label for="remember-me" style="font-size:0.85rem;font-weight:400;letter-spacing:0;text-transform:none;color:var(--muted);margin:0">Remember me for 30 days</label>
+            </div>
+
+            <button type="submit" id="login-submit">Sign in</button>
+            <p class="admin-status" id="login-status" hidden></p>
+          </form>
+        </div>
+
+        <!-- Logged in state -->
+        <div id="login-in" hidden>
+          <div class="admin-signed-in">
+            <p><strong>Signed in.</strong> Your session is active.</p>
+            <button class="admin-signout-btn" id="sign-out">Sign out</button>
+          </div>
+        </div>
+
+      </div>
+
       <!-- ── THINKING ─────────────────────────────── -->
-      <div class="admin-section active" id="tab-thinking">
+      <div class="admin-section" id="tab-thinking">
         <p class="lead">Update the THINKING section on the homepage.</p>
 
         <form class="admin-form" id="thinking-form">
-          <label for="t-password">Password</label>
-          <input id="t-password" type="password" autocomplete="current-password" required />
-
           <label for="t-text">Thought</label>
           <textarea id="t-text" maxlength="2000" required placeholder="What's on your mind?"></textarea>
 
@@ -134,14 +202,11 @@
         </form>
       </div>
 
-      <!-- ── NEW POST ──────────────────────────────── -->
+      <!-- ── WRITING ───────────────────────────────── -->
       <div class="admin-section" id="tab-post">
         <p class="lead">Publish a new WRITING post.</p>
 
         <form class="admin-form" id="post-form">
-          <label for="p-password">Password</label>
-          <input id="p-password" type="password" autocomplete="current-password" required />
-
           <label for="p-title">Title</label>
           <input id="p-title" type="text" required placeholder="Post title" />
 
@@ -162,9 +227,6 @@
         <p class="lead">Add a book to the READING section.</p>
 
         <form class="admin-form" id="reading-form">
-          <label for="r-password">Password</label>
-          <input id="r-password" type="password" autocomplete="current-password" required />
-
           <label for="r-title">Book Title / Author</label>
           <input id="r-title" type="text" required placeholder="e.g. Inside the Box David Epstein" />
 
@@ -185,9 +247,6 @@
         <p class="lead">Add a link to the SHARING section.</p>
 
         <form class="admin-form" id="sharing-form">
-          <label for="s-password">Password</label>
-          <input id="s-password" type="password" autocomplete="current-password" required />
-
           <label for="s-url">URL</label>
           <input id="s-url" type="url" required placeholder="https://..." />
 
@@ -202,9 +261,6 @@
       <p class="admin-note">
         Changes go live in about a minute after GitHub rebuilds the site.
       </p>
-      <p class="admin-note" id="session-note" hidden>
-        Logged in. <a href="#" id="sign-out">Sign out</a>
-      </p>
 
       <footer class="site-footer">
         <p class="footer-row">&copy; 2026 Rommy Ghaly<a href="#" class="theme-toggle" id="theme-toggle"></a></p>
@@ -214,48 +270,53 @@
     <script>
       const API_URL = "https://rommy-blog-admin.fingerguns.workers.dev";
       const SESSION_KEY = "admin_session";
-      const SESSION_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days in ms
+      const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;
 
-      // Session helpers
-      function saveSession(pw) {
-        localStorage.setItem(SESSION_KEY, JSON.stringify({ pw, ts: Date.now() }));
-        applySession(pw);
+      // ── Session ────────────────────────────────────────────────────────────
+
+      var _sessionPw = null; // in-memory only (no remember-me)
+
+      function saveSession(pw, remember) {
+        _sessionPw = pw;
+        if (remember) {
+          localStorage.setItem(SESSION_KEY, JSON.stringify({ pw, ts: Date.now() }));
+        }
       }
 
       function loadSession() {
+        if (_sessionPw) return _sessionPw;
         try {
           var s = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
-          if (s && s.pw && (Date.now() - s.ts) < SESSION_TTL) return s.pw;
+          if (s && s.pw && (Date.now() - s.ts) < SESSION_TTL) {
+            _sessionPw = s.pw;
+            return s.pw;
+          }
         } catch (e) {}
         return null;
       }
 
       function clearSession() {
+        _sessionPw = null;
         localStorage.removeItem(SESSION_KEY);
-        document.querySelectorAll("input[type=password]").forEach(function (el) {
-          el.value = "";
-        });
-        document.getElementById("session-note").hidden = true;
+        setLoginState(false);
       }
 
-      function applySession(pw) {
-        document.querySelectorAll("input[type=password]").forEach(function (el) {
-          el.value = pw;
-        });
-        document.getElementById("session-note").hidden = false;
+      function setLoginState(signedIn) {
+        document.getElementById("login-out").hidden = signedIn;
+        document.getElementById("login-in").hidden = !signedIn;
       }
 
       // Restore session on load
       (function () {
-        var pw = loadSession();
-        if (pw) applySession(pw);
-        document.getElementById("sign-out").addEventListener("click", function (e) {
-          e.preventDefault();
+        if (loadSession()) setLoginState(true);
+
+        document.getElementById("sign-out").addEventListener("click", function () {
           clearSession();
         });
       })();
 
-      // Tab switching
+      // ── Tab switching ──────────────────────────────────────────────────────
+
       (function () {
         var tabs = document.querySelectorAll(".admin-tab");
         var sections = document.querySelectorAll(".admin-section");
@@ -270,7 +331,8 @@
         });
       })();
 
-      // Theme toggle
+      // ── Theme toggle ───────────────────────────────────────────────────────
+
       (function () {
         var b = document.getElementById("theme-toggle");
         if (!b) return;
@@ -287,16 +349,18 @@
         });
       })();
 
-      // Shared API call — saves session on success if a password was sent
+      // ── API ────────────────────────────────────────────────────────────────
+
       async function callAPI(payload) {
-        const res = await fetch(API_URL, {
+        var pw = loadSession();
+        if (!pw) throw new Error("You need to be signed in. Go to the Login tab.");
+        var res = await fetch(API_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(Object.assign({ password: pw }, payload)),
         });
-        const data = await res.json();
+        var data = await res.json();
         if (!res.ok) throw new Error(data.error || "Request failed");
-        if (payload.password) saveSession(payload.password);
         return data;
       }
 
@@ -306,7 +370,41 @@
         el.className = "admin-status" + (isErr ? " err" : isOk ? " ok" : "");
       }
 
-      // Thinking form
+      // ── Login form ─────────────────────────────────────────────────────────
+
+      (function () {
+        var form = document.getElementById("login-form");
+        var status = document.getElementById("login-status");
+        var submit = document.getElementById("login-submit");
+
+        form.addEventListener("submit", async function (e) {
+          e.preventDefault();
+          submit.disabled = true;
+          showStatus(status, "Signing in…", false);
+          var pw = document.getElementById("login-password").value;
+          var remember = document.getElementById("remember-me").checked;
+          try {
+            var res = await fetch(API_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "verify", password: pw }),
+            });
+            var data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Sign in failed");
+            saveSession(pw, remember);
+            setLoginState(true);
+            status.hidden = true;
+            document.getElementById("login-password").value = "";
+          } catch (err) {
+            showStatus(status, err.message || "Something went wrong.", true);
+          } finally {
+            submit.disabled = false;
+          }
+        });
+      })();
+
+      // ── Thinking form ──────────────────────────────────────────────────────
+
       (function () {
         var form = document.getElementById("thinking-form");
         var status = document.getElementById("t-status");
@@ -319,20 +417,20 @@
           try {
             await callAPI({
               action: "thinking",
-              password: document.getElementById("t-password").value,
               text: document.getElementById("t-text").value,
             });
             showStatus(status, "Saved. Site will rebuild shortly.", false, true);
             document.getElementById("t-text").value = "";
           } catch (err) {
-            showStatus(status, err.message || "Something went wrong.", true);
+            showStatus(status, err.message, true);
           } finally {
             submit.disabled = false;
           }
         });
       })();
 
-      // New post form
+      // ── Writing form ───────────────────────────────────────────────────────
+
       (function () {
         var form = document.getElementById("post-form");
         var status = document.getElementById("p-status");
@@ -343,36 +441,29 @@
           submit.disabled = true;
           showStatus(status, "Publishing…", false);
           try {
-            const bodyText = document.getElementById("p-body").value;
-            const paragraphs = bodyText
-              .split(/\n+/)
-              .map((s) => s.trim())
-              .filter(Boolean);
-
-            if (paragraphs.length === 0) {
-              throw new Error("Body cannot be empty.");
-            }
-
-            const data = await callAPI({
+            var bodyText = document.getElementById("p-body").value;
+            var paragraphs = bodyText.split(/\n+/).map(function (s) { return s.trim(); }).filter(Boolean);
+            if (paragraphs.length === 0) throw new Error("Body cannot be empty.");
+            var data = await callAPI({
               action: "post",
-              password: document.getElementById("p-password").value,
               title: document.getElementById("p-title").value,
               summary: document.getElementById("p-summary").value,
               paragraphs,
             });
-
             showStatus(status, "Published! Live at: " + data.url + " — rebuilding now.", false, true);
             document.getElementById("p-title").value = "";
             document.getElementById("p-summary").value = "";
             document.getElementById("p-body").value = "";
           } catch (err) {
-            showStatus(status, err.message || "Something went wrong.", true);
+            showStatus(status, err.message, true);
           } finally {
             submit.disabled = false;
           }
         });
       })();
-      // Reading form
+
+      // ── Reading form ───────────────────────────────────────────────────────
+
       (function () {
         var form = document.getElementById("reading-form");
         var status = document.getElementById("r-status");
@@ -385,7 +476,6 @@
           try {
             await callAPI({
               action: "reading",
-              password: document.getElementById("r-password").value,
               title: document.getElementById("r-title").value,
               url: document.getElementById("r-url").value,
               ym: document.getElementById("r-ym").value,
@@ -395,14 +485,15 @@
             document.getElementById("r-url").value = "";
             document.getElementById("r-ym").value = "";
           } catch (err) {
-            showStatus(status, err.message || "Something went wrong.", true);
+            showStatus(status, err.message, true);
           } finally {
             submit.disabled = false;
           }
         });
       })();
 
-      // Sharing form — auto-fetch title from URL
+      // ── Sharing form ───────────────────────────────────────────────────────
+
       (function () {
         var form = document.getElementById("sharing-form");
         var status = document.getElementById("s-status");
@@ -417,7 +508,15 @@
           titleHint.textContent = "fetching…";
           titleInput.placeholder = "Fetching…";
           try {
-            var data = await callAPI({ action: "fetch-title", url });
+            var pw = loadSession();
+            if (!pw) { titleHint.textContent = ""; return; }
+            var res = await fetch(API_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "fetch-title", password: pw, url }),
+            });
+            var data = await res.json();
+            if (!res.ok) throw new Error();
             titleInput.value = data.title;
             titleHint.textContent = "auto-filled — edit if needed";
           } catch (err) {
@@ -428,16 +527,12 @@
 
         urlInput.addEventListener("input", function () {
           clearTimeout(fetchTimer);
-          fetchTimer = setTimeout(function () {
-            fetchTitle(urlInput.value.trim());
-          }, 800);
+          fetchTimer = setTimeout(function () { fetchTitle(urlInput.value.trim()); }, 800);
         });
 
         urlInput.addEventListener("paste", function () {
           clearTimeout(fetchTimer);
-          fetchTimer = setTimeout(function () {
-            fetchTitle(urlInput.value.trim());
-          }, 300);
+          fetchTimer = setTimeout(function () { fetchTitle(urlInput.value.trim()); }, 300);
         });
 
         form.addEventListener("submit", async function (e) {
@@ -447,7 +542,6 @@
           try {
             await callAPI({
               action: "sharing",
-              password: document.getElementById("s-password").value,
               url: urlInput.value,
               title: titleInput.value,
             });
@@ -456,7 +550,7 @@
             titleInput.value = "";
             titleHint.textContent = "";
           } catch (err) {
-            showStatus(status, err.message || "Something went wrong.", true);
+            showStatus(status, err.message, true);
           } finally {
             submit.disabled = false;
           }
