@@ -161,7 +161,7 @@ const thinkingSection =
             <span>${escHtml(thinking.text)}</span>
           </li>
         </ol>
-        <a class="see-more" href="/microblog/">See more →</a>
+        <a class="see-more" href="/thinking/">See more →</a>
       </section>
 `
     : "";
@@ -390,7 +390,7 @@ const microblogEntriesHtml = microblogItems.length > 0
         </div>`).join("\n")
   : `        <p style="color:var(--muted)">No posts yet.</p>`;
 
-const microblogPageHtml = `${archiveHead("micro.blog")}
+const microblogPageHtml = `${archiveHead("Thinking")}
       <div class="microblog-feed">
 ${microblogEntriesHtml}
       </div>
@@ -407,7 +407,7 @@ const urls = [
   `${base}/feed.xml`,
   `${base}/now/`,
   `${base}/changelog/`,
-  `${base}/microblog/`,
+  `${base}/thinking/`,
   ...archiveUrls,
   ...ordered.map((p) => `${base}/posts/${safeSlug(p.slug)}/`),
 ];
@@ -449,7 +449,8 @@ writeFileSync(join(root, "now/index.html"), nowPageHtml, "utf8");
 mkdirSync(join(root, "changelog"), { recursive: true });
 writeFileSync(join(root, "changelog/index.html"), changelogPageHtml, "utf8");
 
-mkdirSync(join(root, "microblog"), { recursive: true });
-writeFileSync(join(root, "microblog/index.html"), microblogPageHtml, "utf8");
+mkdirSync(join(root, "thinking"), { recursive: true });
+writeFileSync(join(root, "thinking/index.html"), microblogPageHtml, "utf8");
+rmSync(join(root, "microblog"), { recursive: true, force: true });
 
 console.log("Wrote index.html, feed.xml, robots.txt, sitemap.xml, now/index.html, changelog/index.html, and microblog/index.html");
