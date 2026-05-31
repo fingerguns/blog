@@ -129,7 +129,10 @@ async function handleThinking(body, token, owner, repo, branch, cors) {
 // ─── New Post ─────────────────────────────────────────────────────────────────
 
 async function handlePost(body, token, owner, repo, branch, cors) {
-  const { title, summary, paragraphs } = body;
+  const { title, summary } = body;
+  // Accept either rich HTML body or legacy paragraphs array
+  const rawBody = typeof body.body === "string" ? body.body.trim() : null;
+  const paragraphs = Array.isArray(body.paragraphs) ? body.paragraphs : null;
 
   if (typeof title !== "string" || !title.trim()) {
     return json({ error: "Missing title" }, 400, cors);
@@ -137,20 +140,31 @@ async function handlePost(body, token, owner, repo, branch, cors) {
   if (typeof summary !== "string" || !summary.trim()) {
     return json({ error: "Missing summary" }, 400, cors);
   }
-  if (!Array.isArray(paragraphs) || paragraphs.length === 0) {
-    return json({ error: "Missing paragraphs" }, 400, cors);
+  if (!rawBody && !paragraphs) {
+    return json({ error: "Missing body" }, 400, cors);
   }
 
   const cleanTitle = title.trim();
   const cleanSummary = summary.trim();
-  const cleanParas = paragraphs.map((p) => String(p).trim()).filter(Boolean);
 
   const slug = toSlug(cleanTitle);
   const now = new Date();
   const dateStr = toDateStr(now);
   const datetimeStr = now.toISOString();
   const displayDate = toDisplayDate(now);
-  const wordCount = cleanParas.join(" ").split(/\s+/).length;
+
+  // Build body HTML and estimate word count
+  let bodyHtml;
+  let wordCount;
+  if (rawBody) {
+    bodyHtml = rawBody;
+    wordCount = rawBody.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
+  } else {
+    const cleanParas = paragraphs.map((p) => String(p).trim()).filter(Boolean);
+    bodyHtml = cleanParas.map((p) => `        <p>\n          ${escHtml(p)}\n        </p>`).join("\n");
+    wordCount = cleanParas.join(" ").split(/\s+/).length;
+  }
+
   const readMins = Math.max(1, Math.round(wordCount / 200));
   const postPath = `posts/${slug}/index.html`;
 
@@ -161,10 +175,6 @@ async function handlePost(body, token, owner, repo, branch, cors) {
   } catch (e) {
     if (!e.message.includes("404")) throw e;
   }
-
-  const parasHtml = cleanParas
-    .map((p) => `        <p>\n          ${escHtml(p)}\n        </p>`)
-    .join("\n");
 
   const postHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -201,7 +211,7 @@ async function handlePost(body, token, owner, repo, branch, cors) {
       <h1>${escHtml(cleanTitle)}</h1>
       <time datetime="${dateStr}"><span>${displayDate}</span><span class="reading-time">${readMins} min read</span></time>
       <div class="body">
-${parasHtml}
+        ${bodyHtml}
       </div>
       <a class="back-to-top" href="#">↑ Top</a>
       <footer class="site-footer">
