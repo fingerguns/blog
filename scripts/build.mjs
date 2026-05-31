@@ -224,7 +224,7 @@ ${linksHtml}
       </section>
 
       <footer class="site-footer">
-        <p class="footer-row">&copy; 2026 ${escHtml(site.author)}<a href="#" class="theme-toggle" id="theme-toggle"></a></p>
+        <p class="footer-row">&copy; 2026 ${escHtml(site.author)} &middot; <a href="/admin/">Admin</a><a href="#" class="theme-toggle" id="theme-toggle"></a></p>
         <p class="footer-row"><span>Subscribe via <a href="feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a>.</span><a href="/changelog/">Changelog</a></p>
       </footer>
 
@@ -301,7 +301,7 @@ const archiveHead = (title) => `<!DOCTYPE html>
       <h1>${escHtml(title)}</h1>`;
 
 const archiveFoot = `      <footer class="site-footer">
-        <p class="footer-row">&copy; 2026 ${escHtml(site.author)}<a href="#" class="theme-toggle" id="theme-toggle"></a></p>
+        <p class="footer-row">&copy; 2026 ${escHtml(site.author)} &middot; <a href="/admin/">Admin</a><a href="#" class="theme-toggle" id="theme-toggle"></a></p>
         <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><a href="/changelog/">Changelog</a></p>
       </footer>
     </article>

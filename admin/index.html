@@ -224,10 +224,10 @@
 
       <div class="admin-tabs">
         <button class="admin-tab active" data-tab="login">Login</button>
-        <button class="admin-tab" data-tab="thinking">Thinking</button>
-        <button class="admin-tab" data-tab="post">Writing</button>
-        <button class="admin-tab" data-tab="reading">Reading</button>
-        <button class="admin-tab" data-tab="sharing">Sharing</button>
+        <button class="admin-tab auth-only" data-tab="thinking" hidden>Thinking</button>
+        <button class="admin-tab auth-only" data-tab="post" hidden>Writing</button>
+        <button class="admin-tab auth-only" data-tab="reading" hidden>Reading</button>
+        <button class="admin-tab auth-only" data-tab="sharing" hidden>Sharing</button>
       </div>
 
       <!-- ── LOGIN ────────────────────────────────── -->
@@ -375,6 +375,9 @@
       function setLoginState(signedIn) {
         document.getElementById("login-out").hidden = signedIn;
         document.getElementById("login-in").hidden = !signedIn;
+        document.querySelectorAll(".auth-only").forEach(function (el) {
+          el.hidden = !signedIn;
+        });
       }
 
       // Restore session on load
