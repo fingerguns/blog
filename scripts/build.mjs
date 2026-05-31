@@ -389,7 +389,7 @@ const microblogEntriesHtml = microblogItems.length > 0
         </div>`).join("\n")
   : `        <p style="color:var(--muted)">No posts yet.</p>`;
 
-const microblogPageHtml = `${archiveHead("Microblog")}
+const microblogPageHtml = `${archiveHead("micro.blog")}
       <div class="microblog-feed">
 ${microblogEntriesHtml}
       </div>
