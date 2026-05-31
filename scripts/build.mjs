@@ -453,6 +453,8 @@ const archiveUrls = [
 const urls = [
   `${base}/`,
   `${base}/feed.xml`,
+  `${base}/about/`,
+  `${base}/contact/`,
   `${base}/now/`,
   `${base}/changelog/`,
   `${base}/thinking/`,
