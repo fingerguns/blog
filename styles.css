@@ -258,6 +258,7 @@ h2 {
 }
 .microblog-body p  { margin: 0 0 0.65rem; line-height: 1.65; }
 .microblog-body p:last-child { margin-bottom: 0; }
+.microblog-entry time { margin-top: 0.75rem; display: block; }
 .microblog-body img {
   max-width: 100%;
   height: auto;
