@@ -489,11 +489,13 @@
           submit.disabled = true;
           showStatus(status, "Saving…", false);
           try {
-            await callAPI({
+            var result = await callAPI({
               action: "thinking",
               text: document.getElementById("t-text").value,
             });
-            showStatus(status, "Saved. Site will rebuild shortly.", false, true);
+            var msg = "Saved. Site will rebuild shortly.";
+            if (result.microblogWarning) msg += " (micro.blog: " + result.microblogWarning + ")";
+            showStatus(status, msg, false, true);
             document.getElementById("t-text").value = "";
           } catch (err) {
             showStatus(status, err.message, true);

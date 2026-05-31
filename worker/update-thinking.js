@@ -69,7 +69,7 @@ export default {
     const branch = env.GITHUB_BRANCH || "main";
 
     if (action === "thinking") {
-      return handleThinking(body, env.GITHUB_TOKEN, owner, repo, branch, cors);
+      return handleThinking(body, env.GITHUB_TOKEN, owner, repo, branch, cors, env);
     }
 
     if (action === "post") {
@@ -94,7 +94,7 @@ export default {
 
 // ─── Thinking ────────────────────────────────────────────────────────────────
 
-async function handleThinking(body, token, owner, repo, branch, cors) {
+async function handleThinking(body, token, owner, repo, branch, cors, env) {
   const { text } = body;
   if (typeof text !== "string" || !text.trim()) {
     return json({ error: "Missing text" }, 400, cors);
@@ -106,6 +106,7 @@ async function handleThinking(body, token, owner, repo, branch, cors) {
   }
 
   try {
+    // 1. Update data/posts.json in GitHub
     const file = await githubGetFile(token, owner, repo, JSON_PATH, branch);
     const data = JSON.parse(file.content);
 
@@ -120,9 +121,35 @@ async function handleThinking(body, token, owner, repo, branch, cors) {
       sha: file.sha,
     });
 
-    return json({ ok: true, text: trimmed }, 200, cors);
+    // 2. Mirror to micro.blog (optional — skipped if token not set)
+    let microblogWarning = null;
+    if (env.MICROBLOG_TOKEN) {
+      try {
+        await postToMicroblog(env.MICROBLOG_TOKEN, trimmed);
+      } catch (mbErr) {
+        microblogWarning = mbErr.message || "micro.blog post failed";
+      }
+    }
+
+    return json({ ok: true, text: trimmed, microblogWarning }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
+  }
+}
+
+async function postToMicroblog(token, content) {
+  const res = await fetch("https://micro.blog/micropub", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({ h: "entry", content }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`micro.blog post failed (${res.status}): ${err}`);
   }
 }
 

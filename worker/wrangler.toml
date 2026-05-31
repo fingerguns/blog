@@ -10,3 +10,4 @@ ALLOWED_ORIGINS = "https://rommy.blog,http://localhost:8799,http://127.0.0.1:879
 
 # Set via: wrangler secret put ADMIN_PASSWORD
 # Set via: wrangler secret put GITHUB_TOKEN
+# Set via: wrangler secret put MICROBLOG_TOKEN  (micro.blog API token — optional, skipped if absent)
