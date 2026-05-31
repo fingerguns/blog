@@ -163,7 +163,7 @@ const thinkingSection =
             <span>${escHtml(thinking.text)}</span>
           </li>
         </ol>
-        <a class="see-more" href="/thinking/">See more →</a>
+        <a class="see-more" href="/thinking/">→</a>
       </section>
 `
     : "";
@@ -215,7 +215,7 @@ ${thinkingSection}
         <ol class="post-list" reversed>
 ${postListHtml}
         </ol>
-        ${hasMorePosts ? '<a class="see-more" href="/writing/">See more →</a>' : ""}
+        ${hasMorePosts ? '<a class="see-more" href="/writing/">→</a>' : ""}
       </section>
 
       <section aria-labelledby="reading-heading">
@@ -223,7 +223,7 @@ ${postListHtml}
         <ol class="post-list" reversed>
 ${readingHtml}
         </ol>
-        ${hasMoreReading ? '<a class="see-more" href="/reading/">See more →</a>' : ""}
+        ${hasMoreReading ? '<a class="see-more" href="/reading/">→</a>' : ""}
       </section>
 
       <section aria-labelledby="linklog-heading">
@@ -231,7 +231,7 @@ ${readingHtml}
         <ol class="post-list" reversed>
 ${linklogHtml}
         </ol>
-        ${hasMoreLinklog ? '<a class="see-more" href="/sharing/">See more →</a>' : ""}
+        ${hasMoreLinklog ? '<a class="see-more" href="/sharing/">→</a>' : ""}
       </section>
 
       <section aria-labelledby="links-heading">
