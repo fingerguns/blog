@@ -381,7 +381,7 @@ ${changelogListHtml}
 ${archiveFoot}`;
 
 // Microblog page
-const formatMbDate = (iso) => `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
+const formatMbDate = (iso) => `${iso.slice(0, 10)} // ${iso.slice(11, 16)}`;
 
 const microblogEntriesHtml = microblogItems.length > 0
   ? microblogItems.map((item) => `        <div class="microblog-entry">
