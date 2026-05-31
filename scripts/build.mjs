@@ -381,16 +381,7 @@ ${changelogListHtml}
 ${archiveFoot}`;
 
 // Microblog page
-const formatMbDate = (iso) => {
-  // Extract components directly from ISO string to avoid timezone conversion
-  // "2024-01-28T22:30:00-04:00" → "24:01:28 22:30"
-  const yy  = iso.slice(2, 4);
-  const mon = iso.slice(5, 7);
-  const dd  = iso.slice(8, 10);
-  const hh  = iso.slice(11, 13);
-  const min = iso.slice(14, 16);
-  return `${yy}:${mon}:${dd} ${hh}:${min}`;
-};
+const formatMbDate = (iso) => `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
 
 const microblogEntriesHtml = microblogItems.length > 0
   ? microblogItems.map((item) => `        <div class="microblog-entry">
