@@ -121,8 +121,8 @@ h2 {
   align-items: baseline;
 }
 
-/* Items with only a span (e.g. NOW section) span both columns */
-.post-list li > span:only-child {
+/* Items with only a single child (e.g. NOW/THINKING section) span both columns */
+.post-list li > :only-child {
   grid-column: 1 / -1;
 }
 
