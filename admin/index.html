@@ -202,6 +202,9 @@
       <p class="admin-note">
         Changes go live in about a minute after GitHub rebuilds the site.
       </p>
+      <p class="admin-note" id="session-note" hidden>
+        Logged in. <a href="#" id="sign-out">Sign out</a>
+      </p>
 
       <footer class="site-footer">
         <p class="footer-row">&copy; 2026 Rommy Ghaly<a href="#" class="theme-toggle" id="theme-toggle"></a></p>
@@ -210,6 +213,47 @@
 
     <script>
       const API_URL = "https://rommy-blog-admin.fingerguns.workers.dev";
+      const SESSION_KEY = "admin_session";
+      const SESSION_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days in ms
+
+      // Session helpers
+      function saveSession(pw) {
+        localStorage.setItem(SESSION_KEY, JSON.stringify({ pw, ts: Date.now() }));
+        applySession(pw);
+      }
+
+      function loadSession() {
+        try {
+          var s = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+          if (s && s.pw && (Date.now() - s.ts) < SESSION_TTL) return s.pw;
+        } catch (e) {}
+        return null;
+      }
+
+      function clearSession() {
+        localStorage.removeItem(SESSION_KEY);
+        document.querySelectorAll("input[type=password]").forEach(function (el) {
+          el.value = "";
+        });
+        document.getElementById("session-note").hidden = true;
+      }
+
+      function applySession(pw) {
+        document.querySelectorAll("input[type=password]").forEach(function (el) {
+          el.value = pw;
+        });
+        document.getElementById("session-note").hidden = false;
+      }
+
+      // Restore session on load
+      (function () {
+        var pw = loadSession();
+        if (pw) applySession(pw);
+        document.getElementById("sign-out").addEventListener("click", function (e) {
+          e.preventDefault();
+          clearSession();
+        });
+      })();
 
       // Tab switching
       (function () {
@@ -243,7 +287,7 @@
         });
       })();
 
-      // Shared API call
+      // Shared API call — saves session on success if a password was sent
       async function callAPI(payload) {
         const res = await fetch(API_URL, {
           method: "POST",
@@ -252,6 +296,7 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Request failed");
+        if (payload.password) saveSession(payload.password);
         return data;
       }
 
@@ -278,7 +323,6 @@
               text: document.getElementById("t-text").value,
             });
             showStatus(status, "Saved. Site will rebuild shortly.", false, true);
-            document.getElementById("t-password").value = "";
             document.getElementById("t-text").value = "";
           } catch (err) {
             showStatus(status, err.message || "Something went wrong.", true);
@@ -318,7 +362,6 @@
             });
 
             showStatus(status, "Published! Live at: " + data.url + " — rebuilding now.", false, true);
-            document.getElementById("p-password").value = "";
             document.getElementById("p-title").value = "";
             document.getElementById("p-summary").value = "";
             document.getElementById("p-body").value = "";
@@ -348,7 +391,6 @@
               ym: document.getElementById("r-ym").value,
             });
             showStatus(status, "Added. Site will rebuild shortly.", false, true);
-            document.getElementById("r-password").value = "";
             document.getElementById("r-title").value = "";
             document.getElementById("r-url").value = "";
             document.getElementById("r-ym").value = "";
@@ -410,7 +452,6 @@
               title: titleInput.value,
             });
             showStatus(status, "Shared. Site will rebuild shortly.", false, true);
-            document.getElementById("s-password").value = "";
             urlInput.value = "";
             titleInput.value = "";
             titleHint.textContent = "";
