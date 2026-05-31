@@ -160,7 +160,7 @@ const thinkingSection =
         <h2 id="now-heading">Thinking</h2>
         <ol class="post-list">
           <li>
-            <span>${escHtml(thinking.text)}</span>
+            <span>${escHtml(thinking.text).replace(/\n/g, "<br>")}</span>
           </li>
         </ol>
         <a class="see-more" href="/thinking/">→</a>
@@ -354,7 +354,7 @@ const nowPageHtml = `${archiveHead("Now")}
       <p class="lead">Updated ${escHtml(nowMonthYear)} &middot; Brooklyn, NY &middot; <a href="https://nownownow.com/about" target="_blank" rel="noopener">What's this?</a></p>
       <div class="now-body">
 ${thinking && thinking.text ? `        <h2>Thinking</h2>
-        <p>${escHtml(thinking.text)}</p>
+        <p>${escHtml(thinking.text).replace(/\n/g, "<br>")}</p>
 ` : ""}${currentBook ? `        <h2>Reading</h2>
         <p><a href="${escHtml(currentBook.url)}" target="_blank" rel="noopener">${escHtml(currentBook.title)}</a></p>
 ` : ""}        <h2>Working</h2>
