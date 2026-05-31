@@ -6,8 +6,11 @@
  *   action: "post"      — create a new writing post
  *
  * Secrets (wrangler secret put):
- *   ADMIN_PASSWORD — shared password for /admin/
- *   GITHUB_TOKEN   — fine-grained PAT with Contents read/write on the repo
+ *   ADMIN_PASSWORD      — shared password for /admin/
+ *   GITHUB_TOKEN        — fine-grained PAT with Contents read/write on the repo
+ *   MICROBLOG_TOKEN     — Micropub token for micro.blog (optional)
+ *   BLUESKY_HANDLE      — Bluesky handle e.g. rommy.bsky.social (optional)
+ *   BLUESKY_APP_PASSWORD — Bluesky app password from Settings → App Passwords (optional)
  */
 
 const JSON_PATH = "data/posts.json";
@@ -131,7 +134,17 @@ async function handleThinking(body, token, owner, repo, branch, cors, env) {
       }
     }
 
-    return json({ ok: true, text: trimmed, microblogWarning }, 200, cors);
+    // 3. Mirror to Bluesky (optional — skipped if secrets not set)
+    let blueskyWarning = null;
+    if (env.BLUESKY_HANDLE && env.BLUESKY_APP_PASSWORD) {
+      try {
+        await postToBluesky(env.BLUESKY_HANDLE, env.BLUESKY_APP_PASSWORD, trimmed);
+      } catch (bsErr) {
+        blueskyWarning = bsErr.message || "Bluesky post failed";
+      }
+    }
+
+    return json({ ok: true, text: trimmed, microblogWarning, blueskyWarning }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
   }
@@ -150,6 +163,74 @@ async function postToMicroblog(token, content) {
   if (!res.ok) {
     const err = await res.text();
     throw new Error(`micro.blog post failed (${res.status}): ${err}`);
+  }
+}
+
+async function postToBluesky(handle, appPassword, content) {
+  // 1. Authenticate
+  const sessionRes = await fetch(
+    "https://bsky.social/xrpc/com.atproto.server.createSession",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier: handle, password: appPassword }),
+    }
+  );
+  if (!sessionRes.ok) {
+    const err = await sessionRes.text();
+    throw new Error(`Bluesky auth failed (${sessionRes.status}): ${err}`);
+  }
+  const { accessJwt, did } = await sessionRes.json();
+
+  // 2. Build post text — Bluesky has a 300-grapheme limit.
+  //    If the content is longer, truncate and append a link to /thinking/.
+  const LINK_URL = `${SITE_URL}/thinking/`;
+  const MAX = 300;
+  const graphemes = [...content];
+  let text = content;
+  let facets;
+
+  if (graphemes.length > MAX) {
+    const suffix = `\u2026 ${LINK_URL}`; // "… https://rommy.blog/thinking/"
+    const maxContent = MAX - [...suffix].length;
+    const truncated = graphemes.slice(0, maxContent).join("");
+    text = truncated + suffix;
+
+    // Facet byte positions (UTF-8) for the appended link
+    const enc = new TextEncoder();
+    const byteStart = enc.encode(truncated + "\u2026 ").length;
+    const byteEnd = byteStart + enc.encode(LINK_URL).length;
+    facets = [
+      {
+        $type: "app.bsky.richtext.facet",
+        index: { byteStart, byteEnd },
+        features: [{ $type: "app.bsky.richtext.facet#link", uri: LINK_URL }],
+      },
+    ];
+  }
+
+  // 3. Create the record
+  const record = {
+    $type: "app.bsky.feed.post",
+    text,
+    createdAt: new Date().toISOString(),
+    ...(facets ? { facets } : {}),
+  };
+
+  const postRes = await fetch(
+    "https://bsky.social/xrpc/com.atproto.repo.createRecord",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessJwt}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ repo: did, collection: "app.bsky.feed.post", record }),
+    }
+  );
+  if (!postRes.ok) {
+    const err = await postRes.text();
+    throw new Error(`Bluesky post failed (${postRes.status}): ${err}`);
   }
 }
 
