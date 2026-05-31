@@ -17,6 +17,8 @@ const JSON_PATH = "data/posts.json";
 const SITE_URL = "https://rommy.blog";
 const SITE_TITLE = "rommy.blog";
 const SITE_AUTHOR = "Rommy Ghaly";
+const GA_ID = "G-L1CC5F3DP8";
+const GA_SNIPPET = `    <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_ID}"></script>\n    <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}');</script>`;
 
 export default {
   async fetch(request, env) {
@@ -317,6 +319,7 @@ async function handlePost(body, token, owner, repo, branch, cors) {
       title="${SITE_TITLE}"
       href="../../feed.xml"
     />
+${GA_SNIPPET}
   </head>
   <body>
     <article class="post">

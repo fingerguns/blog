@@ -40,6 +40,10 @@ function escXml(s) {
     .replace(/'/g, "&apos;");
 }
 
+const GA_ID = "G-L1CC5F3DP8";
+const gaSnippet = `    <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_ID}"></script>
+    <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}');</script>`;
+
 function escHtml(s) {
   return String(s)
     .replace(/&/g, "&amp;")
@@ -208,6 +212,7 @@ ${descriptionText ? `    <meta property="og:description" content="${escHtml(desc
       title="${escHtml(site.title)} (Atom)"
       href="feed.xml"
     />
+${gaSnippet}
   </head>
   <body>
     <main>
@@ -319,6 +324,7 @@ const archiveHead = (title) => `<!DOCTYPE html>
       title="${escHtml(site.title)} (Atom)"
       href="/feed.xml"
     />
+${gaSnippet}
   </head>
   <body>
     <article class="post">
@@ -407,6 +413,7 @@ const thinkingPostHead = (iso) => `<!DOCTYPE html>
     <meta property="og:image" content="${escHtml(base)}/favicon.png" />
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="stylesheet" href="/styles.css" />
+${gaSnippet}
   </head>
   <body>
     <article class="post">
