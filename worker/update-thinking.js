@@ -448,12 +448,7 @@ function toDateStr(d) {
 }
 
 function toDisplayDate(d) {
-  return d.toLocaleDateString("en-US", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: "America/New_York",
-  });
+  return toDateStr(d);
 }
 
 function toBase64(str) {
