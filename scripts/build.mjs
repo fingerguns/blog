@@ -380,10 +380,7 @@ ${changelogListHtml}
 ${archiveFoot}`;
 
 // Microblog page
-const formatMbDate = (iso) => {
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" });
-};
+const formatMbDate = (iso) => iso.slice(0, 10);
 
 const microblogEntriesHtml = microblogItems.length > 0
   ? microblogItems.map((item) => `        <div class="microblog-entry">
