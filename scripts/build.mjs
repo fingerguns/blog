@@ -60,6 +60,21 @@ const safeSlug = (s) => String(s).replace(/[^a-zA-Z0-9-_]/g, "");
 
 const MAX_PER_SECTION = 5;
 
+// Microblog from micro.blog JSON feed
+let microblogItems = [];
+try {
+  const mbRes = await fetch("https://rommy.micro.blog/feed.json", {
+    headers: { "User-Agent": "rommy-blog-builder/1.0" },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (mbRes.ok) {
+    const mbData = await mbRes.json();
+    microblogItems = (mbData.items || []).filter((item) => item.content_html);
+  }
+} catch (e) {
+  // Graceful fallback — page still builds without network
+}
+
 // Changelog from git log
 let changelogEntries = [];
 try {
@@ -364,6 +379,25 @@ ${changelogListHtml}
       </ol>
 ${archiveFoot}`;
 
+// Microblog page
+const formatMbDate = (iso) => {
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" });
+};
+
+const microblogEntriesHtml = microblogItems.length > 0
+  ? microblogItems.map((item) => `        <div class="microblog-entry">
+          <time class="post-date" datetime="${escHtml(item.date_published)}">${escHtml(formatMbDate(item.date_published))}</time>
+          <div class="microblog-body">${item.content_html}</div>
+        </div>`).join("\n")
+  : `        <p style="color:var(--muted)">No posts yet.</p>`;
+
+const microblogPageHtml = `${archiveHead("Microblog")}
+      <div class="microblog-feed">
+${microblogEntriesHtml}
+      </div>
+${archiveFoot}`;
+
 const archiveUrls = [
   ...(hasMorePosts ? [`${base}/writing/`] : []),
   ...(hasMoreReading ? [`${base}/reading/`] : []),
@@ -375,6 +409,7 @@ const urls = [
   `${base}/feed.xml`,
   `${base}/now/`,
   `${base}/changelog/`,
+  `${base}/microblog/`,
   ...archiveUrls,
   ...ordered.map((p) => `${base}/posts/${safeSlug(p.slug)}/`),
 ];
@@ -416,4 +451,7 @@ writeFileSync(join(root, "now/index.html"), nowPageHtml, "utf8");
 mkdirSync(join(root, "changelog"), { recursive: true });
 writeFileSync(join(root, "changelog/index.html"), changelogPageHtml, "utf8");
 
-console.log("Wrote index.html, feed.xml, robots.txt, sitemap.xml, now/index.html, and changelog/index.html");
+mkdirSync(join(root, "microblog"), { recursive: true });
+writeFileSync(join(root, "microblog/index.html"), microblogPageHtml, "utf8");
+
+console.log("Wrote index.html, feed.xml, robots.txt, sitemap.xml, now/index.html, changelog/index.html, and microblog/index.html");
