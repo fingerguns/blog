@@ -52,11 +52,22 @@ function escHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
+// Wraps bare URLs in <a> tags. Must run after escHtml() so we only match
+// real URLs, not anything inside existing HTML attributes.
+function autoLink(html) {
+  return html.replace(/https?:\/\/[^\s<>"]+/g, (url) => {
+    // Strip trailing punctuation that's likely not part of the URL
+    const clean = url.replace(/[.,;:!?)"']+$/, "");
+    const trail = url.slice(clean.length);
+    return `<a href="${clean}" target="_blank" rel="noopener">${clean}</a>${trail}`;
+  });
+}
+
 // Renders plain text as microblog-style HTML: double newlines → <p> paragraphs,
-// single newlines → <br>. Matches how micro.blog formats posts.
+// single newlines → <br>, bare URLs → hyperlinks.
 function textToMicroblogHtml(text) {
   const paras = String(text).split(/\n\n+/);
-  return `<div class="microblog-body">${paras.map(p => `<p>${escHtml(p).replace(/\n/g, "<br>")}</p>`).join("")}</div>`;
+  return `<div class="microblog-body">${paras.map(p => `<p>${autoLink(escHtml(p).replace(/\n/g, "<br>"))}</p>`).join("")}</div>`;
 }
 
 function toIsoZ(p) {
