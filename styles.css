@@ -239,6 +239,16 @@ h2 {
   color: var(--link-hover);
 }
 
+/* Post edit link (admin only, shown when session exists) */
+.post-edit-link {
+  display: inline-block;
+  margin: 1.5rem 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+.post-edit-link:hover { color: var(--link); }
+
 /* Contact form */
 .contact-form { margin-top: 1.5rem; }
 .contact-form .field { margin-bottom: 1.25rem; }

@@ -93,6 +93,14 @@ export default {
       return handleFetchTitle(body, cors);
     }
 
+    if (action === "fetch-post") {
+      return handleFetchPost(body, env.GITHUB_TOKEN, owner, repo, branch, cors);
+    }
+
+    if (action === "edit-post") {
+      return handleEditPost(body, env.GITHUB_TOKEN, owner, repo, branch, cors);
+    }
+
     return json({ error: "Unknown action" }, 400, cors);
   },
 };
@@ -355,6 +363,7 @@ ${GA_SNIPPET}
       </footer>
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
+    <script>(function(){try{var s=JSON.parse(localStorage.getItem('admin_session')||'null');if(s&&s.pw&&(Date.now()-s.ts)<2592000000){var a=document.createElement('a');a.href='/admin/?post=${slug}';a.textContent='Edit post';a.className='post-edit-link';var f=document.querySelector('.site-footer');if(f)f.insertAdjacentElement('beforebegin',a);}}catch(e){}}());</script>
   </body>
 </html>
 `;
@@ -468,6 +477,123 @@ async function handleSharing(body, token, owner, repo, branch, cors) {
   }
 }
 
+// ─── Fetch Post ──────────────────────────────────────────────────────────────
+
+async function handleFetchPost(body, token, owner, repo, branch, cors) {
+  const { slug } = body;
+  if (typeof slug !== "string" || !slug.trim()) {
+    return json({ error: "Missing slug" }, 400, cors);
+  }
+
+  const cleanSlug = slug.trim().replace(/[^a-zA-Z0-9-_]/g, "");
+  const postPath = `posts/${cleanSlug}/index.html`;
+
+  try {
+    const file = await githubGetFile(token, owner, repo, postPath, branch);
+    const html = file.content;
+
+    const h1Match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/);
+    const title = h1Match ? unescHtml(h1Match[1].trim()) : "";
+
+    const summaryMatch = html.match(/og:description" content="([^"]*)"/);
+    const summary = summaryMatch ? unescHtml(summaryMatch[1]) : "";
+
+    // Extract body between <div class="body"> and the closing </div> before back-to-top
+    const bodyStart = html.indexOf('<div class="body">');
+    const bodyEndMarker = '</div>\n      <a class="back-to-top"';
+    const bodyEnd = html.indexOf(bodyEndMarker);
+    const bodyContent = bodyStart >= 0 && bodyEnd > bodyStart
+      ? html.slice(bodyStart + '<div class="body">'.length, bodyEnd).trim()
+      : "";
+
+    return json({ ok: true, title, summary, body: bodyContent }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Post not found" }, 404, cors);
+  }
+}
+
+// ─── Edit Post ────────────────────────────────────────────────────────────────
+
+async function handleEditPost(body, token, owner, repo, branch, cors) {
+  const { slug, title, summary } = body;
+  const rawBody = typeof body.body === "string" ? body.body.trim() : null;
+
+  if (typeof slug !== "string" || !slug.trim()) {
+    return json({ error: "Missing slug" }, 400, cors);
+  }
+  if (!rawBody) {
+    return json({ error: "Missing body" }, 400, cors);
+  }
+
+  const cleanSlug = slug.trim().replace(/[^a-zA-Z0-9-_]/g, "");
+  const bodyHtml = rawBody.replace(/(<p><br\s*\/?><\/p>)+/g, "").trim();
+  const wordCount = bodyHtml.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
+  const readMins = Math.max(1, Math.round(wordCount / 200));
+  const postPath = `posts/${cleanSlug}/index.html`;
+
+  try {
+    const file = await githubGetFile(token, owner, repo, postPath, branch);
+    let html = file.content;
+
+    // Replace body content
+    html = html.replace(
+      /(<div class="body">)[\s\S]*?(<\/div>\s*<a class="back-to-top")/,
+      `$1\n        ${bodyHtml}\n      $2`
+    );
+
+    // Update reading time
+    html = html.replace(
+      /<span class="reading-time">[^<]*<\/span>/,
+      `<span class="reading-time">${readMins} min read</span>`
+    );
+
+    // Update title if provided
+    if (title && title.trim()) {
+      const t = title.trim();
+      html = html.replace(/<h1[^>]*>[^<]*<\/h1>/, `<h1>${escHtml(t)}</h1>`);
+      html = html.replace(/<title>[^<]*<\/title>/, `<title>${escHtml(t)} — ${SITE_TITLE}</title>`);
+      html = html.replace(/(og:title" content=")[^"]*(")/,  `$1${escHtml(t)} — ${SITE_TITLE}$2`);
+    }
+
+    // Update summary if provided
+    if (summary && summary.trim()) {
+      const s = summary.trim();
+      html = html.replace(/(og:description" content=")[^"]*(")/,  `$1${escHtml(s)}$2`);
+      html = html.replace(/(name="description"\s+content=")[^"]*(")/,  `$1${escHtml(s)}$2`);
+    }
+
+    await githubPutFile(token, owner, repo, postPath, branch, {
+      message: `Edit post: ${cleanSlug}`,
+      content: toBase64(html),
+      sha: file.sha,
+    });
+
+    // Update posts.json if title or summary changed
+    if ((title && title.trim()) || (summary && summary.trim())) {
+      try {
+        const jf = await githubGetFile(token, owner, repo, JSON_PATH, branch);
+        const data = JSON.parse(jf.content);
+        const post = (data.posts || []).find((p) => p.slug === cleanSlug);
+        if (post) {
+          if (title) post.title = title.trim();
+          if (summary) post.summary = summary.trim();
+          await githubPutFile(token, owner, repo, JSON_PATH, branch, {
+            message: `Update post metadata: ${cleanSlug}`,
+            content: toBase64(JSON.stringify(data, null, 2) + "\n"),
+            sha: jf.sha,
+          });
+        }
+      } catch (e) {
+        // Non-fatal — body was already saved
+      }
+    }
+
+    return json({ ok: true, url: `${SITE_URL}/posts/${cleanSlug}/` }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Edit failed" }, 500, cors);
+  }
+}
+
 // ─── Fetch Title ─────────────────────────────────────────────────────────────
 
 async function handleFetchTitle(body, cors) {
@@ -540,6 +666,14 @@ function escHtml(s) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function unescHtml(s) {
+  return String(s)
+    .replace(/&quot;/g, '"')
+    .replace(/&gt;/g, ">")
+    .replace(/&lt;/g, "<")
+    .replace(/&amp;/g, "&");
 }
 
 function toSlug(s) {
