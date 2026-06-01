@@ -541,8 +541,8 @@
           showStatus(status, "Publishing…", false);
           try {
             var body = quill.root.innerHTML.trim();
-            // Strip trailing empty Quill paragraph
-            body = body.replace(/(<p><br><\/p>)+$/, "").trim();
+            // Strip all empty Quill paragraph spacers
+            body = body.replace(/(<p><br><\/p>)+/g, "").trim();
             if (!body || body === "<p><br></p>") throw new Error("Body cannot be empty.");
             var data = await callAPI({
               action: "post",

@@ -290,8 +290,9 @@ async function handlePost(body, token, owner, repo, branch, cors) {
   let bodyHtml;
   let wordCount;
   if (rawBody) {
-    bodyHtml = rawBody;
-    wordCount = rawBody.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
+    // Strip Quill's empty paragraph spacers (<p><br></p>) used for visual line breaks
+    bodyHtml = rawBody.replace(/(<p><br\s*\/?><\/p>)+/g, "").trim();
+    wordCount = bodyHtml.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
   } else {
     const cleanParas = paragraphs.map((p) => String(p).trim()).filter(Boolean);
     bodyHtml = cleanParas.map((p) => `        <p>\n          ${escHtml(p)}\n        </p>`).join("\n");
