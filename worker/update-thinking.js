@@ -195,7 +195,7 @@ async function postToBluesky(handle, appPassword, content) {
   const MAX = 300;
   const graphemes = [...content];
   let text = content;
-  let facets;
+  let facets = [];
 
   if (graphemes.length > MAX) {
     const suffix = `\u2026 ${LINK_URL}`; // "… https://rommy.blog/thinking/"
@@ -203,17 +203,35 @@ async function postToBluesky(handle, appPassword, content) {
     const truncated = graphemes.slice(0, maxContent).join("");
     text = truncated + suffix;
 
-    // Facet byte positions (UTF-8) for the appended link
+    // Facet byte positions (UTF-8) for the appended overflow link
     const enc = new TextEncoder();
     const byteStart = enc.encode(truncated + "\u2026 ").length;
     const byteEnd = byteStart + enc.encode(LINK_URL).length;
-    facets = [
-      {
+    facets.push({
+      $type: "app.bsky.richtext.facet",
+      index: { byteStart, byteEnd },
+      features: [{ $type: "app.bsky.richtext.facet#link", uri: LINK_URL }],
+    });
+  }
+
+  // Detect bare URLs in the final text and add link facets for each.
+  // Bluesky does not auto-link URLs — facets are required.
+  const enc = new TextEncoder();
+  const urlRe = /https?:\/\/[^\s\u2026]+/g;
+  let m;
+  while ((m = urlRe.exec(text)) !== null) {
+    const url = m[0].replace(/[.,;:!?)"']+$/, ""); // strip trailing punctuation
+    const byteStart = enc.encode(text.slice(0, m.index)).length;
+    const byteEnd = byteStart + enc.encode(url).length;
+    // Avoid duplicating a facet already added for the overflow link
+    const already = facets.some(f => f.index.byteStart === byteStart);
+    if (!already) {
+      facets.push({
         $type: "app.bsky.richtext.facet",
         index: { byteStart, byteEnd },
-        features: [{ $type: "app.bsky.richtext.facet#link", uri: LINK_URL }],
-      },
-    ];
+        features: [{ $type: "app.bsky.richtext.facet#link", uri: url }],
+      });
+    }
   }
 
   // 3. Create the record
@@ -221,7 +239,7 @@ async function postToBluesky(handle, appPassword, content) {
     $type: "app.bsky.feed.post",
     text,
     createdAt: new Date().toISOString(),
-    ...(facets ? { facets } : {}),
+    ...(facets.length ? { facets } : {}),
   };
 
   const postRes = await fetch(
