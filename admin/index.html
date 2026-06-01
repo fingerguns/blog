@@ -276,6 +276,7 @@
       <!-- ── WRITING ───────────────────────────────── -->
       <div class="admin-section" id="tab-post">
         <p class="lead">Publish a new WRITING post.</p>
+        <p class="admin-hint" id="p-draft-notice" hidden>Draft restored. <a href="#" id="p-draft-clear">Clear</a></p>
 
         <form class="admin-form" id="post-form">
           <label for="p-title">Title</label>
@@ -553,12 +554,69 @@
             document.getElementById("p-title").value = "";
             document.getElementById("p-summary").value = "";
             quill.setContents([]);
+            if (window._clearWritingDraft) window._clearWritingDraft();
           } catch (err) {
             showStatus(status, err.message, true);
           } finally {
             submit.disabled = false;
           }
         });
+      })();
+
+      // ── Writing draft auto-save ────────────────────────────────────────────
+
+      (function () {
+        var DRAFT_KEY = "writing_draft";
+        var saveTimer = null;
+        var notice = document.getElementById("p-draft-notice");
+
+        function saveDraft() {
+          try {
+            localStorage.setItem(DRAFT_KEY, JSON.stringify({
+              title: document.getElementById("p-title").value,
+              summary: document.getElementById("p-summary").value,
+              body: quill.getContents(),
+              ts: Date.now(),
+            }));
+            notice.hidden = false;
+            notice.firstChild.textContent = "Draft saved. ";
+          } catch (e) {}
+        }
+
+        function clearDraft() {
+          localStorage.removeItem(DRAFT_KEY);
+          notice.hidden = true;
+        }
+        window._clearWritingDraft = clearDraft;
+
+        function scheduleSave() {
+          clearTimeout(saveTimer);
+          saveTimer = setTimeout(saveDraft, 1500);
+        }
+
+        document.getElementById("p-title").addEventListener("input", scheduleSave);
+        document.getElementById("p-summary").addEventListener("input", scheduleSave);
+        quill.on("text-change", scheduleSave);
+
+        document.getElementById("p-draft-clear").addEventListener("click", function (e) {
+          e.preventDefault();
+          document.getElementById("p-title").value = "";
+          document.getElementById("p-summary").value = "";
+          quill.setContents([]);
+          clearDraft();
+        });
+
+        // Restore draft on page load
+        try {
+          var stored = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null");
+          if (stored) {
+            if (stored.title) document.getElementById("p-title").value = stored.title;
+            if (stored.summary) document.getElementById("p-summary").value = stored.summary;
+            if (stored.body) quill.setContents(stored.body);
+            notice.hidden = false;
+            notice.firstChild.textContent = "Draft restored. ";
+          }
+        } catch (e) {}
       })();
 
       // ── Reading form ───────────────────────────────────────────────────────
