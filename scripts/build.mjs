@@ -75,6 +75,12 @@ function toIsoZ(p) {
   return d.toISOString();
 }
 
+// YYYY-MM-DD in ET, derived from p.datetime when available
+function toETDate(p) {
+  const d = p.datetime ? new Date(p.datetime) : new Date(`${p.date}T12:00:00.000Z`);
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(d);
+}
+
 const latest = ordered[0];
 const feedUpdated = latest ? toIsoZ(latest) : new Date("2020-01-01T12:00:00.000Z").toISOString();
 
@@ -120,7 +126,7 @@ try {
 
 const renderPostItem = (p, absolute = false) =>
   `          <li>
-            <span class="post-date">${escHtml(p.date)}</span>
+            <span class="post-date">${escHtml(toETDate(p))}</span>
             <a href="${absolute ? `/posts/${escHtml(safeSlug(p.slug))}/` : `posts/${escHtml(safeSlug(p.slug))}/`}">${escHtml(p.title)}</a>
           </li>`;
 

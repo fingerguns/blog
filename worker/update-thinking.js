@@ -697,7 +697,8 @@ function toSlug(s) {
 }
 
 function toDateStr(d) {
-  return d.toISOString().slice(0, 10);
+  // YYYY-MM-DD in ET
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(d);
 }
 
 function toDisplayDate(d) {
