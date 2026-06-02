@@ -110,7 +110,7 @@ let changelogEntries = [];
 try {
   const raw = execSync(
     'git log --pretty=format:"%H|||%ad|||%s" --date=format:"%Y-%m-%d"',
-    { cwd: root, encoding: "utf8" }
+    { cwd: root, encoding: "utf8", env: { ...process.env, TZ: "America/New_York" } }
   );
   changelogEntries = raw
     .trim()
@@ -142,7 +142,7 @@ const stripHashtags = (s) => String(s).replace(/\s*#\S+/g, "").trim();
 const orderedLinklog = [...(linklog || [])].sort(sortDesc);
 const renderLinklogItem = (l) =>
   `          <li>
-            <span class="post-date">${escHtml(l.date)}</span>
+            <span class="post-date">${escHtml(toETDate(l))}</span>
             <a href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer">${escHtml(stripHashtags(l.title))}</a>
           </li>`;
 
@@ -378,7 +378,7 @@ ${linklogAllHtml}
 ${archiveFoot}`;
 
 // /now page
-const nowMonthYear = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
+const nowMonthYear = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "America/New_York" });
 const currentBook = orderedReading[0];
 const nowPageHtml = `${archiveHead("Now")}
       <p class="lead">Updated ${escHtml(nowMonthYear)} &middot; Brooklyn, NY &middot; <a href="https://nownownow.com/about" target="_blank" rel="noopener">What's this?</a></p>
@@ -412,8 +412,19 @@ ${changelogListHtml}
       </ol>
 ${archiveFoot}`;
 
-// Microblog page
-const formatMbDate = (iso) => `${iso.slice(0, 10)} // ${iso.slice(11, 16)}`;
+// Microblog page — dates/times shown in ET
+const etDateFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" });
+const etTimeFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+const formatMbDate = (iso) => {
+  const d = new Date(iso);
+  return `${etDateFmt.format(d)} // ${etTimeFmt.format(d)}`;
+};
+// Slug stays UTC-based so existing URLs don't break
 const mbSlug = (iso) => `${iso.slice(0, 10)}-${iso.slice(11, 13)}${iso.slice(14, 16)}`;
 
 const thinkingPostHead = (iso) => `<!DOCTYPE html>
