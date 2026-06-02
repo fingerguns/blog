@@ -4,11 +4,19 @@
   <link href="https://rommy.blog/feed.xml" rel="self" type="application/atom+xml" />
   <link href="https://rommy.blog/" rel="alternate" type="text/html" />
   <id>https://rommy.blog/</id>
-  <updated>2026-06-02T00:18:04.781Z</updated>
+  <updated>2026-06-02T00:22:01.788Z</updated>
   <author>
     <name>Rommy Ghaly</name>
     <email>rommy@gha.ly</email>
   </author>
+  <entry>
+    <title>Haiku #2</title>
+    <link href="https://rommy.blog/posts/haiku-2/" rel="alternate" type="text/html" />
+    <id>https://rommy.blog/posts/haiku-2/</id>
+    <updated>2026-06-02T00:22:01.788Z</updated>
+    <published>2026-06-02T00:22:01.788Z</published>
+    <summary type="text">A second haiku</summary>
+  </entry>
   <entry>
     <title>Haiku #1</title>
     <link href="https://rommy.blog/posts/haiku-1/" rel="alternate" type="text/html" />
