@@ -4,11 +4,19 @@
   <link href="https://rommy.blog/feed.xml" rel="self" type="application/atom+xml" />
   <link href="https://rommy.blog/" rel="alternate" type="text/html" />
   <id>https://rommy.blog/</id>
-  <updated>2026-06-01T13:41:34.346Z</updated>
+  <updated>2026-06-02T00:18:04.781Z</updated>
   <author>
     <name>Rommy Ghaly</name>
     <email>rommy@gha.ly</email>
   </author>
+  <entry>
+    <title>Haiku #1</title>
+    <link href="https://rommy.blog/posts/haiku-1/" rel="alternate" type="text/html" />
+    <id>https://rommy.blog/posts/haiku-1/</id>
+    <updated>2026-06-02T00:18:04.781Z</updated>
+    <published>2026-06-02T00:18:04.781Z</published>
+    <summary type="text">A first haiku</summary>
+  </entry>
   <entry>
     <title>The importance and power of routine</title>
     <link href="https://rommy.blog/posts/the-importance-and-power-of-routine/" rel="alternate" type="text/html" />
