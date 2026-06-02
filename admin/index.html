@@ -139,6 +139,14 @@
         margin: -0.9rem 0 1.25rem;
         line-height: 1.5;
       }
+      .p-submit-row {
+        display: flex;
+        align-items: center;
+        gap: 0.9rem;
+      }
+      .p-submit-row .admin-hint {
+        margin: 0;
+      }
       .admin-note {
         margin-top: 2rem;
         font-size: 0.78rem;
@@ -276,7 +284,6 @@
       <!-- ── WRITING ───────────────────────────────── -->
       <div class="admin-section" id="tab-post">
         <p class="lead" id="p-lead">Publish a new WRITING post.</p>
-        <p class="admin-hint" id="p-draft-notice" hidden>Draft restored. <a href="#" id="p-draft-clear">Clear</a></p>
 
         <form class="admin-form" id="post-form">
           <label for="p-title">Title</label>
@@ -288,7 +295,10 @@
           <label>Body</label>
           <div id="p-body-editor"></div>
 
-          <button type="submit" id="p-submit">Publish</button>
+          <div class="p-submit-row">
+            <button type="submit" id="p-submit">Publish</button>
+            <span class="admin-hint p-draft-notice" id="p-draft-notice" hidden>Draft saved. <a href="#" id="p-draft-clear">Clear</a></span>
+          </div>
           <p class="admin-status" id="p-status" hidden></p>
         </form>
       </div>
@@ -628,7 +638,7 @@
               ts: Date.now(),
             }));
             notice.hidden = false;
-            notice.firstChild.textContent = "Draft saved. ";
+            notice.childNodes[0].textContent = "Draft saved. ";
           } catch (e) {}
         }
 
@@ -663,7 +673,7 @@
             if (stored.summary) document.getElementById("p-summary").value = stored.summary;
             if (stored.body) quill.setContents(stored.body);
             notice.hidden = false;
-            notice.firstChild.textContent = "Draft restored. ";
+            notice.childNodes[0].textContent = "Draft restored. ";
           }
         } catch (e) {}
       })();
