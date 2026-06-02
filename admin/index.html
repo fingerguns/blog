@@ -567,32 +567,6 @@
             ["link", "blockquote"],
             ["clean"],
           ],
-          keyboard: {
-            bindings: {
-              softEnter: {
-                key: 13,
-                shiftKey: null,
-                handler: function (range, context) {
-                  // Let lists, headers, blockquotes, code blocks handle Enter normally
-                  if (context.format.list || context.format.header ||
-                      context.format.blockquote || context.format['code-block']) {
-                    return true;
-                  }
-                  if (range.length > 0) {
-                    this.quill.deleteText(range.index, range.length, 'user');
-                  }
-                  var textAfter = this.quill.getText(range.index, 1);
-                  this.quill.insertEmbed(range.index, 'break', true, 'user');
-                  // At end of a block the cursor needs an extra break to appear on the new line
-                  if (textAfter === '\n') {
-                    this.quill.insertEmbed(range.index + 1, 'break', true, 'user');
-                  }
-                  this.quill.setSelection(range.index + 1, 0, 'silent');
-                  return false;
-                },
-              },
-            },
-          },
         },
       });
 
