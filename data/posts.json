@@ -11,6 +11,13 @@
   },
   "posts": [
     {
+      "slug": "haiku-1",
+      "title": "Haiku #1",
+      "date": "2026-06-02",
+      "datetime": "2026-06-02T00:18:04.781Z",
+      "summary": "A first haiku"
+    },
+    {
       "slug": "the-importance-and-power-of-routine",
       "title": "The importance and power of routine",
       "date": "2026-06-01",
