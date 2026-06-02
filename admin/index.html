@@ -630,6 +630,13 @@
         var notice = document.getElementById("p-draft-notice");
 
         function saveDraft() {
+          var hasContent = document.getElementById("p-title").value.trim() ||
+                           document.getElementById("p-summary").value.trim() ||
+                           quill.getText().trim();
+          if (!hasContent) {
+            clearDraft();
+            return;
+          }
           try {
             localStorage.setItem(DRAFT_KEY, JSON.stringify({
               title: document.getElementById("p-title").value,
