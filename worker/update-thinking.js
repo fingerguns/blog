@@ -298,8 +298,7 @@ async function handlePost(body, token, owner, repo, branch, cors) {
   let bodyHtml;
   let wordCount;
   if (rawBody) {
-    // Strip Quill's empty paragraph spacers (<p><br></p>) used for visual line breaks
-    bodyHtml = rawBody.replace(/(<p><br\s*\/?><\/p>)+/g, "").trim();
+    bodyHtml = cleanBodyHtml(rawBody);
     wordCount = bodyHtml.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
   } else {
     const cleanParas = paragraphs.map((p) => String(p).trim()).filter(Boolean);
@@ -526,7 +525,7 @@ async function handleEditPost(body, token, owner, repo, branch, cors) {
   }
 
   const cleanSlug = slug.trim().replace(/[^a-zA-Z0-9-_]/g, "");
-  const bodyHtml = rawBody.replace(/(<p><br\s*\/?><\/p>)+/g, "").trim();
+  const bodyHtml = cleanBodyHtml(rawBody);
   const wordCount = bodyHtml.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
   const readMins = Math.max(1, Math.round(wordCount / 200));
   const postPath = `posts/${cleanSlug}/index.html`;
@@ -666,6 +665,18 @@ function escHtml(s) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+// Convert Quill HTML to clean paragraph HTML.
+// - Strips empty Quill spacer paragraphs
+// - Converts double <br> (from the Enter = soft-break editor setting) into <p> breaks
+function cleanBodyHtml(raw) {
+  let html = raw.replace(/(<p><br\s*\/?><\/p>)+/g, "").trim();
+  html = html.replace(/(<br\s*\/?>\s*){2,}/g, "</p><p>");
+  html = html.replace(/<p>\s*(<br\s*\/?>)+/g, "<p>");
+  html = html.replace(/(<br\s*\/?>)+\s*<\/p>/g, "</p>");
+  html = html.replace(/<p>\s*<\/p>/g, "");
+  return html.trim();
 }
 
 function unescHtml(s) {
