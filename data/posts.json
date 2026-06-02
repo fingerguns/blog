@@ -11,6 +11,13 @@
   },
   "posts": [
     {
+      "slug": "haiku-3",
+      "title": "Haiku #3",
+      "date": "2026-06-02",
+      "datetime": "2026-06-02T10:59:51.400Z",
+      "summary": "A third haiku"
+    },
+    {
       "slug": "haiku-2",
       "title": "Haiku #2",
       "date": "2026-06-02",
