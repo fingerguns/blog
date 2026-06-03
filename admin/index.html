@@ -147,35 +147,88 @@
       .p-submit-row .admin-hint {
         margin: 0;
       }
-      .draft-toolbar {
+      .p-submit-row .admin-hint {
+        margin: 0;
+      }
+      .writing-subtabs {
         display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        margin-bottom: 1.25rem;
-        flex-wrap: wrap;
+        gap: 0;
+        margin: 0 0 1.25rem;
+        border-bottom: 1px solid var(--rule);
       }
-      .draft-toolbar select {
-        flex: 1;
-        min-width: 12rem;
+      .writing-subtab {
         font: inherit;
-        color: var(--text);
-        background: var(--bg);
-        border: 1px solid var(--rule);
-        border-radius: 0.25rem;
-        padding: 0.5rem 0.65rem;
-      }
-      .draft-new-btn {
-        font: inherit;
-        font-size: 0.85rem;
+        font-size: 0.72rem;
         font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
         color: var(--muted);
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        padding: 0.4rem 0.85rem 0.5rem;
+        cursor: pointer;
+      }
+      .writing-subtab.active {
+        color: var(--text);
+        border-bottom-color: var(--text);
+      }
+      .writing-subpanel { display: none; }
+      .writing-subpanel.active { display: block; }
+      .draft-save-btn {
+        font: inherit;
+        font-weight: 600;
+        color: var(--text);
         background: none;
         border: 1px solid var(--rule);
         border-radius: 0.25rem;
-        padding: 0.45rem 0.75rem;
+        padding: 0.55rem 1.1rem;
         cursor: pointer;
       }
-      .draft-new-btn:hover { color: var(--text); border-color: var(--text); }
+      .draft-save-btn:hover { border-color: var(--text); }
+      .draft-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+      .drafts-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .drafts-list li {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid var(--rule);
+      }
+      .drafts-list li:last-child { border-bottom: none; }
+      .draft-item-main {
+        flex: 1;
+        min-width: 0;
+        cursor: pointer;
+      }
+      .draft-item-main:hover .draft-item-title { color: var(--link); }
+      .draft-item-title {
+        font-size: 0.95rem;
+        color: var(--text);
+      }
+      .draft-item-date {
+        font-size: 0.75rem;
+        color: var(--muted);
+        margin-top: 0.15rem;
+      }
+      .draft-item-delete {
+        font: inherit;
+        font-size: 0.78rem;
+        color: var(--muted);
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+      .draft-item-delete:hover { color: #b44; }
+      [data-theme="dark"] .draft-item-delete:hover { color: #e88; }
       .admin-note {
         margin-top: 2rem;
         font-size: 0.78rem;
@@ -314,27 +367,35 @@
       <div class="admin-section" id="tab-post">
         <p class="lead" id="p-lead">Publish a new WRITING post.</p>
 
-        <div class="draft-toolbar" id="draft-toolbar" hidden>
-          <select id="p-draft-select" aria-label="Select draft"></select>
-          <button type="button" class="draft-new-btn" id="p-draft-new">New draft</button>
+        <div class="writing-subtabs" id="writing-subtabs">
+          <button type="button" class="writing-subtab active" data-writing-sub="compose">Compose</button>
+          <button type="button" class="writing-subtab" data-writing-sub="drafts">Drafts</button>
         </div>
 
-        <form class="admin-form" id="post-form">
-          <label for="p-title">Title</label>
-          <input id="p-title" type="text" required placeholder="Post title" />
+        <div class="writing-subpanel active" id="writing-compose">
+          <form class="admin-form" id="post-form">
+            <label for="p-title">Title</label>
+            <input id="p-title" type="text" required placeholder="Post title" />
 
-          <label for="p-summary">Summary</label>
-          <input id="p-summary" type="text" required placeholder="One sentence description for meta/feed" />
+            <label for="p-summary">Summary</label>
+            <input id="p-summary" type="text" required placeholder="One sentence description for meta/feed" />
 
-          <label>Body</label>
-          <div id="p-body-editor"></div>
+            <label>Body</label>
+            <div id="p-body-editor"></div>
 
-          <div class="p-submit-row">
-            <button type="submit" id="p-submit">Publish</button>
-            <span class="admin-hint p-draft-notice" id="p-draft-notice" hidden>Draft saved. <a href="#" id="p-draft-clear">Clear</a></span>
-          </div>
-          <p class="admin-status" id="p-status" hidden></p>
-        </form>
+            <div class="p-submit-row">
+              <button type="submit" id="p-submit">Publish</button>
+              <button type="button" class="draft-save-btn" id="p-save-draft">Save draft</button>
+              <span class="admin-hint" id="p-draft-notice" hidden></span>
+            </div>
+            <p class="admin-status" id="p-status" hidden></p>
+          </form>
+        </div>
+
+        <div class="writing-subpanel" id="writing-drafts">
+          <p class="admin-hint" id="p-drafts-empty" hidden>No drafts yet.</p>
+          <ul class="drafts-list" id="p-drafts-list"></ul>
+        </div>
       </div>
 
       <!-- ── READING ──────────────────────────────── -->
@@ -444,6 +505,11 @@
         document.querySelectorAll(".admin-section").forEach(function(s){ s.classList.remove("active"); });
         document.querySelector("[data-tab='post']").classList.add("active");
         document.getElementById("tab-post").classList.add("active");
+
+        // Edit mode: compose only, no drafts
+        document.getElementById("writing-subtabs").hidden = true;
+        document.getElementById("p-save-draft").hidden = true;
+        if (window._showWritingSub) window._showWritingSub("compose");
 
         var status = document.getElementById("p-status");
         showStatus(status, "Loading post…", false);
@@ -651,6 +717,9 @@
               _editSlug = null;
               document.getElementById("p-lead").textContent = "Publish a new WRITING post.";
               submit.textContent = "Publish";
+              document.getElementById("writing-subtabs").hidden = false;
+              document.getElementById("p-save-draft").hidden = false;
+              if (window._newCompose) window._newCompose();
             }
           } catch (err) {
             showStatus(status, err.message, true);
@@ -660,33 +729,97 @@
         });
       })();
 
-      // ── Writing draft auto-save (D1) ──────────────────────────────────────
+      // ── Writing sub-tabs & drafts (D1) ────────────────────────────────────
 
       (function () {
-        var saveTimer = null;
         var notice = document.getElementById("p-draft-notice");
-        var toolbar = document.getElementById("draft-toolbar");
-        var draftSelect = document.getElementById("p-draft-select");
+        var draftsList = document.getElementById("p-drafts-list");
+        var draftsEmpty = document.getElementById("p-drafts-empty");
+        var saveDraftBtn = document.getElementById("p-save-draft");
         var _draftId = null;
         var _drafts = [];
+
         window._getDraftId = function () { return _draftId; };
         window._setDraftId = function (id) { _draftId = id; };
 
-        function draftLabel(d) {
-          var title = (d.title || "").trim();
-          return title || "Untitled draft";
+        var etDraftFmt = new Intl.DateTimeFormat("en-US", {
+          timeZone: "America/New_York",
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        });
+
+        function draftTitle(d) {
+          var t = (d.title || "").trim();
+          return t || "Untitled draft";
         }
 
-        function renderDraftSelect() {
-          draftSelect.innerHTML = "";
-          _drafts.forEach(function (d) {
-            var opt = document.createElement("option");
-            opt.value = d.id;
-            opt.textContent = draftLabel(d);
-            if (d.id === _draftId) opt.selected = true;
-            draftSelect.appendChild(opt);
+        function showWritingSub(name) {
+          document.querySelectorAll(".writing-subtab").forEach(function (t) {
+            t.classList.toggle("active", t.getAttribute("data-writing-sub") === name);
           });
-          toolbar.hidden = _drafts.length === 0 && !_draftId;
+          document.getElementById("writing-compose").classList.toggle("active", name === "compose");
+          document.getElementById("writing-drafts").classList.toggle("active", name === "drafts");
+          if (name === "drafts") refreshDraftList();
+        }
+        window._showWritingSub = showWritingSub;
+
+        document.querySelectorAll(".writing-subtab").forEach(function (tab) {
+          tab.addEventListener("click", function () {
+            showWritingSub(tab.getAttribute("data-writing-sub"));
+          });
+        });
+
+        function newCompose() {
+          _draftId = null;
+          document.getElementById("p-title").value = "";
+          document.getElementById("p-summary").value = "";
+          quill.setContents([]);
+          notice.hidden = true;
+        }
+        window._newCompose = newCompose;
+
+        function renderDraftsList() {
+          draftsList.innerHTML = "";
+          draftsEmpty.hidden = _drafts.length > 0;
+          _drafts.forEach(function (d) {
+            var li = document.createElement("li");
+
+            var main = document.createElement("div");
+            main.className = "draft-item-main";
+            main.addEventListener("click", function () {
+              loadDraftById(d.id);
+              showWritingSub("compose");
+            });
+
+            var titleEl = document.createElement("div");
+            titleEl.className = "draft-item-title";
+            titleEl.textContent = draftTitle(d);
+
+            var dateEl = document.createElement("div");
+            dateEl.className = "draft-item-date";
+            dateEl.textContent = d.updated_at
+              ? etDraftFmt.format(new Date(d.updated_at))
+              : "";
+
+            main.appendChild(titleEl);
+            main.appendChild(dateEl);
+
+            var del = document.createElement("button");
+            del.type = "button";
+            del.className = "draft-item-delete";
+            del.textContent = "Delete";
+            del.addEventListener("click", function (e) {
+              e.stopPropagation();
+              deleteDraftById(d.id, draftTitle(d));
+            });
+
+            li.appendChild(main);
+            li.appendChild(del);
+            draftsList.appendChild(li);
+          });
         }
 
         async function refreshDraftList() {
@@ -694,7 +827,7 @@
           try {
             var data = await callAPI({ action: "list-drafts" });
             _drafts = data.drafts || [];
-            renderDraftSelect();
+            renderDraftsList();
           } catch (e) {}
         }
 
@@ -707,7 +840,8 @@
             document.getElementById("p-title").value = data.draft.title || "";
             document.getElementById("p-summary").value = data.draft.summary || "";
             quill.clipboard.dangerouslyPasteHTML(data.draft.body || "");
-            renderDraftSelect();
+            notice.hidden = false;
+            notice.textContent = "Editing draft.";
           } catch (e) {}
         }
 
@@ -717,14 +851,12 @@
           var summary = document.getElementById("p-summary").value.trim();
           var bodyText = quill.getText().trim();
           if (!title && !summary && !bodyText) {
-            if (_draftId) {
-              try { await callAPI({ action: "delete-draft", id: _draftId }); } catch (e) {}
-              _draftId = null;
-              await refreshDraftList();
-            }
-            notice.hidden = true;
+            notice.hidden = false;
+            notice.textContent = "Nothing to save.";
             return;
           }
+          saveDraftBtn.disabled = true;
+          notice.hidden = true;
           try {
             var payload = {
               action: "save-draft",
@@ -736,9 +868,25 @@
             var data = await callAPI(payload);
             if (!_draftId && data.id) _draftId = data.id;
             notice.hidden = false;
-            notice.childNodes[0].textContent = "Draft saved. ";
+            notice.textContent = "Draft saved.";
             await refreshDraftList();
-          } catch (e) {}
+          } catch (e) {
+            notice.hidden = false;
+            notice.textContent = e.message || "Could not save draft.";
+          } finally {
+            saveDraftBtn.disabled = false;
+          }
+        }
+
+        async function deleteDraftById(id, label) {
+          if (!confirm('Delete draft "' + label + '"?')) return;
+          try {
+            await callAPI({ action: "delete-draft", id: id });
+            if (_draftId === id) newCompose();
+            await refreshDraftList();
+          } catch (e) {
+            alert(e.message || "Could not delete draft.");
+          }
         }
 
         async function clearDraft() {
@@ -751,47 +899,10 @@
         }
         window._clearWritingDraft = clearDraft;
 
-        function scheduleSave() {
-          if (_editSlug) return;
-          clearTimeout(saveTimer);
-          saveTimer = setTimeout(saveDraft, 1500);
-        }
+        saveDraftBtn.addEventListener("click", saveDraft);
 
-        document.getElementById("p-title").addEventListener("input", scheduleSave);
-        document.getElementById("p-summary").addEventListener("input", scheduleSave);
-        quill.on("text-change", scheduleSave);
-
-        document.getElementById("p-draft-clear").addEventListener("click", function (e) {
-          e.preventDefault();
-          document.getElementById("p-title").value = "";
-          document.getElementById("p-summary").value = "";
-          quill.setContents([]);
-          clearDraft();
-        });
-
-        draftSelect.addEventListener("change", function () {
-          loadDraftById(draftSelect.value);
-        });
-
-        document.getElementById("p-draft-new").addEventListener("click", function () {
-          _draftId = null;
-          document.getElementById("p-title").value = "";
-          document.getElementById("p-summary").value = "";
-          quill.setContents([]);
-          notice.hidden = true;
-          renderDraftSelect();
-        });
-
-        // Load drafts on sign-in / page load
-        (async function () {
-          if (!loadSession()) return;
-          await refreshDraftList();
-          if (_drafts.length > 0) {
-            await loadDraftById(_drafts[0].id);
-            notice.hidden = false;
-            notice.childNodes[0].textContent = "Draft restored. ";
-          }
-        })();
+        // Refresh drafts list when signed in (don't auto-load a draft)
+        if (loadSession()) refreshDraftList();
       })();
 
       // ── Reading form ───────────────────────────────────────────────────────
