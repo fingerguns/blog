@@ -113,6 +113,10 @@ export default {
       return handleEditPost(body, db, cors, env);
     }
 
+    if (action === "delete-post") {
+      return handleDeletePost(body, db, cors, env);
+    }
+
     return json({ error: "Unknown action" }, 400, cors);
   },
 };
@@ -548,6 +552,33 @@ async function handleEditPost(body, db, cors, env) {
     return json({ ok: true, url: `${SITE_URL}/posts/${cleanSlug}/` }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Edit failed" }, 500, cors);
+  }
+}
+
+// ─── Delete Post ──────────────────────────────────────────────────────────────
+
+async function handleDeletePost(body, db, cors, env) {
+  const { slug } = body;
+  if (typeof slug !== "string" || !slug.trim()) {
+    return json({ error: "Missing slug" }, 400, cors);
+  }
+
+  const cleanSlug = slug.trim().replace(/[^a-zA-Z0-9-_]/g, "");
+
+  try {
+    const existing = await dbFirst(db, "SELECT slug FROM posts WHERE slug = ?", cleanSlug);
+    if (!existing) {
+      return json({ error: "Post not found" }, 404, cors);
+    }
+
+    await dbRun(db, "DELETE FROM post_versions WHERE slug = ?", cleanSlug);
+    await dbRun(db, "DELETE FROM posts WHERE slug = ?", cleanSlug);
+
+    await triggerRebuild(env);
+
+    return json({ ok: true }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Delete failed" }, 500, cors);
   }
 }
 
