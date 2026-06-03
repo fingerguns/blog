@@ -1,35 +1,20 @@
-name: Build site
+name: Hourly rebuild
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "data/**"
-      - "scripts/**"
   schedule:
-    - cron: "0 * * * *"  # every hour on the hour
+    - cron: "0 * * * *"
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  build:
+  rebuild:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Rebuild static files
-        run: node scripts/build.mjs
-
-      - name: Commit generated files
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "Rebuild site"
-          file_pattern: "*.html *.xml *.txt"
+      - name: Trigger Cloudflare Pages deploy
+        env:
+          DEPLOY_HOOK: ${{ secrets.PAGES_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$DEPLOY_HOOK" ]; then
+            echo "PAGES_DEPLOY_HOOK not set — skipping"
+            exit 0
+          fi
+          curl -sf -X POST "$DEPLOY_HOOK"

@@ -1,67 +1,84 @@
-# Thinking admin (Cloudflare Worker)
+# Cloudflare Worker: admin API for rommy.blog
 
-This worker lets you update `thinking.text` in `data/posts.json` from [rommy.blog/admin/](../admin/) without using Cursor.
+Content is stored in **Cloudflare D1**. The static site is rebuilt via a **Pages deploy hook**.
 
-## One-time setup
+## Setup
 
-### 1. GitHub token
+### D1 database
 
-Create a [fine-grained personal access token](https://github.com/settings/tokens?type=beta):
+Already created: `rommy-blog-db` (`2cb5dcd1-ff1b-4152-b081-58f56c9e5a55`)
 
-- Repository access: **Only** `fingerguns/blog`
-- Permissions: **Contents** → Read and write
-
-Save the token somewhere safe.
-
-### 2. Cloudflare account
-
-Install Wrangler if needed:
-
-```bash
-npm install -g wrangler
-wrangler login
-```
-
-### 3. Deploy the worker
-
-From this directory:
+Apply schema (if needed):
 
 ```bash
 cd worker
-wrangler secret put ADMIN_PASSWORD   # pick a strong password
-wrangler secret put GITHUB_TOKEN     # paste the PAT from step 1
+wrangler d1 execute rommy-blog-db --file=schema.sql --remote
+```
+
+Migrate existing content from `data/posts.json`:
+
+```bash
+node scripts/migrate-to-d1.mjs
+```
+
+### Worker secrets
+
+```bash
+cd worker
+wrangler secret put ADMIN_PASSWORD
+wrangler secret put PAGES_DEPLOY_HOOK   # Cloudflare Pages → Settings → Deploy hooks
+wrangler secret put MICROBLOG_TOKEN     # optional
+wrangler secret put BLUESKY_HANDLE        # optional
+wrangler secret put BLUESKY_APP_PASSWORD  # optional
+wrangler secret put GITHUB_TOKEN          # optional fallback for rebuild trigger
+```
+
+Deploy:
+
+```bash
 wrangler deploy
 ```
 
-Note the URL Wrangler prints, e.g. `https://rommy-blog-admin.yourname.workers.dev`.
+### Cloudflare Pages build env
 
-### 4. Point the admin page at the worker
+In Pages project settings → Environment variables, add:
 
-Edit [admin/index.html](../admin/index.html) and set `API_URL` to your worker URL:
+| Variable | Value |
+|---|---|
+| `CF_ACCOUNT_ID` | Your Cloudflare account ID |
+| `CF_API_TOKEN` | API token with D1 read permission |
+| `CF_D1_DATABASE_ID` | `2cb5dcd1-ff1b-4152-b081-58f56c9e5a55` |
 
-```javascript
-const API_URL = "https://rommy-blog-admin.yourname.workers.dev";
+Build command: `node build-pages.mjs`  
+Output directory: `dist`
+
+### GitHub secret (hourly rebuild)
+
+Add `PAGES_DEPLOY_HOOK` to GitHub repo secrets (same URL as worker secret).
+
+## Admin actions
+
+| Action | Description |
+|---|---|
+| `thinking` | Update thinking text in D1 |
+| `post` | Publish new writing post |
+| `edit-post` | Edit post (saves version history) |
+| `fetch-post` | Load post for editing |
+| `reading` | Add reading entry |
+| `sharing` | Add linklog entry |
+| `list-drafts` | List all writing drafts |
+| `save-draft` | Create/update draft |
+| `load-draft` | Load draft by id |
+| `delete-draft` | Delete draft |
+
+## Architecture
+
+```
+Admin → Worker → D1 (write)
+              ↓
+         Pages deploy hook
+              ↓
+Pages build → D1 HTTP API (read) → build.mjs → dist/ → rommy.blog
 ```
 
-Commit and push that change.
-
-### 5. GitHub Action
-
-The workflow in `.github/workflows/build.yml` rebuilds the site whenever `data/posts.json` changes. After you save from `/admin/`, the live site updates in about a minute.
-
-## Usage
-
-1. Open **https://rommy.blog/admin/**
-2. Enter your admin password and new thought
-3. Click **Save**
-4. Wait ~60 seconds for GitHub Actions to rebuild and deploy
-
-## Local preview
-
-Add your worker URL to `ALLOWED_ORIGINS` in `wrangler.toml` if you use a different localhost port, then redeploy.
-
-## Security
-
-- Never put `GITHUB_TOKEN` or `ADMIN_PASSWORD` in the admin page or this repo.
-- `/admin/` is unlisted (not linked from the site) and uses `noindex`.
-- Rotate the password and token if either is exposed.
+`data/posts.json` is kept as a legacy fallback for local builds without D1 credentials.

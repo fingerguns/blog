@@ -1,16 +1,26 @@
 /**
- * Rebuilds index.html, feed.xml, robots.txt, and sitemap.xml from data/posts.json
+ * Rebuilds index.html, feed.xml, robots.txt, sitemap.xml, and post pages.
+ * Reads content from Cloudflare D1 when configured, else data/posts.json.
  * Run from project root: node scripts/build.mjs
  */
 import { execSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { d1Configured, loadBlogDataFromD1 } from "./d1-client.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
 
-const data = JSON.parse(readFileSync(join(root, "data/posts.json"), "utf8"));
+let data;
+if (d1Configured()) {
+  console.log("Loading content from D1…");
+  data = await loadBlogDataFromD1();
+} else {
+  console.log("D1 not configured — loading data/posts.json");
+  data = JSON.parse(readFileSync(join(root, "data/posts.json"), "utf8"));
+}
+
 const { site, thinking, posts, reading, linklog, links, optionalColophon } = data;
 
 const base = site.url.replace(/\/$/, "");
@@ -79,6 +89,67 @@ function toIsoZ(p) {
 function toETDate(p) {
   const d = p.datetime ? new Date(p.datetime) : new Date(`${p.date}T12:00:00.000Z`);
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(d);
+}
+
+function readingMins(bodyHtml) {
+  const words = String(bodyHtml || "").replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.round(words / 200));
+}
+
+function renderPostPage(p) {
+  const slug = safeSlug(p.slug);
+  const displayDate = toETDate(p);
+  const readMins = readingMins(p.body_html);
+  const bodyHtml = p.body_html || "";
+  return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escHtml(p.title)} — ${escHtml(site.title)}</title>
+    <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);}());</script>
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="${escHtml(p.title)} — ${escHtml(site.title)}" />
+    <meta property="og:description" content="${escHtml(p.summary)}" />
+    <meta property="og:url" content="${escHtml(base)}/posts/${escHtml(slug)}/" />
+    <meta property="og:site_name" content="${escHtml(site.title)}" />
+    <meta property="og:image" content="${escHtml(base)}/favicon.png" />
+    <meta
+      name="description"
+      content="${escHtml(p.summary)}"
+    />
+    <link rel="icon" href="../../favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="../../favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link
+      rel="alternate"
+      type="application/atom+xml"
+      title="${escHtml(site.title)}"
+      href="../../feed.xml"
+    />
+${gaSnippet}
+  </head>
+  <body>
+    <article class="post">
+      <a class="post-back" href="../../index.html">←</a>
+      <h1>${escHtml(p.title)}</h1>
+      <time datetime="${escHtml(displayDate)}"><span>${escHtml(displayDate)}</span><span class="reading-time">${readMins} min read</span></time>
+      <div class="body">
+        ${bodyHtml}
+      </div>
+      <a class="back-to-top" href="#">↑ Top</a>
+      <footer class="site-footer">
+        <p class="footer-row">&copy; 2026 ${escHtml(site.author)}<a href="#" class="theme-toggle" id="theme-toggle"></a></p>
+        <p class="footer-row"><span><a href="../../feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
+      </footer>
+    </article>
+    <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
+    <script>(function(){try{var s=JSON.parse(localStorage.getItem('admin_session')||'null');if(s&&s.pw&&(Date.now()-s.ts)<2592000000){var a=document.createElement('a');a.href='/admin/?post=${slug}';a.textContent='Edit post';a.className='post-edit-link';var f=document.querySelector('.site-footer');if(f)f.insertAdjacentElement('beforebegin',a);}}catch(e){}}());</script>
+  </body>
+</html>
+`;
 }
 
 const latest = ordered[0];
@@ -544,4 +615,14 @@ ${thinkingPostFoot}`;
   writeFileSync(join(root, "thinking", slug, "index.html"), postHtml, "utf8");
 }
 
-console.log("Wrote index.html, feed.xml, robots.txt, sitemap.xml, now/index.html, changelog/index.html, and microblog/index.html");
+// Writing post pages — generated from D1; skip when using posts.json fallback
+if (d1Configured()) {
+  rmSync(join(root, "posts"), { recursive: true, force: true });
+  for (const p of ordered) {
+    const slug = safeSlug(p.slug);
+    mkdirSync(join(root, "posts", slug), { recursive: true });
+    writeFileSync(join(root, "posts", slug, "index.html"), renderPostPage(p), "utf8");
+  }
+}
+
+console.log("Wrote index.html, feed.xml, robots.txt, sitemap.xml, now/index.html, changelog/index.html, thinking/, and posts/");

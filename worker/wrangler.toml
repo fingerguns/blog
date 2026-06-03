@@ -8,10 +8,12 @@ GITHUB_REPO = "blog"
 GITHUB_BRANCH = "main"
 ALLOWED_ORIGINS = "https://rommy.blog,https://rommy-blog.pages.dev,http://localhost:8799,http://127.0.0.1:8799"
 
-[[kv_namespaces]]
-binding = "DRAFTS"
-id = "be1965c5076c4fe2bae43542ac9ec50d"
+[[d1_databases]]
+binding = "DB"
+database_name = "rommy-blog-db"
+database_id = "2cb5dcd1-ff1b-4152-b081-58f56c9e5a55"
 
 # Set via: wrangler secret put ADMIN_PASSWORD
 # Set via: wrangler secret put GITHUB_TOKEN
+# Set via: wrangler secret put PAGES_DEPLOY_HOOK  (Cloudflare Pages deploy hook URL)
 # Set via: wrangler secret put MICROBLOG_TOKEN  (micro.blog API token — optional, skipped if absent)

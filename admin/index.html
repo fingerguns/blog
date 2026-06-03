@@ -147,6 +147,35 @@
       .p-submit-row .admin-hint {
         margin: 0;
       }
+      .draft-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1.25rem;
+        flex-wrap: wrap;
+      }
+      .draft-toolbar select {
+        flex: 1;
+        min-width: 12rem;
+        font: inherit;
+        color: var(--text);
+        background: var(--bg);
+        border: 1px solid var(--rule);
+        border-radius: 0.25rem;
+        padding: 0.5rem 0.65rem;
+      }
+      .draft-new-btn {
+        font: inherit;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--muted);
+        background: none;
+        border: 1px solid var(--rule);
+        border-radius: 0.25rem;
+        padding: 0.45rem 0.75rem;
+        cursor: pointer;
+      }
+      .draft-new-btn:hover { color: var(--text); border-color: var(--text); }
       .admin-note {
         margin-top: 2rem;
         font-size: 0.78rem;
@@ -284,6 +313,11 @@
       <!-- ── WRITING ───────────────────────────────── -->
       <div class="admin-section" id="tab-post">
         <p class="lead" id="p-lead">Publish a new WRITING post.</p>
+
+        <div class="draft-toolbar" id="draft-toolbar" hidden>
+          <select id="p-draft-select" aria-label="Select draft"></select>
+          <button type="button" class="draft-new-btn" id="p-draft-new">New draft</button>
+        </div>
 
         <form class="admin-form" id="post-form">
           <label for="p-title">Title</label>
@@ -598,6 +632,10 @@
               body,
             };
             if (isEdit) payload.slug = _editSlug;
+            else {
+              var draftId = window._getDraftId && window._getDraftId();
+              if (draftId) payload.draftId = draftId;
+            }
             var data = await callAPI(payload);
             var msg = isEdit
               ? "Updated! Live at: " + data.url + " — rebuilding now."
@@ -622,39 +660,99 @@
         });
       })();
 
-      // ── Writing draft auto-save (Cloudflare KV) ───────────────────────────
+      // ── Writing draft auto-save (D1) ──────────────────────────────────────
 
       (function () {
         var saveTimer = null;
         var notice = document.getElementById("p-draft-notice");
+        var toolbar = document.getElementById("draft-toolbar");
+        var draftSelect = document.getElementById("p-draft-select");
+        var _draftId = null;
+        var _drafts = [];
+        window._getDraftId = function () { return _draftId; };
+        window._setDraftId = function (id) { _draftId = id; };
+
+        function draftLabel(d) {
+          var title = (d.title || "").trim();
+          return title || "Untitled draft";
+        }
+
+        function renderDraftSelect() {
+          draftSelect.innerHTML = "";
+          _drafts.forEach(function (d) {
+            var opt = document.createElement("option");
+            opt.value = d.id;
+            opt.textContent = draftLabel(d);
+            if (d.id === _draftId) opt.selected = true;
+            draftSelect.appendChild(opt);
+          });
+          toolbar.hidden = _drafts.length === 0 && !_draftId;
+        }
+
+        async function refreshDraftList() {
+          if (!loadSession()) return;
+          try {
+            var data = await callAPI({ action: "list-drafts" });
+            _drafts = data.drafts || [];
+            renderDraftSelect();
+          } catch (e) {}
+        }
+
+        async function loadDraftById(id) {
+          if (!id) return;
+          try {
+            var data = await callAPI({ action: "load-draft", id: id });
+            if (!data.draft) return;
+            _draftId = data.draft.id;
+            document.getElementById("p-title").value = data.draft.title || "";
+            document.getElementById("p-summary").value = data.draft.summary || "";
+            quill.clipboard.dangerouslyPasteHTML(data.draft.body || "");
+            renderDraftSelect();
+          } catch (e) {}
+        }
 
         async function saveDraft() {
+          if (_editSlug) return;
           var title = document.getElementById("p-title").value.trim();
           var summary = document.getElementById("p-summary").value.trim();
           var bodyText = quill.getText().trim();
           if (!title && !summary && !bodyText) {
-            clearDraft();
+            if (_draftId) {
+              try { await callAPI({ action: "delete-draft", id: _draftId }); } catch (e) {}
+              _draftId = null;
+              await refreshDraftList();
+            }
+            notice.hidden = true;
             return;
           }
           try {
-            await callAPI({
+            var payload = {
               action: "save-draft",
               title: document.getElementById("p-title").value,
               summary: document.getElementById("p-summary").value,
               body: quill.root.innerHTML,
-            });
+            };
+            if (_draftId) payload.id = _draftId;
+            var data = await callAPI(payload);
+            if (!_draftId && data.id) _draftId = data.id;
             notice.hidden = false;
             notice.childNodes[0].textContent = "Draft saved. ";
+            await refreshDraftList();
           } catch (e) {}
         }
 
         async function clearDraft() {
           notice.hidden = true;
-          try { await callAPI({ action: "clear-draft" }); } catch (e) {}
+          if (_draftId) {
+            try { await callAPI({ action: "delete-draft", id: _draftId }); } catch (e) {}
+            _draftId = null;
+            await refreshDraftList();
+          }
         }
         window._clearWritingDraft = clearDraft;
 
         function scheduleSave() {
+          if (_editSlug) return;
           clearTimeout(saveTimer);
           saveTimer = setTimeout(saveDraft, 1500);
         }
@@ -671,20 +769,28 @@
           clearDraft();
         });
 
-        // Restore draft from KV on page load (only if signed in)
+        draftSelect.addEventListener("change", function () {
+          loadDraftById(draftSelect.value);
+        });
+
+        document.getElementById("p-draft-new").addEventListener("click", function () {
+          _draftId = null;
+          document.getElementById("p-title").value = "";
+          document.getElementById("p-summary").value = "";
+          quill.setContents([]);
+          notice.hidden = true;
+          renderDraftSelect();
+        });
+
+        // Load drafts on sign-in / page load
         (async function () {
           if (!loadSession()) return;
-          try {
-            var data = await callAPI({ action: "load-draft" });
-            if (data.draft) {
-              var d = data.draft;
-              if (d.title) document.getElementById("p-title").value = d.title;
-              if (d.summary) document.getElementById("p-summary").value = d.summary;
-              if (d.body) quill.clipboard.dangerouslyPasteHTML(d.body);
-              notice.hidden = false;
-              notice.childNodes[0].textContent = "Draft restored. ";
-            }
-          } catch (e) {}
+          await refreshDraftList();
+          if (_drafts.length > 0) {
+            await loadDraftById(_drafts[0].id);
+            notice.hidden = false;
+            notice.childNodes[0].textContent = "Draft restored. ";
+          }
         })();
       })();
 
