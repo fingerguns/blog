@@ -6,7 +6,7 @@ compatibility_date = "2024-01-01"
 GITHUB_OWNER = "fingerguns"
 GITHUB_REPO = "blog"
 GITHUB_BRANCH = "main"
-ALLOWED_ORIGINS = "https://rommy.blog,http://localhost:8799,http://127.0.0.1:8799"
+ALLOWED_ORIGINS = "https://rommy.blog,https://rommy-blog.pages.dev,http://localhost:8799,http://127.0.0.1:8799"
 
 [[kv_namespaces]]
 binding = "DRAFTS"
