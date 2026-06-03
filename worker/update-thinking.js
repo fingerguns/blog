@@ -93,6 +93,18 @@ export default {
       return handleFetchTitle(body, cors);
     }
 
+    if (action === "save-draft") {
+      return handleSaveDraft(body, env.DRAFTS, cors);
+    }
+
+    if (action === "load-draft") {
+      return handleLoadDraft(env.DRAFTS, cors);
+    }
+
+    if (action === "clear-draft") {
+      return handleClearDraft(env.DRAFTS, cors);
+    }
+
 
     if (action === "fetch-post") {
       return handleFetchPost(body, env.GITHUB_TOKEN, owner, repo, branch, cors);
@@ -591,6 +603,44 @@ async function handleEditPost(body, token, owner, repo, branch, cors) {
     return json({ ok: true, url: `${SITE_URL}/posts/${cleanSlug}/` }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Edit failed" }, 500, cors);
+  }
+}
+
+// ─── KV Drafts ───────────────────────────────────────────────────────────────
+
+const DRAFT_KV_KEY = "writing_draft";
+
+async function handleSaveDraft(body, kv, cors) {
+  const { title, summary, body: draftBody } = body;
+  try {
+    await kv.put(DRAFT_KV_KEY, JSON.stringify({
+      title: title || "",
+      summary: summary || "",
+      body: draftBody || "",
+      ts: Date.now(),
+    }));
+    return json({ ok: true }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Could not save draft" }, 500, cors);
+  }
+}
+
+async function handleLoadDraft(kv, cors) {
+  try {
+    const raw = await kv.get(DRAFT_KV_KEY);
+    if (!raw) return json({ ok: true, draft: null }, 200, cors);
+    return json({ ok: true, draft: JSON.parse(raw) }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Could not load draft" }, 500, cors);
+  }
+}
+
+async function handleClearDraft(kv, cors) {
+  try {
+    await kv.delete(DRAFT_KV_KEY);
+    return json({ ok: true }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Could not clear draft" }, 500, cors);
   }
 }
 

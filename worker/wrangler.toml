@@ -8,6 +8,10 @@ GITHUB_REPO = "blog"
 GITHUB_BRANCH = "main"
 ALLOWED_ORIGINS = "https://rommy.blog,http://localhost:8799,http://127.0.0.1:8799"
 
+[[kv_namespaces]]
+binding = "DRAFTS"
+id = "be1965c5076c4fe2bae43542ac9ec50d"
+
 # Set via: wrangler secret put ADMIN_PASSWORD
 # Set via: wrangler secret put GITHUB_TOKEN
 # Set via: wrangler secret put MICROBLOG_TOKEN  (micro.blog API token — optional, skipped if absent)

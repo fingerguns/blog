@@ -622,36 +622,35 @@
         });
       })();
 
-      // ── Writing draft auto-save ────────────────────────────────────────────
+      // ── Writing draft auto-save (Cloudflare KV) ───────────────────────────
 
       (function () {
-        var DRAFT_KEY = "writing_draft";
         var saveTimer = null;
         var notice = document.getElementById("p-draft-notice");
 
-        function saveDraft() {
-          var hasContent = document.getElementById("p-title").value.trim() ||
-                           document.getElementById("p-summary").value.trim() ||
-                           quill.getText().trim();
-          if (!hasContent) {
+        async function saveDraft() {
+          var title = document.getElementById("p-title").value.trim();
+          var summary = document.getElementById("p-summary").value.trim();
+          var bodyText = quill.getText().trim();
+          if (!title && !summary && !bodyText) {
             clearDraft();
             return;
           }
           try {
-            localStorage.setItem(DRAFT_KEY, JSON.stringify({
+            await callAPI({
+              action: "save-draft",
               title: document.getElementById("p-title").value,
               summary: document.getElementById("p-summary").value,
-              body: quill.getContents(),
-              ts: Date.now(),
-            }));
+              body: quill.root.innerHTML,
+            });
             notice.hidden = false;
             notice.childNodes[0].textContent = "Draft saved. ";
           } catch (e) {}
         }
 
-        function clearDraft() {
-          localStorage.removeItem(DRAFT_KEY);
+        async function clearDraft() {
           notice.hidden = true;
+          try { await callAPI({ action: "clear-draft" }); } catch (e) {}
         }
         window._clearWritingDraft = clearDraft;
 
@@ -672,17 +671,21 @@
           clearDraft();
         });
 
-        // Restore draft on page load
-        try {
-          var stored = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null");
-          if (stored) {
-            if (stored.title) document.getElementById("p-title").value = stored.title;
-            if (stored.summary) document.getElementById("p-summary").value = stored.summary;
-            if (stored.body) quill.setContents(stored.body);
-            notice.hidden = false;
-            notice.childNodes[0].textContent = "Draft restored. ";
-          }
-        } catch (e) {}
+        // Restore draft from KV on page load (only if signed in)
+        (async function () {
+          if (!loadSession()) return;
+          try {
+            var data = await callAPI({ action: "load-draft" });
+            if (data.draft) {
+              var d = data.draft;
+              if (d.title) document.getElementById("p-title").value = d.title;
+              if (d.summary) document.getElementById("p-summary").value = d.summary;
+              if (d.body) quill.clipboard.dangerouslyPasteHTML(d.body);
+              notice.hidden = false;
+              notice.childNodes[0].textContent = "Draft restored. ";
+            }
+          } catch (e) {}
+        })();
       })();
 
       // ── Reading form ───────────────────────────────────────────────────────
