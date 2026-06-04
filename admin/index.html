@@ -361,49 +361,55 @@
         outline: 2px solid var(--text);
         outline-offset: 2px;
       }
-      /* Custom image toolbar buttons: hide empty Quill SVGs, show text labels always */
-      .ql-snow .ql-toolbar button.ql-wrap-left svg,
-      .ql-snow .ql-toolbar button.ql-wrap-right svg,
-      .ql-snow .ql-toolbar button.ql-wrap-center svg,
-      .ql-snow .ql-toolbar button.ql-wrap-full svg,
-      .ql-snow .ql-toolbar button.ql-image-delete svg {
-        display: none;
+      .post-image-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.55rem 0.65rem;
+        border: 1px solid var(--rule);
+        border-top: none;
+        background: var(--bg);
+        margin-bottom: 0;
       }
-      .ql-snow .ql-toolbar button.ql-wrap-left,
-      .ql-snow .ql-toolbar button.ql-wrap-right,
-      .ql-snow .ql-toolbar button.ql-wrap-center,
-      .ql-snow .ql-toolbar button.ql-wrap-full,
-      .ql-snow .ql-toolbar button.ql-image-delete {
-        color: var(--text);
-        width: auto;
-        min-width: 2.85rem;
-        height: 28px;
-        padding: 0 0.45rem;
-        font: inherit;
+      .post-image-toolbar-label {
         font-size: 0.68rem;
         font-weight: 600;
-        letter-spacing: 0.02em;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-right: 0.25rem;
       }
-      .ql-snow .ql-toolbar button.ql-wrap-left:hover,
-      .ql-snow .ql-toolbar button.ql-wrap-right:hover,
-      .ql-snow .ql-toolbar button.ql-wrap-center:hover,
-      .ql-snow .ql-toolbar button.ql-wrap-full:hover,
-      .ql-snow .ql-toolbar button.ql-image-delete:hover {
+      .post-image-btn {
+        font: inherit;
+        font-size: 0.78rem;
+        font-weight: 600;
         color: var(--text);
+        background: transparent;
+        border: 1px solid var(--rule);
+        border-radius: 0.25rem;
+        padding: 0.35rem 0.6rem;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .post-image-btn:hover {
+        border-color: var(--text);
         background: var(--rule);
       }
-      .ql-snow .ql-wrap-left::before,
-      .ql-snow .ql-wrap-right::before,
-      .ql-snow .ql-wrap-center::before,
-      .ql-snow .ql-wrap-full::before,
-      .ql-snow .ql-image-delete::before {
-        color: var(--text);
+      .post-image-btn-danger {
+        color: #b44;
+        border-color: #b44;
       }
-      .ql-snow .ql-wrap-left::before { content: "Wrap L"; }
-      .ql-snow .ql-wrap-right::before { content: "Wrap R"; }
-      .ql-snow .ql-wrap-center::before { content: "Center"; }
-      .ql-snow .ql-wrap-full::before { content: "Full"; }
-      .ql-snow .ql-image-delete::before { content: "Delete"; }
+      [data-theme="dark"] .post-image-btn-danger {
+        color: #e88;
+        border-color: #e88;
+      }
+      #p-body-editor .ql-container.ql-snow {
+        border-top: 1px solid var(--rule);
+      }
+      #p-body-editor .post-image-toolbar:not([hidden]) + .ql-container.ql-snow {
+        border-top: none;
+      }
       .admin-secondary-btn {
         font: inherit;
         font-size: 0.85rem;
@@ -501,8 +507,16 @@
             <input id="p-summary" type="text" required placeholder="One sentence description for meta/feed" />
 
             <label>Body</label>
-            <p class="admin-hint" style="margin-top: -0.75rem">Photos upload to R2. Place the cursor in the paragraph where you want the image, then insert. Keep typing in that same paragraph so text wraps (do not press Enter before the caption). Click a photo to select it — then Wrap L / R / Center / Full, Delete on the toolbar, or press Backspace/Delete.</p>
+            <p class="admin-hint" style="margin-top: -0.75rem">Photos upload to R2. Place the cursor in the paragraph where you want the image, then insert. Keep typing in that same paragraph so text wraps (do not press Enter before the caption). Click a photo to select it, then use the image controls below the toolbar.</p>
             <div id="p-body-editor"></div>
+            <div id="p-image-toolbar" class="post-image-toolbar" hidden>
+              <span class="post-image-toolbar-label">Photo selected</span>
+              <button type="button" class="post-image-btn" data-wrap="left">Wrap left</button>
+              <button type="button" class="post-image-btn" data-wrap="right">Wrap right</button>
+              <button type="button" class="post-image-btn" data-wrap="center">Center</button>
+              <button type="button" class="post-image-btn" data-wrap="full">Full width</button>
+              <button type="button" class="post-image-btn post-image-btn-danger" data-action="delete">Delete</button>
+            </div>
 
             <div class="p-submit-row">
               <button type="submit" id="p-submit">Publish</button>
@@ -1034,12 +1048,15 @@
         });
       }
 
+      var postImageToolbar = document.getElementById("p-image-toolbar");
+
       function selectPostImage(img) {
         quill.root.querySelectorAll("img.post-photo-selected").forEach(function (el) {
           el.classList.remove("post-photo-selected");
         });
         selectedPostImage = img || null;
         if (img) img.classList.add("post-photo-selected");
+        if (postImageToolbar) postImageToolbar.hidden = !img;
       }
 
       function setPostImageWrap(wrap) {
@@ -1132,28 +1149,32 @@
               [{ list: "ordered" }, { list: "bullet" }],
               [{ align: [] }],
               ["link", "blockquote", "image"],
-              ["wrap-left", "wrap-right", "wrap-center", "wrap-full", "image-delete"],
               ["clean"],
             ],
             handlers: {
               image: postImageHandler,
-              "wrap-left": function () {
-                setPostImageWrap("left");
-              },
-              "wrap-right": function () {
-                setPostImageWrap("right");
-              },
-              "wrap-center": function () {
-                setPostImageWrap("center");
-              },
-              "wrap-full": function () {
-                setPostImageWrap("full");
-              },
-              "image-delete": deleteSelectedPostImage,
             },
           },
         },
       });
+
+      (function () {
+        var qlContainer = document.querySelector("#p-body-editor .ql-container");
+        if (postImageToolbar && qlContainer && qlContainer.parentNode) {
+          qlContainer.parentNode.insertBefore(postImageToolbar, qlContainer);
+        }
+        if (postImageToolbar) {
+          postImageToolbar.addEventListener("click", function (e) {
+            var btn = e.target.closest("[data-wrap], [data-action='delete']");
+            if (!btn || !selectedPostImage) return;
+            if (btn.getAttribute("data-action") === "delete") {
+              deleteSelectedPostImage();
+              return;
+            }
+            setPostImageWrap(btn.getAttribute("data-wrap"));
+          });
+        }
+      })();
 
       quill.root.addEventListener("click", function (e) {
         if (e.target && e.target.tagName === "IMG") selectPostImage(e.target);
