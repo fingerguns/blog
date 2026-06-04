@@ -38,7 +38,8 @@ New databases get the table from `schema.sql` automatically.
 
 ## 3. Admin session (code — deploy Pages)
 
-- Admin password is **only in memory** for the open tab (no “remember me”, no `localStorage`).
+- After Cloudflare Access, the blog password can be **remembered on this device** for 30 days (`localStorage`, optional checkbox on sign-in). Otherwise it stays in memory for the open tab only.
+- Sign out clears remembered sessions on that device.
 - Public post pages **no longer** inject Edit/Delete controls that read a stored password.
 - Edit/delete from **`/admin/`** only (after Access + sign-in).
 

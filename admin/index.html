@@ -85,6 +85,20 @@
         opacity: 0.5;
         cursor: not-allowed;
       }
+      .admin-remember {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: -0.5rem 0 1.25rem;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+      .admin-remember input[type="checkbox"] {
+        width: auto;
+        margin: 0;
+        padding: 0;
+        accent-color: var(--text);
+      }
       .admin-signed-in {
         margin-top: 1.25rem;
       }
@@ -495,10 +509,15 @@
 
         <!-- Logged out state -->
         <div id="login-out">
-          <p class="lead">Sign in to manage your blog. Your password stays in this tab only — it is not saved in the browser.</p>
+          <p class="lead">Sign in after Cloudflare Access. Optionally remember the blog password on this device for 30 days.</p>
           <form class="admin-form" id="login-form">
             <label for="login-password">Password</label>
             <input id="login-password" type="password" autocomplete="current-password" required />
+
+            <label class="admin-remember">
+              <input id="login-remember" type="checkbox" checked />
+              Remember me on this device (30 days)
+            </label>
 
             <button type="submit" id="login-submit">Sign in</button>
             <p class="admin-status" id="login-status" hidden></p>
@@ -508,7 +527,7 @@
         <!-- Logged in state -->
         <div id="login-in" hidden>
           <div class="admin-signed-in">
-            <p><strong>Signed in.</strong> Session lasts until you sign out or close this tab.</p>
+            <p id="login-in-msg"><strong>Signed in.</strong></p>
             <button class="admin-signout-btn" id="sign-out">Sign out</button>
           </div>
         </div>
@@ -640,20 +659,60 @@
     <script>
       const API_URL = "https://rommy-blog-admin.fingerguns.workers.dev";
 
-      // ── Session (in-memory only; never localStorage) ─────────────────────────
+      // ── Session (memory + optional 30-day remember-me on this device) ───────
+
+      const SESSION_KEY = "admin_session";
+      const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;
 
       var _sessionPw = null;
 
-      function saveSession(pw) {
+      function sessionIsRemembered() {
+        try {
+          var raw = localStorage.getItem(SESSION_KEY);
+          if (!raw) return false;
+          var s = JSON.parse(raw);
+          return !!(s && s.pw && s.ts && Date.now() - s.ts < SESSION_TTL);
+        } catch (e) {
+          return false;
+        }
+      }
+
+      function saveSession(pw, remember) {
         _sessionPw = pw;
+        try {
+          if (remember) {
+            localStorage.setItem(SESSION_KEY, JSON.stringify({ pw: pw, ts: Date.now() }));
+          } else {
+            localStorage.removeItem(SESSION_KEY);
+          }
+        } catch (e) {}
       }
 
       function loadSession() {
-        return _sessionPw;
+        if (_sessionPw) return _sessionPw;
+        try {
+          var raw = localStorage.getItem(SESSION_KEY);
+          if (!raw) return null;
+          var s = JSON.parse(raw);
+          if (!s || !s.pw || !s.ts || Date.now() - s.ts >= SESSION_TTL) {
+            localStorage.removeItem(SESSION_KEY);
+            return null;
+          }
+          _sessionPw = s.pw;
+          return _sessionPw;
+        } catch (e) {
+          try {
+            localStorage.removeItem(SESSION_KEY);
+          } catch (e2) {}
+          return null;
+        }
       }
 
       function clearSession() {
         _sessionPw = null;
+        try {
+          localStorage.removeItem(SESSION_KEY);
+        } catch (e) {}
         setLoginState(false);
       }
 
@@ -663,14 +722,15 @@
         document.querySelectorAll(".auth-only").forEach(function (el) {
           el.hidden = !signedIn;
         });
+        var msg = document.getElementById("login-in-msg");
+        if (msg && signedIn) {
+          msg.innerHTML = sessionIsRemembered()
+            ? "<strong>Signed in.</strong> Remembered on this device for up to 30 days, or until you sign out."
+            : "<strong>Signed in.</strong> Until you sign out or close this tab.";
+        }
       }
 
-      // Drop legacy persisted admin passwords from older builds
       (function () {
-        try {
-          localStorage.removeItem("admin_session");
-        } catch (e) {}
-
         if (loadSession()) setLoginState(true);
 
         document.getElementById("sign-out").addEventListener("click", function () {
@@ -883,7 +943,7 @@
               throw new Error(data.error || "Too many attempts. Try again later.");
             }
             if (!res.ok) throw new Error(data.error || "Sign in failed");
-            saveSession(pw);
+            saveSession(pw, document.getElementById("login-remember").checked);
             setLoginState(true);
             status.hidden = true;
             document.getElementById("login-password").value = "";
