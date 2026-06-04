@@ -1092,7 +1092,21 @@ function cleanBodyHtml(raw) {
   html = html.replace(/<p>\s*(<br\s*\/?>)+/g, "<p>");
   html = html.replace(/(<br\s*\/?>)+\s*<\/p>/g, "</p>");
   html = html.replace(/<p>\s*<\/p>/g, "");
+  html = coalesceImageParagraphsHtml(html);
   return html.trim();
+}
+
+/** Merge image-only <p> with the following <p> so floats wrap text (same as admin). */
+function coalesceImageParagraphsHtml(html) {
+  const imgPara =
+    /<p>(?:\s*)<img([^>]*class="[^"]*post-photo[^"]*"[^>]*)>(?:\s*(?:\u200b|&#8203;|&ZeroWidthSpace;)?\s*)<\/p>\s*<p>((?:(?!<\/p>).)+)<\/p>/gi;
+  let prev = "";
+  let out = html;
+  while (out !== prev) {
+    prev = out;
+    out = out.replace(imgPara, "<p><img$1>$2</p>");
+  }
+  return out;
 }
 
 function toSlug(s) {

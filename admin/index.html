@@ -296,6 +296,10 @@
         min-height: 18rem;
         color: var(--text);
         line-height: 1.65;
+        overflow: visible;
+      }
+      .ql-editor p {
+        overflow: visible;
       }
       .ql-editor.ql-blank::before {
         color: var(--muted);
@@ -323,6 +327,8 @@
       }
       [data-theme="dark"] .ql-toolbar.ql-snow { background: #1a1a1a; }
       .ql-editor img.post-photo {
+        display: inline-block;
+        vertical-align: top;
         height: auto;
         border-radius: 4px;
         max-width: 100%;
@@ -445,7 +451,7 @@
             <input id="p-summary" type="text" required placeholder="One sentence description for meta/feed" />
 
             <label>Body</label>
-            <p class="admin-hint" style="margin-top: -0.75rem">Photos upload to R2. Use the image button to insert; click a photo, then Wrap L / R / Center / Full for text flow.</p>
+            <p class="admin-hint" style="margin-top: -0.75rem">Photos upload to R2. Place the cursor in the paragraph where you want the image, then insert. Keep typing in that same paragraph so text wraps (do not press Enter before the caption). Use Wrap L / R / Center / Full on a selected photo.</p>
             <div id="p-body-editor"></div>
 
             <div class="p-submit-row">
@@ -583,7 +589,9 @@
           var data = await callAPI({ action: "fetch-post", slug: _editSlug });
           document.getElementById("p-title").value = data.title || "";
           document.getElementById("p-summary").value = data.summary || "";
-          quill.clipboard.dangerouslyPasteHTML(data.body || "");
+          quill.clipboard.dangerouslyPasteHTML(
+            coalescePostHtmlForWrap(data.body || "") || ""
+          );
           normalizePostImages(quill.root);
           document.getElementById("p-lead").textContent = "Editing: " + (data.title || _editSlug);
           document.getElementById("p-submit").textContent = "Update";
@@ -888,7 +896,59 @@
 
       // ── Quill editor ───────────────────────────────────────────────────────
 
+      var PostImageBlot = Quill.import("blots/embed");
+      class PostImageFormat extends PostImageBlot {
+        static create(value) {
+          const node = super.create();
+          const url = typeof value === "object" ? value.url : value;
+          const wrap = typeof value === "object" ? value.wrap || "right" : "right";
+          node.setAttribute("src", url);
+          node.className = "post-photo post-photo--" + wrap;
+          node.setAttribute("alt", "");
+          return node;
+        }
+        static value(node) {
+          const m = (node.getAttribute("class") || "").match(/post-photo--(\w+)/);
+          return { url: node.getAttribute("src"), wrap: m ? m[1] : "right" };
+        }
+      }
+      PostImageFormat.blotName = "postImage";
+      PostImageFormat.tagName = "IMG";
+      Quill.register(PostImageFormat);
+
       var selectedPostImage = null;
+
+      function coalescePostHtmlForWrap(html) {
+        var doc = new DOMParser().parseFromString("<div>" + html + "</div>", "text/html");
+        var root = doc.body.firstChild;
+        if (!root) return html;
+        var ps = root.querySelectorAll("p");
+        var changed = false;
+        for (var i = 0; i < ps.length - 1; i++) {
+          var p = ps[i];
+          var next = ps[i + 1];
+          if (!next || next.querySelector("img.post-photo")) continue;
+          var imgs = p.querySelectorAll("img.post-photo");
+          if (imgs.length !== 1) continue;
+          var textOnly = (p.textContent || "").replace(/\u200B/g, "").trim();
+          if (textOnly) continue;
+          if (!next.textContent.replace(/\u200B/g, "").trim() && next.querySelector("br")) continue;
+          while (next.firstChild) {
+            p.appendChild(next.firstChild);
+          }
+          next.remove();
+          changed = true;
+        }
+        return changed ? root.innerHTML : html;
+      }
+
+      function refreshEditorHtml(html) {
+        var sel = quill.getSelection();
+        var index = sel ? sel.index : quill.getLength();
+        quill.clipboard.dangerouslyPasteHTML(html || "");
+        normalizePostImages(quill.root);
+        quill.setSelection(Math.min(index, Math.max(0, quill.getLength() - 1)), 0);
+      }
 
       async function uploadMediaFile(file, folder) {
         var pw = loadSession();
@@ -929,24 +989,30 @@
       function setPostImageWrap(wrap) {
         if (!selectedPostImage) return;
         selectedPostImage.className = "post-photo post-photo--" + wrap;
+        var merged = coalescePostHtmlForWrap(quill.root.innerHTML);
+        if (merged !== quill.root.innerHTML) refreshEditorHtml(merged);
       }
 
       function insertPostImage(url, wrap) {
+        wrap = wrap || "right";
         var range = quill.getSelection(true);
-        var index = range ? range.index : quill.getLength();
-        quill.insertEmbed(index, "image", url, "user");
+        if (!range) range = { index: quill.getLength(), length: 0 };
+        var index = range.index;
+        if (range.length) quill.deleteText(index, range.length, "user");
+        quill.insertEmbed(index, "postImage", { url: url, wrap: wrap }, "user");
+        quill.insertText(index + 1, "\u200b", "user");
+        quill.setSelection(index + 2, 0, "silent");
         setTimeout(function () {
-          var imgs = quill.root.querySelectorAll("img");
-          var img = imgs[imgs.length - 1];
-          if (img) {
-            img.className = "post-photo post-photo--" + (wrap || "right");
-            img.setAttribute("alt", "");
-            img.setAttribute("loading", "lazy");
-            img.setAttribute("decoding", "async");
-            selectPostImage(img);
+          var merged = coalescePostHtmlForWrap(quill.root.innerHTML);
+          if (merged !== quill.root.innerHTML) refreshEditorHtml(merged);
+          var imgs = quill.root.querySelectorAll("img.post-photo");
+          for (var i = imgs.length - 1; i >= 0; i--) {
+            if (imgs[i].getAttribute("src") === url) {
+              selectPostImage(imgs[i]);
+              break;
+            }
           }
         }, 0);
-        quill.setSelection(index + 1);
       }
 
       function postImageHandler() {
@@ -975,6 +1041,18 @@
       var quill = new Quill("#p-body-editor", {
         theme: "snow",
         placeholder: "Write your post here…",
+        formats: [
+          "postImage",
+          "bold",
+          "italic",
+          "underline",
+          "strike",
+          "header",
+          "list",
+          "align",
+          "link",
+          "blockquote",
+        ],
         modules: {
           toolbar: {
             container: [
@@ -1010,6 +1088,20 @@
         else if (!e.target.closest || !e.target.closest("img")) selectPostImage(null);
       });
 
+      var coalesceTimer;
+      quill.on("text-change", function (_, __, source) {
+        if (source !== "user") return;
+        clearTimeout(coalesceTimer);
+        coalesceTimer = setTimeout(function () {
+          var sel = quill.getSelection();
+          var merged = coalescePostHtmlForWrap(quill.root.innerHTML);
+          if (merged !== quill.root.innerHTML) {
+            refreshEditorHtml(merged);
+            if (sel) quill.setSelection(Math.min(sel.index, quill.getLength() - 1), 0);
+          }
+        }, 700);
+      });
+
       // Prevent Quill from stealing focus (causes iOS zoom) when tab switches
       quill.root.setAttribute("data-gramm", "false");
       quill.blur();
@@ -1032,7 +1124,7 @@
           showStatus(status, isEdit ? "Updating…" : "Publishing…", false);
           try {
             normalizePostImages(quill.root);
-            var body = quill.root.innerHTML.trim();
+            var body = coalescePostHtmlForWrap(quill.root.innerHTML.trim());
             // Strip all empty Quill paragraph spacers
             body = body.replace(/(<p><br><\/p>)+/g, "").trim();
             if (!body || body === "<p><br></p>") throw new Error("Body cannot be empty.");
@@ -1184,7 +1276,9 @@
             _draftId = data.draft.id;
             document.getElementById("p-title").value = data.draft.title || "";
             document.getElementById("p-summary").value = data.draft.summary || "";
-            quill.clipboard.dangerouslyPasteHTML(data.draft.body || "");
+            quill.clipboard.dangerouslyPasteHTML(
+              coalescePostHtmlForWrap(data.draft.body || "") || ""
+            );
             normalizePostImages(quill.root);
             notice.hidden = false;
             notice.textContent = "Editing draft.";
@@ -1208,7 +1302,7 @@
               action: "save-draft",
               title: document.getElementById("p-title").value,
               summary: document.getElementById("p-summary").value,
-              body: quill.root.innerHTML,
+              body: coalescePostHtmlForWrap(quill.root.innerHTML),
             };
             if (_draftId) payload.id = _draftId;
             var data = await callAPI(payload);
