@@ -155,6 +155,52 @@
         margin: 0 0 1.25rem;
         border-radius: 4px;
       }
+      .thinking-photo-upload {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        margin-bottom: 0.35rem;
+      }
+      .thinking-photo-input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      .thinking-photo-icon-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        width: 2.35rem;
+        height: 2.35rem;
+        margin: 0;
+        padding: 0;
+        color: var(--text);
+        background: var(--bg);
+        border: 1px solid var(--rule);
+        border-radius: 0.25rem;
+        cursor: pointer;
+      }
+      .thinking-photo-icon-btn:hover {
+        border-color: var(--text);
+        background: var(--rule);
+      }
+      .thinking-photo-icon-btn svg {
+        display: block;
+        width: 1.2rem;
+        height: 1.2rem;
+      }
+      .thinking-photo-name {
+        font-size: 0.68rem;
+        line-height: 1.4;
+        color: var(--muted);
+      }
       .p-submit-row {
         display: flex;
         align-items: center;
@@ -492,7 +538,22 @@
           <textarea id="t-text" maxlength="2000" placeholder="What's on your mind? (optional if you add a photo)"></textarea>
 
           <label for="t-photo">Photo</label>
-          <input id="t-photo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
+          <div class="thinking-photo-upload">
+            <input
+              id="t-photo"
+              class="thinking-photo-input"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+            />
+            <label for="t-photo" class="thinking-photo-icon-btn" title="Add photo" aria-label="Add photo">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <path d="M21 15l-5-5L5 21"></path>
+              </svg>
+            </label>
+            <span id="t-photo-name" class="thinking-photo-name">No file chosen</span>
+          </div>
           <p class="admin-hint">JPEG, PNG, WebP, or GIF. Up to 5 MB for rommy.blog and micro.blog. Larger photos are automatically compressed for Bluesky only (under 2 MB).</p>
           <p id="t-photo-warn" hidden></p>
           <img id="t-photo-preview" class="thinking-photo-preview" alt="" hidden />
@@ -896,6 +957,7 @@
         var preview = document.getElementById("t-photo-preview");
         var photoWarn = document.getElementById("t-photo-warn");
         var photoRemove = document.getElementById("t-photo-remove");
+        var photoName = document.getElementById("t-photo-name");
 
         function clearThinkingPhoto() {
           photoInput.value = "";
@@ -904,6 +966,7 @@
           photoRemove.hidden = true;
           photoWarn.hidden = true;
           photoWarn.textContent = "";
+          if (photoName) photoName.textContent = "No file chosen";
         }
 
         photoRemove.addEventListener("click", clearThinkingPhoto);
@@ -917,6 +980,7 @@
           preview.src = URL.createObjectURL(file);
           preview.hidden = false;
           photoRemove.hidden = false;
+          if (photoName) photoName.textContent = file.name;
           if (file.size > MAX_PHOTO_SITE) {
             photoWarn.textContent =
               "rommy.blog: This file is " +
