@@ -54,6 +54,8 @@ const GA_ID = "G-L1CC5F3DP8";
 const gaSnippet = `    <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_ID}"></script>
     <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}');</script>`;
 
+const portraitPhotoToggleScript = `    <script>(function(){function init(){document.querySelectorAll(".microblog-body img").forEach(function(img){if(img.dataset.portraitInit)return;function setup(){var w=img.naturalWidth,h=img.naturalHeight;if(!w||!h)return;img.dataset.portraitInit="1";if(h<=w)return;img.classList.add("thinking-photo-portrait");img.setAttribute("role","button");img.setAttribute("tabindex","0");img.setAttribute("aria-expanded","false");img.title="Click to enlarge";function toggle(){var ex=img.classList.toggle("thinking-photo-expanded");img.setAttribute("aria-expanded",ex?"true":"false");}img.addEventListener("click",toggle);img.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle();}});}if(img.complete)setup();else img.addEventListener("load",setup,{once:true});});}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();}());</script>`;
+
 function escHtml(s) {
   return String(s)
     .replace(/&/g, "&amp;")
@@ -86,7 +88,7 @@ function renderThinkingHtml(thinking) {
   const mediaAlt = thinking?.media_alt || "Photo";
   if (!text && !mediaUrl) return "";
   if (!mediaUrl) return textToMicroblogHtml(text);
-  const img = `<p><img src="${escHtml(mediaUrl)}" alt="${escHtml(mediaAlt)}" loading="lazy" /></p>`;
+  const img = `<p><img class="thinking-photo" src="${escHtml(mediaUrl)}" alt="${escHtml(mediaAlt)}" loading="lazy" decoding="async" /></p>`;
   if (!text) return `<div class="microblog-body">${img}</div>`;
   return textToMicroblogHtml(text).replace("</div>", `${img}</div>`);
 }
@@ -366,6 +368,7 @@ ${linksHtml}
 
 ${colophonSection}    </main>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
+${portraitPhotoToggleScript}
   </body>
 </html>
 `;
@@ -443,6 +446,7 @@ const archiveFoot = `      <footer class="site-footer">
       </footer>
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
+${portraitPhotoToggleScript}
     <script>(function(){var BATCH=10;var list=document.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++)items[i].hidden=true;var shown=BATCH;var sentinel=document.createElement('div');document.body.appendChild(sentinel);var obs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++)items[i].hidden=false;shown=next;if(shown>=items.length)obs.disconnect();},{rootMargin:'0px'});obs.observe(sentinel);}());</script>
   </body>
 </html>
@@ -542,6 +546,7 @@ const thinkingPostFoot = `      <footer class="site-footer">
       </footer>
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
+${portraitPhotoToggleScript}
   </body>
 </html>`;
 

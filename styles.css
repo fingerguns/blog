@@ -334,6 +334,17 @@ h2 {
   border-radius: 4px;
   margin-top: 0.5rem;
 }
+.microblog-body img.thinking-photo-portrait {
+  width: 50%;
+  max-width: 50%;
+  cursor: zoom-in;
+  transition: width 0.2s ease, max-width 0.2s ease;
+}
+.microblog-body img.thinking-photo-portrait.thinking-photo-expanded {
+  width: auto;
+  max-width: 100%;
+  cursor: zoom-out;
+}
 .microblog-body a { color: var(--link); }
 
 /* Quill alignment classes (used in rich-text post bodies) */
