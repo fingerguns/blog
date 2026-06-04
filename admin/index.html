@@ -377,7 +377,7 @@
 
           <label for="t-photo">Photo</label>
           <input id="t-photo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
-          <p class="admin-hint">JPEG, PNG, WebP, or GIF. Up to 5 MB for rommy.blog and micro.blog; Bluesky needs under 2 MB or it will be skipped.</p>
+          <p class="admin-hint">JPEG, PNG, WebP, or GIF. Up to 5 MB for rommy.blog and micro.blog. Larger photos are automatically compressed for Bluesky only (under 2 MB).</p>
           <p id="t-photo-warn" hidden></p>
           <img id="t-photo-preview" class="thinking-photo-preview" alt="" hidden />
 
@@ -625,9 +625,76 @@
       function formatThinkingSaveStatus(result) {
         var lines = ["rommy.blog: Saved. Site will rebuild shortly."];
         if (result.microblogWarning) lines.push(result.microblogWarning);
-        if (result.blueskyWarning) lines.push(result.blueskyWarning);
+        if (result.blueskyWarning) {
+          lines.push(result.blueskyWarning);
+        } else if (result.blueskyCompressed) {
+          lines.push("Bluesky: Posted a compressed copy (under 2 MB).");
+        }
         var warn = !!(result.microblogWarning || result.blueskyWarning);
         return { text: lines.join("\n"), warn: warn };
+      }
+
+      function compressPhotoForBluesky(file) {
+        return new Promise(function (resolve, reject) {
+          if (file.size <= MAX_PHOTO_BLUESKY) {
+            resolve(null);
+            return;
+          }
+          var objectUrl = URL.createObjectURL(file);
+          var img = new Image();
+          img.onload = function () {
+            URL.revokeObjectURL(objectUrl);
+            var w = img.naturalWidth;
+            var h = img.naturalHeight;
+            var maxDim = 2000;
+            if (w > maxDim || h > maxDim) {
+              var scale = maxDim / Math.max(w, h);
+              w = Math.max(1, Math.round(w * scale));
+              h = Math.max(1, Math.round(h * scale));
+            }
+            var canvas = document.createElement("canvas");
+            var dimScales = [1, 0.85, 0.7, 0.55];
+            var qualities = [0.82, 0.72, 0.62, 0.52, 0.42];
+
+            function tryEncode(si, qi) {
+              if (si >= dimScales.length) {
+                reject(new Error("Could not compress this photo under 2 MB for Bluesky."));
+                return;
+              }
+              var cw = Math.max(1, Math.round(w * dimScales[si]));
+              var ch = Math.max(1, Math.round(h * dimScales[si]));
+              canvas.width = cw;
+              canvas.height = ch;
+              var ctx = canvas.getContext("2d");
+              ctx.drawImage(img, 0, 0, cw, ch);
+              if (qi >= qualities.length) {
+                tryEncode(si + 1, 0);
+                return;
+              }
+              canvas.toBlob(
+                function (blob) {
+                  if (!blob) {
+                    tryEncode(si, qi + 1);
+                    return;
+                  }
+                  if (blob.size <= MAX_PHOTO_BLUESKY) {
+                    resolve(new File([blob], "bluesky.jpg", { type: "image/jpeg" }));
+                    return;
+                  }
+                  tryEncode(si, qi + 1);
+                },
+                "image/jpeg",
+                qualities[qi]
+              );
+            }
+            tryEncode(0, 0);
+          };
+          img.onerror = function () {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error("Could not read this photo for Bluesky compression."));
+          };
+          img.src = objectUrl;
+        });
       }
 
       // ── Login form ─────────────────────────────────────────────────────────
@@ -666,7 +733,7 @@
 
       // ── Thinking form ──────────────────────────────────────────────────────
 
-      async function callThinkingAPI(text, photoFile) {
+      async function callThinkingAPI(text, photoFile, blueskyPhotoFile) {
         var pw = loadSession();
         if (!pw) throw new Error("You need to be signed in. Go to the Login tab.");
         var res;
@@ -676,6 +743,7 @@
           fd.append("action", "thinking");
           fd.append("text", text);
           fd.append("photo", photoFile);
+          if (blueskyPhotoFile) fd.append("photo_bluesky", blueskyPhotoFile);
           res = await fetch(API_URL, { method: "POST", body: fd });
         } else {
           res = await fetch(API_URL, {
@@ -718,7 +786,7 @@
             photoWarn.textContent =
               "Bluesky: This file is " +
               formatBytes(file.size) +
-              " (max 2 MB). It can still post to rommy.blog and micro.blog.";
+              ". A compressed copy will be sent to Bluesky; rommy.blog and micro.blog keep the original.";
             photoWarn.hidden = false;
           } else {
             photoWarn.hidden = true;
@@ -745,7 +813,16 @@
           submit.disabled = true;
           showStatus(status, "Saving to rommy.blog…", false);
           try {
-            var result = await callThinkingAPI(document.getElementById("t-text").value, file || null);
+            var blueskyFile = null;
+            if (file) {
+              showStatus(status, "Preparing photo…", false);
+              blueskyFile = await compressPhotoForBluesky(file);
+            }
+            var result = await callThinkingAPI(
+              document.getElementById("t-text").value,
+              file || null,
+              blueskyFile
+            );
             var out = formatThinkingSaveStatus(result);
             showStatus(status, out.text, false, !out.warn, out.warn);
             document.getElementById("t-text").value = "";

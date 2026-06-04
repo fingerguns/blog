@@ -1,6 +1,6 @@
 name = "rommy-blog-admin"
 main = "update-thinking.js"
-compatibility_date = "2024-01-01"
+compatibility_date = "2025-04-01"
 
 [vars]
 GITHUB_OWNER = "fingerguns"

@@ -193,6 +193,7 @@ async function parseRequest(request) {
   if (ct.includes("multipart/form-data")) {
     const fd = await request.formData();
     const photo = fd.get("photo");
+    const photoBluesky = fd.get("photo_bluesky");
     return {
       password: fd.get("password"),
       action: fd.get("action"),
@@ -200,6 +201,13 @@ async function parseRequest(request) {
       photo:
         photo && typeof photo === "object" && "arrayBuffer" in photo && photo.size > 0
           ? photo
+          : null,
+      photo_bluesky:
+        photoBluesky &&
+        typeof photoBluesky === "object" &&
+        "arrayBuffer" in photoBluesky &&
+        photoBluesky.size > 0
+          ? photoBluesky
           : null,
     };
   }
@@ -222,13 +230,14 @@ async function handleThinking(payload, db, cors, env, ctx) {
   try {
     let mediaUrl = null;
     let mediaAlt = text.slice(0, 1000) || "";
-    let imageForBluesky = null;
+    let uploadedForBluesky = null;
+    let blueskyCompressed = false;
 
     if (photo) {
       const uploaded = await uploadPhotoToR2(env, photo);
       mediaUrl = uploaded.url;
       mediaAlt = text.slice(0, 1000) || "Photo";
-      imageForBluesky = {
+      uploadedForBluesky = {
         bytes: uploaded.bytes,
         mimeType: uploaded.mimeType,
         alt: mediaAlt,
@@ -264,11 +273,20 @@ async function handleThinking(payload, db, cors, env, ctx) {
     let blueskyWarning = null;
     if (env.BLUESKY_HANDLE && env.BLUESKY_APP_PASSWORD) {
       try {
+        let blueskyImage = null;
+        if (uploadedForBluesky) {
+          const prepared = await prepareBlueskyImage(
+            uploadedForBluesky,
+            payload.photo_bluesky
+          );
+          blueskyImage = prepared.image;
+          blueskyCompressed = prepared.compressed;
+        }
         await postToBluesky(
           env.BLUESKY_HANDLE,
           env.BLUESKY_APP_PASSWORD,
           text,
-          imageForBluesky
+          blueskyImage
         );
       } catch (bsErr) {
         blueskyWarning = formatServiceWarning("Bluesky", bsErr.message);
@@ -283,7 +301,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
     }
 
     return json(
-      { ok: true, text, mediaUrl, microblogWarning, blueskyWarning },
+      { ok: true, text, mediaUrl, microblogWarning, blueskyWarning, blueskyCompressed },
       200,
       cors
     );
@@ -304,9 +322,87 @@ function formatServiceWarning(service, message) {
   return `${service}: ${msg}`;
 }
 
+async function prepareBlueskyImage(image, compressedFile = null) {
+  if (compressedFile) {
+    const bytes = await compressedFile.arrayBuffer();
+    const mimeType = compressedFile.type || "image/jpeg";
+    return {
+      image: {
+        bytes,
+        mimeType,
+        alt: image.alt,
+        aspectRatio: await imageAspectRatio(bytes, mimeType),
+      },
+      compressed: true,
+    };
+  }
+
+  if (image.bytes.byteLength <= MAX_BLUESKY_IMAGE_BYTES) {
+    return { image, compressed: false };
+  }
+
+  try {
+    const compressed = await compressImageForBluesky(image.bytes, image.mimeType);
+    return { image: { ...image, ...compressed }, compressed: true };
+  } catch {
+    throw new Error(
+      "Photo is over Bluesky’s 2 MB limit and could not be compressed. rommy.blog and micro.blog were still updated."
+    );
+  }
+}
+
+async function compressImageForBluesky(bytes, mimeType) {
+  if (typeof OffscreenCanvas === "undefined") {
+    throw new Error("OffscreenCanvas unavailable");
+  }
+
+  const blob = new Blob([bytes], { type: mimeType });
+  const bitmap = await createImageBitmap(blob);
+  try {
+    let w = bitmap.width;
+    let h = bitmap.height;
+    const maxDim = 2000;
+    if (w > maxDim || h > maxDim) {
+      const scale = maxDim / Math.max(w, h);
+      w = Math.max(1, Math.round(w * scale));
+      h = Math.max(1, Math.round(h * scale));
+    }
+
+    const dimScales = [1, 0.85, 0.7, 0.55];
+    const qualities = [0.82, 0.72, 0.62, 0.52, 0.42];
+
+    for (const dimScale of dimScales) {
+      const cw = Math.max(1, Math.round(w * dimScale));
+      const ch = Math.max(1, Math.round(h * dimScale));
+      for (const quality of qualities) {
+        const out = await encodeJpegFromBitmap(bitmap, cw, ch, quality);
+        if (out.byteLength <= MAX_BLUESKY_IMAGE_BYTES) {
+          return {
+            bytes: out,
+            mimeType: "image/jpeg",
+            aspectRatio: { width: cw, height: ch },
+          };
+        }
+      }
+    }
+    throw new Error("Could not compress under 2 MB");
+  } finally {
+    bitmap.close();
+  }
+}
+
+async function encodeJpegFromBitmap(bitmap, width, height, quality) {
+  const canvas = new OffscreenCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas 2D unavailable");
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  const outBlob = await canvas.convertToBlob({ type: "image/jpeg", quality });
+  return outBlob.arrayBuffer();
+}
+
 function blueskyImageError(byteLength, status, body) {
   if (byteLength > MAX_BLUESKY_IMAGE_BYTES) {
-    return "Photo is over the 2 MB limit. rommy.blog and micro.blog were still updated.";
+    return "Photo is still over the 2 MB limit after compression. rommy.blog and micro.blog were still updated.";
   }
   const lower = String(body).toLowerCase();
   if (
@@ -483,9 +579,6 @@ async function postToBluesky(handle, appPassword, content, image = null) {
   let embed;
   if (image) {
     const byteLength = image.bytes?.byteLength ?? 0;
-    if (byteLength > MAX_BLUESKY_IMAGE_BYTES) {
-      throw new Error(blueskyImageError(byteLength, 0, ""));
-    }
 
     const blobRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", {
       method: "POST",
