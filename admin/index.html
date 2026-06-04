@@ -158,7 +158,7 @@
       .thinking-photo-upload {
         display: flex;
         align-items: center;
-        gap: 0.65rem;
+        gap: 0.5rem;
         margin-bottom: 0.35rem;
       }
       .thinking-photo-input {
@@ -177,24 +177,23 @@
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
-        width: 2.35rem;
-        height: 2.35rem;
         margin: 0;
         padding: 0;
+        line-height: 0;
         color: var(--text);
-        background: var(--bg);
-        border: 1px solid var(--rule);
-        border-radius: 0.25rem;
+        background: transparent;
+        border: none;
+        border-radius: 0;
         cursor: pointer;
       }
       .thinking-photo-icon-btn:hover {
-        border-color: var(--text);
-        background: var(--rule);
+        color: var(--link-hover);
+        opacity: 0.85;
       }
       .thinking-photo-icon-btn svg {
         display: block;
-        width: 1.2rem;
-        height: 1.2rem;
+        width: 1.5rem;
+        height: 1.5rem;
       }
       .thinking-photo-name {
         font-size: 0.68rem;
@@ -546,10 +545,10 @@
               accept="image/jpeg,image/png,image/webp,image/gif"
             />
             <label for="t-photo" class="thinking-photo-icon-btn" title="Add photo" aria-label="Add photo">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                <path d="M21 15l-5-5L5 21"></path>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"></rect>
+                <circle cx="9" cy="9" r="2" fill="currentColor"></circle>
+                <path fill="currentColor" d="M6 18h12l-4.5-6-2.5 3-2-2.5L6 18z"></path>
               </svg>
             </label>
             <span id="t-photo-name" class="thinking-photo-name">No file chosen</span>
