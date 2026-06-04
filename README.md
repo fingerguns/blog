@@ -12,6 +12,8 @@ Built with [Cursor](https://cursor.com). See the [colophon](https://rommy.blog/c
 - **Admin** — Password-protected UI at `/admin/` (Thinking, Writing, Reading, Sharing, Login)
 - **Cross-posting** — Thinking can publish to [Micro.blog](https://micro.blog) (Micropub) and [Bluesky](https://bsky.app) when configured
 - **Writing editor** — [Quill](https://quilljs.com/) with image upload, text wrap (left / right / center / full), drafts, and post version history
+- **Social previews** — Open Graph / Twitter meta on Writing and Thinking permalinks (first in-post image when available)
+- **Plain links in Thinking** — URLs in notes are normal hyperlinks on the site (no on-site unfurl cards)
 - **Changelog** — Generated from Git history at build time
 
 ## Architecture
@@ -24,7 +26,9 @@ Admin (Pages) → Worker API → D1 (write) + R2 (photos)
 Pages build → D1 HTTP API (read) → scripts/build.mjs → dist/ → rommy.blog
 ```
 
-The Thinking **archive** is built from Micro.blog’s JSON feed at deploy time so older notes stay in sync with your timeline there. The homepage Thinking section comes from D1 (including R2 images).
+The Thinking **archive** is built from Micro.blog’s JSON feed at deploy time so older notes stay in sync with your timeline there. The homepage Thinking section comes from D1 (including R2 images). External links in Thinking are not unfurled at build time — only basic `<a>` tags in the HTML.
+
+Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on their own platforms when you include links there.
 
 ## Repository layout
 
@@ -125,6 +129,10 @@ wrangler deploy
 - Up to **5 MB** on rommy.blog and Micro.blog (JPEG, PNG, WebP, GIF)
 - Bluesky gets a compressed JPEG when the original is over **2 MB**
 - Portrait images on the site default to half width; click to expand/collapse
+
+## Sharing rommy.blog links
+
+`scripts/build.mjs` sets `og:title`, `og:description`, `og:image`, and `twitter:card` on Writing posts and Thinking permalink pages. Writing uses the post summary and the first `<img>` in the body; Thinking permalinks use a snippet from the note HTML and its first image, or the favicon if there is none.
 
 ## Forking / adapting
 
