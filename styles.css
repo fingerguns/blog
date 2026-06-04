@@ -334,16 +334,28 @@ h2 {
   border-radius: 4px;
   margin-top: 0.5rem;
 }
-.microblog-body img.thinking-photo-portrait {
+.microblog-body img.photo-portrait,
+.post .body img.photo-portrait {
   width: 50%;
   max-width: 50%;
   cursor: zoom-in;
   transition: width 0.2s ease, max-width 0.2s ease;
 }
-.microblog-body img.thinking-photo-portrait.thinking-photo-expanded {
+.microblog-body img.photo-portrait.photo-expanded,
+.post .body img.photo-portrait.photo-expanded,
+.microblog-body img.thinking-photo-portrait.thinking-photo-expanded,
+.post .body img.thinking-photo-portrait.thinking-photo-expanded {
   width: auto;
   max-width: 100%;
   cursor: zoom-out;
+}
+/* Legacy class names from earlier builds */
+.microblog-body img.thinking-photo-portrait,
+.post .body img.thinking-photo-portrait {
+  width: 50%;
+  max-width: 50%;
+  cursor: zoom-in;
+  transition: width 0.2s ease, max-width 0.2s ease;
 }
 .microblog-body a { color: var(--link); }
 
@@ -391,7 +403,37 @@ article.post {
   margin: 0 0 1rem;
 }
 
-.post .body img {
+.post .body img.post-photo {
+  height: auto;
+  border-radius: 4px;
+}
+.post .body img.post-photo--left {
+  float: left;
+  width: min(100%, 280px);
+  margin: 0 1.5rem 1rem 0;
+}
+.post .body img.post-photo--right {
+  float: right;
+  width: min(100%, 280px);
+  margin: 0 0 1rem 1.5rem;
+}
+.post .body img.post-photo--center {
+  display: block;
+  float: none;
+  width: min(100%, 420px);
+  margin: 0 auto 1.25rem;
+  clear: both;
+}
+.post .body img.post-photo--full {
+  display: block;
+  float: none;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 0 1.25rem;
+  clear: both;
+}
+/* Older posts: images without wrap classes default to float right */
+.post .body img:not([class*="post-photo"]) {
   float: right;
   width: min(100%, 280px);
   height: auto;
@@ -400,10 +442,14 @@ article.post {
 }
 
 @media (max-width: 480px) {
-  .post .body img {
+  .post .body img.post-photo--left,
+  .post .body img.post-photo--right,
+  .post .body img.post-photo--center,
+  .post .body img:not([class*="post-photo"]) {
     float: none;
     display: block;
     width: 100%;
+    max-width: 100%;
     margin: 0 0 1.25rem 0;
   }
 }

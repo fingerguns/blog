@@ -322,6 +322,47 @@
         outline: none;
       }
       [data-theme="dark"] .ql-toolbar.ql-snow { background: #1a1a1a; }
+      .ql-editor img.post-photo {
+        height: auto;
+        border-radius: 4px;
+        max-width: 100%;
+      }
+      .ql-editor img.post-photo--left {
+        float: left;
+        width: min(45%, 220px);
+        margin: 0 1rem 0.75rem 0;
+      }
+      .ql-editor img.post-photo--right {
+        float: right;
+        width: min(45%, 220px);
+        margin: 0 0 0.75rem 1rem;
+      }
+      .ql-editor img.post-photo--center {
+        display: block;
+        float: none;
+        width: min(100%, 360px);
+        margin: 0 auto 0.75rem;
+        clear: both;
+      }
+      .ql-editor img.post-photo--full {
+        display: block;
+        float: none;
+        width: 100%;
+        margin: 0 0 1rem;
+        clear: both;
+      }
+      .ql-editor img.post-photo-selected {
+        outline: 2px solid var(--text);
+        outline-offset: 2px;
+      }
+      .ql-snow .ql-wrap-left::before { content: "Wrap L"; font-size: 0.65rem; font-weight: 600; }
+      .ql-snow .ql-wrap-right::before { content: "Wrap R"; font-size: 0.65rem; font-weight: 600; }
+      .ql-snow .ql-wrap-center::before { content: "Center"; font-size: 0.65rem; font-weight: 600; }
+      .ql-snow .ql-wrap-full::before { content: "Full"; font-size: 0.65rem; font-weight: 600; }
+      .ql-snow button.ql-wrap-left,
+      .ql-snow button.ql-wrap-right,
+      .ql-snow button.ql-wrap-center,
+      .ql-snow button.ql-wrap-full { width: auto; padding: 0 0.35rem; }
     </style>
   </head>
   <body>
@@ -404,6 +445,7 @@
             <input id="p-summary" type="text" required placeholder="One sentence description for meta/feed" />
 
             <label>Body</label>
+            <p class="admin-hint" style="margin-top: -0.75rem">Photos upload to R2. Use the image button to insert; click a photo, then Wrap L / R / Center / Full for text flow.</p>
             <div id="p-body-editor"></div>
 
             <div class="p-submit-row">
@@ -542,6 +584,7 @@
           document.getElementById("p-title").value = data.title || "";
           document.getElementById("p-summary").value = data.summary || "";
           quill.clipboard.dangerouslyPasteHTML(data.body || "");
+          normalizePostImages(quill.root);
           document.getElementById("p-lead").textContent = "Editing: " + (data.title || _editSlug);
           document.getElementById("p-submit").textContent = "Update";
           status.hidden = true;
@@ -845,24 +888,135 @@
 
       // ── Quill editor ───────────────────────────────────────────────────────
 
+      var selectedPostImage = null;
+
+      async function uploadMediaFile(file, folder) {
+        var pw = loadSession();
+        if (!pw) throw new Error("You need to be signed in. Go to the Login tab.");
+        if (file.size > MAX_PHOTO_SITE) {
+          throw new Error("Photo must be 5 MB or smaller (yours is " + formatBytes(file.size) + ").");
+        }
+        var fd = new FormData();
+        fd.append("password", pw);
+        fd.append("action", "upload-media");
+        fd.append("folder", folder || "writing");
+        fd.append("photo", file);
+        var res = await fetch(API_URL, { method: "POST", body: fd });
+        var data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Upload failed");
+        return data.url;
+      }
+
+      function normalizePostImages(root) {
+        root.querySelectorAll("img").forEach(function (img) {
+          if (!/(^|\s)post-photo(\s|$)/.test(img.className || "")) {
+            img.className = "post-photo post-photo--right";
+          }
+          if (!img.getAttribute("alt")) img.setAttribute("alt", "");
+          img.setAttribute("loading", "lazy");
+          img.setAttribute("decoding", "async");
+        });
+      }
+
+      function selectPostImage(img) {
+        quill.root.querySelectorAll("img.post-photo-selected").forEach(function (el) {
+          el.classList.remove("post-photo-selected");
+        });
+        selectedPostImage = img || null;
+        if (img) img.classList.add("post-photo-selected");
+      }
+
+      function setPostImageWrap(wrap) {
+        if (!selectedPostImage) return;
+        selectedPostImage.className = "post-photo post-photo--" + wrap;
+      }
+
+      function insertPostImage(url, wrap) {
+        var range = quill.getSelection(true);
+        var index = range ? range.index : quill.getLength();
+        quill.insertEmbed(index, "image", url, "user");
+        setTimeout(function () {
+          var imgs = quill.root.querySelectorAll("img");
+          var img = imgs[imgs.length - 1];
+          if (img) {
+            img.className = "post-photo post-photo--" + (wrap || "right");
+            img.setAttribute("alt", "");
+            img.setAttribute("loading", "lazy");
+            img.setAttribute("decoding", "async");
+            selectPostImage(img);
+          }
+        }, 0);
+        quill.setSelection(index + 1);
+      }
+
+      function postImageHandler() {
+        var input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/jpeg,image/png,image/webp,image/gif";
+        input.onchange = async function () {
+          var file = input.files && input.files[0];
+          if (!file) return;
+          try {
+            var url = await uploadMediaFile(file, "writing");
+            insertPostImage(url, "right");
+          } catch (err) {
+            alert(err.message);
+          }
+        };
+        input.click();
+      }
+
+      var quillIcons = Quill.import("ui/icons");
+      quillIcons["wrap-left"] = "L";
+      quillIcons["wrap-right"] = "R";
+      quillIcons["wrap-center"] = "C";
+      quillIcons["wrap-full"] = "F";
+
       var quill = new Quill("#p-body-editor", {
         theme: "snow",
         placeholder: "Write your post here…",
         modules: {
-          toolbar: [
-            ["bold", "italic", "underline", "strike"],
-            [{ header: 2 }, { header: 3 }],
-            [{ list: "ordered" }, { list: "bullet" }],
-            [{ align: [] }],
-            ["link", "blockquote"],
-            ["clean"],
-          ],
+          toolbar: {
+            container: [
+              ["bold", "italic", "underline", "strike"],
+              [{ header: 2 }, { header: 3 }],
+              [{ list: "ordered" }, { list: "bullet" }],
+              [{ align: [] }],
+              ["link", "blockquote", "image"],
+              ["wrap-left", "wrap-right", "wrap-center", "wrap-full"],
+              ["clean"],
+            ],
+            handlers: {
+              image: postImageHandler,
+              "wrap-left": function () {
+                setPostImageWrap("left");
+              },
+              "wrap-right": function () {
+                setPostImageWrap("right");
+              },
+              "wrap-center": function () {
+                setPostImageWrap("center");
+              },
+              "wrap-full": function () {
+                setPostImageWrap("full");
+              },
+            },
+          },
         },
+      });
+
+      quill.root.addEventListener("click", function (e) {
+        if (e.target && e.target.tagName === "IMG") selectPostImage(e.target);
+        else if (!e.target.closest || !e.target.closest("img")) selectPostImage(null);
       });
 
       // Prevent Quill from stealing focus (causes iOS zoom) when tab switches
       quill.root.setAttribute("data-gramm", "false");
       quill.blur();
+
+      window._normalizePostImages = function () {
+        normalizePostImages(quill.root);
+      };
 
       // ── Writing form ───────────────────────────────────────────────────────
 
@@ -877,6 +1031,7 @@
           var isEdit = !!_editSlug;
           showStatus(status, isEdit ? "Updating…" : "Publishing…", false);
           try {
+            normalizePostImages(quill.root);
             var body = quill.root.innerHTML.trim();
             // Strip all empty Quill paragraph spacers
             body = body.replace(/(<p><br><\/p>)+/g, "").trim();
@@ -1030,6 +1185,7 @@
             document.getElementById("p-title").value = data.draft.title || "";
             document.getElementById("p-summary").value = data.draft.summary || "";
             quill.clipboard.dangerouslyPasteHTML(data.draft.body || "");
+            normalizePostImages(quill.root);
             notice.hidden = false;
             notice.textContent = "Editing draft.";
           } catch (e) {}

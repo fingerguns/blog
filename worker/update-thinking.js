@@ -98,6 +98,10 @@ export default {
       return handleSharing(payload, db, cors, env);
     }
 
+    if (action === "upload-media") {
+      return handleUploadMedia(payload, cors, env);
+    }
+
     if (action === "fetch-title") {
       return handleFetchTitle(payload, cors);
     }
@@ -197,6 +201,7 @@ async function parseRequest(request) {
     return {
       password: fd.get("password"),
       action: fd.get("action"),
+      folder: String(fd.get("folder") || "writing"),
       text: String(fd.get("text") || ""),
       photo:
         photo && typeof photo === "object" && "arrayBuffer" in photo && photo.size > 0
@@ -234,7 +239,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
     let blueskyCompressed = false;
 
     if (photo) {
-      const uploaded = await uploadPhotoToR2(env, photo);
+      const uploaded = await uploadPhotoToR2(env, photo, "thinking");
       mediaUrl = uploaded.url;
       mediaAlt = text.slice(0, 1000) || "Photo";
       uploadedForBluesky = {
@@ -429,7 +434,21 @@ function summarizeApiBody(body) {
   }
 }
 
-async function uploadPhotoToR2(env, file) {
+async function handleUploadMedia(payload, cors, env) {
+  const photo = payload.photo || null;
+  if (!photo) {
+    return json({ error: "Missing photo" }, 400, cors);
+  }
+  const folder = payload.folder === "thinking" ? "thinking" : "writing";
+  try {
+    const uploaded = await uploadPhotoToR2(env, photo, folder);
+    return json({ ok: true, url: uploaded.url }, 200, cors);
+  } catch (err) {
+    return json({ error: formatServiceError("rommy.blog", err.message) }, 500, cors);
+  }
+}
+
+async function uploadPhotoToR2(env, file, folder = "writing") {
   if (!env.MEDIA) {
     throw new Error("Photo storage is not configured (R2).");
   }
@@ -448,7 +467,8 @@ async function uploadPhotoToR2(env, file) {
 
   const bytes = await file.arrayBuffer();
   const ext = IMAGE_EXT[mimeType] || "jpg";
-  const key = `thinking/${toDateStr(new Date())}/${crypto.randomUUID()}.${ext}`;
+  const prefix = folder === "thinking" ? "thinking" : "writing";
+  const key = `${prefix}/${toDateStr(new Date())}/${crypto.randomUUID()}.${ext}`;
 
   await env.MEDIA.put(key, bytes, {
     httpMetadata: { contentType: mimeType },
