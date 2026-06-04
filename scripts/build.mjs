@@ -8,6 +8,12 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { d1Configured, loadBlogDataFromD1 } from "./d1-client.mjs";
+import {
+  enrichHtmlWithLinkPreviews,
+  extractUrlsFromPlainText,
+  fetchLinkPreview,
+  renderLinkPreviewCard,
+} from "./link-preview.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
@@ -76,21 +82,89 @@ function autoLink(html) {
 }
 
 // Renders plain text as microblog-style HTML: double newlines → <p> paragraphs,
-// single newlines → <br>, bare URLs → hyperlinks.
-function textToMicroblogHtml(text) {
-  const paras = String(text).split(/\n\n+/);
-  return `<div class="microblog-body">${paras.map(p => `<p>${autoLink(escHtml(p).replace(/\n/g, "<br>"))}</p>`).join("")}</div>`;
+// single newlines → <br>, bare URLs → hyperlinks, optional link preview cards.
+async function textToMicroblogHtml(text, previewCache) {
+  const paras = String(text).split(/\n\n+/).filter(Boolean);
+  if (!paras.length) return "";
+  const parts = [];
+  const seen = new Set();
+  for (const p of paras) {
+    parts.push(`<p>${autoLink(escHtml(p).replace(/\n/g, "<br>"))}</p>`);
+    for (const url of extractUrlsFromPlainText(p)) {
+      if (seen.has(url)) continue;
+      seen.add(url);
+      const preview = await fetchLinkPreview(url, previewCache);
+      if (preview) parts.push(renderLinkPreviewCard(preview, escHtml));
+    }
+  }
+  return `<div class="microblog-body">${parts.join("")}</div>`;
 }
 
-function renderThinkingHtml(thinking) {
+function defaultOgImage() {
+  return `${base}/favicon.png`;
+}
+
+function ogMetaTags({ type = "website", title, description = "", url, image }) {
+  const img = image || defaultOgImage();
+  const large = img !== defaultOgImage();
+  const lines = [
+    `    <meta property="og:type" content="${type}" />`,
+    `    <meta property="og:title" content="${escHtml(title)}" />`,
+    `    <meta property="og:url" content="${escHtml(url)}" />`,
+    `    <meta property="og:site_name" content="${escHtml(site.title)}" />`,
+    `    <meta property="og:image" content="${escHtml(img)}" />`,
+    `    <meta name="twitter:card" content="${large ? "summary_large_image" : "summary"}" />`,
+    `    <meta name="twitter:title" content="${escHtml(title)}" />`,
+  ];
+  if (description) {
+    lines.push(`    <meta property="og:description" content="${escHtml(description)}" />`);
+    lines.push(`    <meta name="description" content="${escHtml(description)}" />`);
+    lines.push(`    <meta name="twitter:description" content="${escHtml(description)}" />`);
+  }
+  if (large) {
+    lines.push(`    <meta name="twitter:image" content="${escHtml(img)}" />`);
+  }
+  return lines.join("\n");
+}
+
+function stripHtml(html) {
+  return String(html || "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function firstImageFromHtml(html) {
+  const m = String(html || "").match(/<img[^>]+src=["']([^"']+)["']/i);
+  return m ? m[1] : "";
+}
+
+function thinkingSnippet(text, max = 160) {
+  const plain = String(text || "").replace(/\s+/g, " ").trim();
+  if (!plain) return "";
+  if (plain.length <= max) return plain;
+  return `${plain.slice(0, max - 1)}…`;
+}
+
+function thinkingOgFromItem(item) {
+  const description = thinkingSnippet(stripHtml(item.content_html));
+  const image = firstImageFromHtml(item.content_html) || defaultOgImage();
+  return { description, image };
+}
+
+async function renderThinkingHtml(thinking, previewCache) {
   const text = (thinking?.text || "").trim();
   const mediaUrl = thinking?.media_url || "";
   const mediaAlt = thinking?.media_alt || "Photo";
   if (!text && !mediaUrl) return "";
-  if (!mediaUrl) return textToMicroblogHtml(text);
-  const img = `<p><img class="thinking-photo" src="${escHtml(mediaUrl)}" alt="${escHtml(mediaAlt)}" loading="lazy" decoding="async" /></p>`;
-  if (!text) return `<div class="microblog-body">${img}</div>`;
-  return textToMicroblogHtml(text).replace("</div>", `${img}</div>`);
+  let body = "";
+  if (text) body = await textToMicroblogHtml(text, previewCache);
+  if (mediaUrl) {
+    const img = `<p><img class="thinking-photo" src="${escHtml(mediaUrl)}" alt="${escHtml(mediaAlt)}" loading="lazy" decoding="async" /></p>`;
+    if (!body) body = `<div class="microblog-body">${img}</div>`;
+    else body = body.replace("</div>", `${img}</div>`);
+  }
+  return body;
 }
 
 function hasThinking(thinking) {
@@ -122,23 +196,23 @@ function renderPostPage(p) {
   const displayDate = toETDate(p);
   const readMins = readingMins(p.body_html);
   const bodyHtml = p.body_html || "";
+  const postUrl = `${base}/posts/${slug}/`;
+  const ogImage = firstImageFromHtml(bodyHtml) || defaultOgImage();
+  const ogTitle = `${p.title} — ${site.title}`;
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${escHtml(p.title)} — ${escHtml(site.title)}</title>
+    <title>${escHtml(ogTitle)}</title>
     <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);}());</script>
-    <meta property="og:type" content="article" />
-    <meta property="og:title" content="${escHtml(p.title)} — ${escHtml(site.title)}" />
-    <meta property="og:description" content="${escHtml(p.summary)}" />
-    <meta property="og:url" content="${escHtml(base)}/posts/${escHtml(slug)}/" />
-    <meta property="og:site_name" content="${escHtml(site.title)}" />
-    <meta property="og:image" content="${escHtml(base)}/favicon.png" />
-    <meta
-      name="description"
-      content="${escHtml(p.summary)}"
-    />
+${ogMetaTags({
+  type: "article",
+  title: ogTitle,
+  description: p.summary || "",
+  url: postUrl,
+  image: ogImage,
+})}
     <link rel="icon" href="../../favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="../../favicon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -275,12 +349,26 @@ const descriptionMeta = descriptionText
   : "";
 const subtitleHtml = descriptionText ? `      <p class="lead">${escHtml(descriptionText)}</p>\n\n` : "";
 
+console.log("Fetching link previews for Thinking…");
+const previewCache = new Map();
+const thinkingBodyHtml = hasThinking(thinking)
+  ? await renderThinkingHtml(thinking, previewCache)
+  : "";
+
+const enrichedMicroblogItems = [];
+for (const item of microblogItems) {
+  enrichedMicroblogItems.push({
+    ...item,
+    content_html: await enrichHtmlWithLinkPreviews(item.content_html || "", previewCache, escHtml),
+  });
+}
+
 const thinkingSection = hasThinking(thinking)
   ? `      <section aria-labelledby="now-heading">
         <h2 id="now-heading">Thinking</h2>
         <ol class="post-list">
           <li>
-            ${renderThinkingHtml(thinking)}
+            ${thinkingBodyHtml}
           </li>
         </ol>
         <a class="see-more" href="/thinking/">→</a>
@@ -478,7 +566,7 @@ const nowPageHtml = `${archiveHead("Now")}
       <p class="lead">Updated ${escHtml(nowMonthYear)} &middot; Brooklyn, NY &middot; <a href="https://nownownow.com/about" target="_blank" rel="noopener">What's this?</a></p>
       <div class="now-body">
 ${hasThinking(thinking) ? `        <h2>Thinking</h2>
-        ${renderThinkingHtml(thinking)}
+        ${thinkingBodyHtml}
 ` : ""}${currentBook ? `        <h2>Reading</h2>
         <p><a href="${escHtml(currentBook.url)}" target="_blank" rel="noopener">${escHtml(currentBook.title)}</a></p>
 ` : ""}        <h2>Working</h2>
@@ -521,18 +609,24 @@ const formatMbDate = (iso) => {
 // Slug stays UTC-based so existing URLs don't break
 const mbSlug = (iso) => `${iso.slice(0, 10)}-${iso.slice(11, 13)}${iso.slice(14, 16)}`;
 
-const thinkingPostHead = (iso) => `<!DOCTYPE html>
+const thinkingPostHead = (iso, item) => {
+  const pageTitle = `${formatMbDate(iso)} — ${site.title}`;
+  const pageUrl = `${base}/thinking/${mbSlug(iso)}/`;
+  const og = thinkingOgFromItem(item);
+  return `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${escHtml(formatMbDate(iso))} — ${escHtml(site.title)}</title>
+    <title>${escHtml(pageTitle)}</title>
     <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);}());</script>
-    <meta property="og:type" content="article" />
-    <meta property="og:title" content="${escHtml(formatMbDate(iso))} — ${escHtml(site.title)}" />
-    <meta property="og:url" content="${escHtml(base)}/thinking/${escHtml(mbSlug(iso))}/" />
-    <meta property="og:site_name" content="${escHtml(site.title)}" />
-    <meta property="og:image" content="${escHtml(base)}/favicon.png" />
+${ogMetaTags({
+  type: "article",
+  title: pageTitle,
+  description: og.description,
+  url: pageUrl,
+  image: og.image,
+})}
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="stylesheet" href="/styles.css" />
 ${gaSnippet}
@@ -540,6 +634,7 @@ ${gaSnippet}
   <body>
     <article class="post">
       <a class="post-back" href="/thinking/">←</a>`;
+};
 
 const thinkingPostFoot = `      <footer class="site-footer">
         <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><a href="#" class="theme-toggle" id="theme-toggle"></a></p>
@@ -551,8 +646,8 @@ ${portraitPhotoToggleScript}
   </body>
 </html>`;
 
-const microblogEntriesHtml = microblogItems.length > 0
-  ? microblogItems.map((item) => {
+const microblogEntriesHtml = enrichedMicroblogItems.length > 0
+  ? enrichedMicroblogItems.map((item) => {
       const slug = mbSlug(item.date_published);
       return `        <div class="microblog-entry">
           <div class="microblog-body">${item.content_html}</div>
@@ -582,7 +677,7 @@ const urls = [
   `${base}/now/`,
   `${base}/changelog/`,
   `${base}/thinking/`,
-  ...microblogItems.map((item) => `${base}/thinking/${mbSlug(item.date_published)}/`),
+  ...enrichedMicroblogItems.map((item) => `${base}/thinking/${mbSlug(item.date_published)}/`),
   ...archiveUrls,
   ...ordered.map((p) => `${base}/posts/${safeSlug(p.slug)}/`),
 ];
@@ -629,9 +724,9 @@ writeFileSync(join(root, "thinking/index.html"), microblogPageHtml, "utf8");
 rmSync(join(root, "microblog"), { recursive: true, force: true });
 
 // Individual thinking post pages
-for (const item of microblogItems) {
+for (const item of enrichedMicroblogItems) {
   const slug = mbSlug(item.date_published);
-  const postHtml = `${thinkingPostHead(item.date_published)}
+  const postHtml = `${thinkingPostHead(item.date_published, item)}
       <div class="microblog-body" style="margin-top:1.5rem">${item.content_html}</div>
       <time class="post-date" style="display:block;margin-top:0.75rem" datetime="${escHtml(item.date_published)}">${escHtml(formatMbDate(item.date_published))}</time>
 ${thinkingPostFoot}`;
