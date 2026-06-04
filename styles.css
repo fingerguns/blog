@@ -359,63 +359,6 @@ h2 {
 }
 .microblog-body a { color: var(--link); }
 
-/* Link preview cards (build-time unfurl in Thinking; Bluesky-style) */
-.link-preview-card {
-  max-width: 22rem;
-  margin: 0.75rem 0 0;
-  border: 1px solid var(--rule);
-  border-radius: 10px;
-  overflow: hidden;
-  background: var(--bg);
-}
-.link-preview-card__link {
-  display: block;
-  text-decoration: none;
-  color: inherit;
-}
-.link-preview-card__link:hover .link-preview-card__title {
-  color: var(--link-hover);
-}
-.link-preview-card__image {
-  display: block;
-  width: 100%;
-  height: auto;
-  max-height: 7.5rem;
-  aspect-ratio: 1.91 / 1;
-  object-fit: cover;
-  background: var(--rule);
-}
-.link-preview-card__body {
-  display: block;
-  padding: 0.6rem 0.7rem 0.5rem;
-}
-.link-preview-card__title {
-  display: block;
-  font-size: 0.86rem;
-  font-weight: 600;
-  line-height: 1.35;
-  color: var(--text);
-  margin: 0 0 0.2rem;
-}
-.link-preview-card__desc {
-  font-size: 0.76rem;
-  line-height: 1.45;
-  color: var(--muted);
-  margin: 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.link-preview-card__domain {
-  display: block;
-  margin-top: 0.45rem;
-  padding-top: 0.45rem;
-  border-top: 1px solid var(--rule);
-  font-size: 0.7rem;
-  color: var(--muted);
-}
-
 /* Quill alignment classes (used in rich-text post bodies) */
 .ql-align-center { text-align: center; }
 .ql-align-right  { text-align: right; }

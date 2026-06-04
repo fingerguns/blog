@@ -8,12 +8,6 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { d1Configured, loadBlogDataFromD1 } from "./d1-client.mjs";
-import {
-  enrichHtmlWithLinkPreviews,
-  extractUrlsFromPlainText,
-  fetchLinkPreview,
-  renderLinkPreviewCard,
-} from "./link-preview.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
@@ -82,22 +76,11 @@ function autoLink(html) {
 }
 
 // Renders plain text as microblog-style HTML: double newlines → <p> paragraphs,
-// single newlines → <br>, bare URLs → hyperlinks, optional link preview cards.
-async function textToMicroblogHtml(text, previewCache) {
+// single newlines → <br>, bare URLs → hyperlinks.
+function textToMicroblogHtml(text) {
   const paras = String(text).split(/\n\n+/).filter(Boolean);
   if (!paras.length) return "";
-  const parts = [];
-  const seen = new Set();
-  for (const p of paras) {
-    parts.push(`<p>${autoLink(escHtml(p).replace(/\n/g, "<br>"))}</p>`);
-    for (const url of extractUrlsFromPlainText(p)) {
-      if (seen.has(url)) continue;
-      seen.add(url);
-      const preview = await fetchLinkPreview(url, previewCache);
-      if (preview) parts.push(renderLinkPreviewCard(preview, escHtml));
-    }
-  }
-  return `<div class="microblog-body">${parts.join("")}</div>`;
+  return `<div class="microblog-body">${paras.map((p) => `<p>${autoLink(escHtml(p).replace(/\n/g, "<br>"))}</p>`).join("")}</div>`;
 }
 
 function defaultOgImage() {
@@ -152,19 +135,15 @@ function thinkingOgFromItem(item) {
   return { description, image };
 }
 
-async function renderThinkingHtml(thinking, previewCache) {
+function renderThinkingHtml(thinking) {
   const text = (thinking?.text || "").trim();
   const mediaUrl = thinking?.media_url || "";
   const mediaAlt = thinking?.media_alt || "Photo";
   if (!text && !mediaUrl) return "";
-  let body = "";
-  if (text) body = await textToMicroblogHtml(text, previewCache);
-  if (mediaUrl) {
-    const img = `<p><img class="thinking-photo" src="${escHtml(mediaUrl)}" alt="${escHtml(mediaAlt)}" loading="lazy" decoding="async" /></p>`;
-    if (!body) body = `<div class="microblog-body">${img}</div>`;
-    else body = body.replace("</div>", `${img}</div>`);
-  }
-  return body;
+  if (!mediaUrl) return textToMicroblogHtml(text);
+  const img = `<p><img class="thinking-photo" src="${escHtml(mediaUrl)}" alt="${escHtml(mediaAlt)}" loading="lazy" decoding="async" /></p>`;
+  if (!text) return `<div class="microblog-body">${img}</div>`;
+  return textToMicroblogHtml(text).replace("</div>", `${img}</div>`);
 }
 
 function hasThinking(thinking) {
@@ -349,26 +328,12 @@ const descriptionMeta = descriptionText
   : "";
 const subtitleHtml = descriptionText ? `      <p class="lead">${escHtml(descriptionText)}</p>\n\n` : "";
 
-console.log("Fetching link previews for Thinking…");
-const previewCache = new Map();
-const thinkingBodyHtml = hasThinking(thinking)
-  ? await renderThinkingHtml(thinking, previewCache)
-  : "";
-
-const enrichedMicroblogItems = [];
-for (const item of microblogItems) {
-  enrichedMicroblogItems.push({
-    ...item,
-    content_html: await enrichHtmlWithLinkPreviews(item.content_html || "", previewCache, escHtml),
-  });
-}
-
 const thinkingSection = hasThinking(thinking)
   ? `      <section aria-labelledby="now-heading">
         <h2 id="now-heading">Thinking</h2>
         <ol class="post-list">
           <li>
-            ${thinkingBodyHtml}
+            ${renderThinkingHtml(thinking)}
           </li>
         </ol>
         <a class="see-more" href="/thinking/">→</a>
@@ -566,7 +531,7 @@ const nowPageHtml = `${archiveHead("Now")}
       <p class="lead">Updated ${escHtml(nowMonthYear)} &middot; Brooklyn, NY &middot; <a href="https://nownownow.com/about" target="_blank" rel="noopener">What's this?</a></p>
       <div class="now-body">
 ${hasThinking(thinking) ? `        <h2>Thinking</h2>
-        ${thinkingBodyHtml}
+        ${renderThinkingHtml(thinking)}
 ` : ""}${currentBook ? `        <h2>Reading</h2>
         <p><a href="${escHtml(currentBook.url)}" target="_blank" rel="noopener">${escHtml(currentBook.title)}</a></p>
 ` : ""}        <h2>Working</h2>
@@ -646,8 +611,8 @@ ${portraitPhotoToggleScript}
   </body>
 </html>`;
 
-const microblogEntriesHtml = enrichedMicroblogItems.length > 0
-  ? enrichedMicroblogItems.map((item) => {
+const microblogEntriesHtml = microblogItems.length > 0
+  ? microblogItems.map((item) => {
       const slug = mbSlug(item.date_published);
       return `        <div class="microblog-entry">
           <div class="microblog-body">${item.content_html}</div>
@@ -677,7 +642,7 @@ const urls = [
   `${base}/now/`,
   `${base}/changelog/`,
   `${base}/thinking/`,
-  ...enrichedMicroblogItems.map((item) => `${base}/thinking/${mbSlug(item.date_published)}/`),
+  ...microblogItems.map((item) => `${base}/thinking/${mbSlug(item.date_published)}/`),
   ...archiveUrls,
   ...ordered.map((p) => `${base}/posts/${safeSlug(p.slug)}/`),
 ];
@@ -724,7 +689,7 @@ writeFileSync(join(root, "thinking/index.html"), microblogPageHtml, "utf8");
 rmSync(join(root, "microblog"), { recursive: true, force: true });
 
 // Individual thinking post pages
-for (const item of enrichedMicroblogItems) {
+for (const item of microblogItems) {
   const slug = mbSlug(item.date_published);
   const postHtml = `${thinkingPostHead(item.date_published, item)}
       <div class="microblog-body" style="margin-top:1.5rem">${item.content_html}</div>
