@@ -31,6 +31,10 @@ const SITE_AUTHOR = "Rommy Ghaly";
 const GA_ID = "G-L1CC5F3DP8";
 const GA_SNIPPET = `    <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_ID}"></script>\n    <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}');</script>`;
 
+const AUTH_MAX_FAILURES = 5;
+const AUTH_WINDOW_SEC = 15 * 60;
+const AUTH_LOCKOUT_SEC = 15 * 60;
+
 export default {
   async fetch(request, env, ctx) {
     const allowedOrigins = (env.ALLOWED_ORIGINS || "https://rommy.blog")
@@ -67,20 +71,37 @@ export default {
     }
 
     const { password, action } = payload;
+    const db = env.DB;
+    const clientIp = getClientIp(request);
 
     if (typeof password !== "string") {
       return json({ error: "Missing password" }, 400, cors);
     }
 
-    if (password !== env.ADMIN_PASSWORD) {
+    try {
+      await checkAuthRateLimit(db, clientIp);
+    } catch (err) {
+      if (err instanceof RateLimitError) {
+        return json(
+          { error: err.message },
+          429,
+          cors,
+          { "Retry-After": String(err.retryAfterSec) }
+        );
+      }
+      throw err;
+    }
+
+    if (!verifyAdminPassword(password, env.ADMIN_PASSWORD)) {
+      await recordAuthFailure(db, clientIp);
       return json({ error: "Invalid password" }, 401, cors);
     }
+
+    await clearAuthFailures(db, clientIp);
 
     if (action === "verify") {
       return json({ ok: true }, 200, cors);
     }
-
-    const db = env.DB;
 
     if (action === "thinking") {
       return handleThinking(payload, db, cors, env, ctx);
@@ -137,6 +158,106 @@ export default {
     return json({ error: "Unknown action" }, 400, cors);
   },
 };
+
+// ─── Auth hardening ───────────────────────────────────────────────────────────
+
+class RateLimitError extends Error {
+  constructor(retryAfterSec) {
+    super("Too many failed login attempts. Try again in about 15 minutes.");
+    this.retryAfterSec = retryAfterSec;
+  }
+}
+
+function getClientIp(request) {
+  const cf = request.headers.get("CF-Connecting-IP");
+  if (cf) return cf;
+  const xff = request.headers.get("X-Forwarded-For");
+  if (xff) return xff.split(",")[0].trim();
+  return "unknown";
+}
+
+function verifyAdminPassword(provided, expected) {
+  if (typeof provided !== "string" || typeof expected !== "string") return false;
+  const enc = new TextEncoder();
+  const a = enc.encode(provided);
+  const b = enc.encode(expected);
+  if (a.length !== b.length) {
+    let sink = 0;
+    for (let i = 0; i < a.length; i++) sink |= a[i] ^ a[i];
+    return false;
+  }
+  let out = 0;
+  for (let i = 0; i < a.length; i++) out |= a[i] ^ b[i];
+  return out === 0;
+}
+
+async function ensureAuthRateTable(db) {
+  await dbRun(
+    db,
+    `CREATE TABLE IF NOT EXISTS auth_rate_limit (
+      ip TEXT PRIMARY KEY,
+      fail_count INTEGER NOT NULL DEFAULT 0,
+      window_start INTEGER NOT NULL,
+      locked_until INTEGER NOT NULL DEFAULT 0
+    )`
+  );
+}
+
+async function checkAuthRateLimit(db, ip) {
+  await ensureAuthRateTable(db);
+  const now = Math.floor(Date.now() / 1000);
+  const row = await dbFirst(
+    db,
+    "SELECT fail_count, window_start, locked_until FROM auth_rate_limit WHERE ip = ?",
+    ip
+  );
+  if (!row) return;
+  if (row.locked_until > now) {
+    throw new RateLimitError(row.locked_until - now);
+  }
+  if (now - row.window_start > AUTH_WINDOW_SEC) {
+    await dbRun(db, "DELETE FROM auth_rate_limit WHERE ip = ?", ip);
+  }
+}
+
+async function recordAuthFailure(db, ip) {
+  await ensureAuthRateTable(db);
+  const now = Math.floor(Date.now() / 1000);
+  const row = await dbFirst(
+    db,
+    "SELECT fail_count, window_start, locked_until FROM auth_rate_limit WHERE ip = ?",
+    ip
+  );
+
+  if (!row || now - row.window_start > AUTH_WINDOW_SEC) {
+    await dbRun(
+      db,
+      `INSERT INTO auth_rate_limit (ip, fail_count, window_start, locked_until)
+       VALUES (?, 1, ?, 0)
+       ON CONFLICT(ip) DO UPDATE SET fail_count = 1, window_start = excluded.window_start, locked_until = 0`,
+      ip,
+      now
+    );
+    return;
+  }
+
+  const fails = row.fail_count + 1;
+  const lockedUntil =
+    fails >= AUTH_MAX_FAILURES ? now + AUTH_LOCKOUT_SEC : row.locked_until || 0;
+
+  await dbRun(
+    db,
+    "UPDATE auth_rate_limit SET fail_count = ?, locked_until = ? WHERE ip = ?",
+    fails,
+    lockedUntil,
+    ip
+  );
+}
+
+async function clearAuthFailures(db, ip) {
+  await ensureAuthRateTable(db);
+  await dbRun(db, "DELETE FROM auth_rate_limit WHERE ip = ?", ip);
+}
 
 // ─── D1 helpers ───────────────────────────────────────────────────────────────
 
@@ -1071,10 +1192,10 @@ async function handleFetchTitle(body, cors) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function json(data, status, cors) {
+function json(data, status, cors, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...cors, "Content-Type": "application/json" },
+    headers: { ...cors, "Content-Type": "application/json", ...extraHeaders },
   });
 }
 

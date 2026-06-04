@@ -89,6 +89,8 @@ Deploys run on push to `main`. A scheduled GitHub Action (`.github/workflows/bui
 
 See [`worker/README.md`](worker/README.md) for D1 schema, secrets, and deploy steps.
 
+**Admin security:** [`worker/SECURITY.md`](worker/SECURITY.md) — Cloudflare Access on `/admin/`, API rate limiting, in-tab-only sessions.
+
 **Secrets** (via `wrangler secret put`):
 
 | Secret | Required | Purpose |

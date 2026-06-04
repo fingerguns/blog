@@ -166,10 +166,6 @@ function readingMins(bodyHtml) {
   return Math.max(1, Math.round(words / 200));
 }
 
-function postAdminScript(slug) {
-  return `<script>(function(){try{var s=JSON.parse(localStorage.getItem('admin_session')||'null');if(!s||!s.pw||(Date.now()-s.ts)>=2592000000)return;var f=document.querySelector('.site-footer');if(!f)return;var w=document.createElement('div');w.className='post-admin-links';var e=document.createElement('a');e.href='/admin/?post=${slug}';e.textContent='Edit post';e.className='post-edit-link';w.appendChild(e);var d=document.createElement('button');d.type='button';d.textContent='Delete post';d.className='post-delete-link';d.addEventListener('click',async function(){if(!confirm('Are you sure you want to delete this post? This cannot be undone.'))return;d.disabled=true;d.textContent='Deleting…';try{var r=await fetch('https://rommy-blog-admin.fingerguns.workers.dev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:s.pw,action:'delete-post',slug:'${slug}'})});var j=await r.json();if(!r.ok)throw new Error(j.error||'Delete failed');window.location.href='/';}catch(x){alert(x.message);d.disabled=false;d.textContent='Delete post';}});w.appendChild(d);f.insertAdjacentElement('beforebegin',w);}catch(e){}}());</script>`;
-}
-
 function renderPostPage(p) {
   const slug = safeSlug(p.slug);
   const displayDate = toETDate(p);
@@ -221,7 +217,6 @@ ${gaSnippet}
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
 ${portraitPhotoToggleScript}
-${postAdminScript(slug)}
   </body>
 </html>
 `;
@@ -459,6 +454,7 @@ ${descriptionText ? `  <subtitle type="text">${escXml(descriptionText)}</subtitl
 
 const robotsTxt = `User-agent: *
 Allow: /
+Disallow: /admin/
 
 Sitemap: ${base}/sitemap.xml
 `;

@@ -85,20 +85,6 @@
         opacity: 0.5;
         cursor: not-allowed;
       }
-      .admin-remember {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin-bottom: 1.25rem;
-        font-size: 0.85rem;
-        color: var(--muted);
-      }
-      .admin-remember input[type="checkbox"] {
-        width: auto;
-        margin: 0;
-        padding: 0;
-        accent-color: var(--text);
-      }
       .admin-signed-in {
         margin-top: 1.25rem;
       }
@@ -509,15 +495,10 @@
 
         <!-- Logged out state -->
         <div id="login-out">
-          <p class="lead">Sign in to manage your blog.</p>
+          <p class="lead">Sign in to manage your blog. Your password stays in this tab only — it is not saved in the browser.</p>
           <form class="admin-form" id="login-form">
             <label for="login-password">Password</label>
             <input id="login-password" type="password" autocomplete="current-password" required />
-
-            <div class="admin-remember">
-              <input type="checkbox" id="remember-me" checked />
-              <label for="remember-me" style="font-size:0.85rem;font-weight:400;letter-spacing:0;text-transform:none;color:var(--muted);margin:0">Remember me for 30 days</label>
-            </div>
 
             <button type="submit" id="login-submit">Sign in</button>
             <p class="admin-status" id="login-status" hidden></p>
@@ -527,7 +508,7 @@
         <!-- Logged in state -->
         <div id="login-in" hidden>
           <div class="admin-signed-in">
-            <p><strong>Signed in.</strong> Your session is active.</p>
+            <p><strong>Signed in.</strong> Session lasts until you sign out or close this tab.</p>
             <button class="admin-signout-btn" id="sign-out">Sign out</button>
           </div>
         </div>
@@ -658,35 +639,21 @@
     <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
     <script>
       const API_URL = "https://rommy-blog-admin.fingerguns.workers.dev";
-      const SESSION_KEY = "admin_session";
-      const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;
 
-      // ── Session ────────────────────────────────────────────────────────────
+      // ── Session (in-memory only; never localStorage) ─────────────────────────
 
-      var _sessionPw = null; // in-memory only (no remember-me)
+      var _sessionPw = null;
 
-      function saveSession(pw, remember) {
+      function saveSession(pw) {
         _sessionPw = pw;
-        if (remember) {
-          localStorage.setItem(SESSION_KEY, JSON.stringify({ pw, ts: Date.now() }));
-        }
       }
 
       function loadSession() {
-        if (_sessionPw) return _sessionPw;
-        try {
-          var s = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
-          if (s && s.pw && (Date.now() - s.ts) < SESSION_TTL) {
-            _sessionPw = s.pw;
-            return s.pw;
-          }
-        } catch (e) {}
-        return null;
+        return _sessionPw;
       }
 
       function clearSession() {
         _sessionPw = null;
-        localStorage.removeItem(SESSION_KEY);
         setLoginState(false);
       }
 
@@ -698,8 +665,12 @@
         });
       }
 
-      // Restore session on load
+      // Drop legacy persisted admin passwords from older builds
       (function () {
+        try {
+          localStorage.removeItem("admin_session");
+        } catch (e) {}
+
         if (loadSession()) setLoginState(true);
 
         document.getElementById("sign-out").addEventListener("click", function () {
@@ -901,7 +872,6 @@
           submit.disabled = true;
           showStatus(status, "Signing in…", false);
           var pw = document.getElementById("login-password").value;
-          var remember = document.getElementById("remember-me").checked;
           try {
             var res = await fetch(API_URL, {
               method: "POST",
@@ -909,8 +879,11 @@
               body: JSON.stringify({ action: "verify", password: pw }),
             });
             var data = await res.json();
+            if (res.status === 429) {
+              throw new Error(data.error || "Too many attempts. Try again later.");
+            }
             if (!res.ok) throw new Error(data.error || "Sign in failed");
-            saveSession(pw, remember);
+            saveSession(pw);
             setLoginState(true);
             status.hidden = true;
             document.getElementById("login-password").value = "";

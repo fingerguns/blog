@@ -2,6 +2,8 @@
 
 Content is stored in **Cloudflare D1**. The static site is rebuilt via a **Pages deploy hook**.
 
+**Security:** See [SECURITY.md](./SECURITY.md) for Cloudflare Access on `/admin/`, rate limiting, and session hardening.
+
 ## Setup
 
 ### D1 database

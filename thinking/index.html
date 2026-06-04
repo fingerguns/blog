@@ -30,6 +30,35 @@
       <h1>Thinking</h1>
       <div class="microblog-feed">
         <div class="microblog-entry">
+          <div class="microblog-body"><p>The first real art piece I purchased. An original painting by Andy Dixon (andydixon.net) back in 2011. It kicked off a series of art purchases by great artists I admire, most from Vancouver where I lived for a few years.</p>
+<img src="https://rommy.micro.blog/uploads/2026/7406d51bfe.jpg" width="599" height="600" alt="">
+</div>
+          <time class="post-date" datetime="2026-06-04T15:44:12-04:00"><a href="/thinking/2026-06-04-1544/">2026-06-04 // 15:44</a></time>
+        </div>
+        <div class="microblog-entry">
+          <div class="microblog-body"><img src="https://cdn.micro.blog/books/9780811204811/cover.jpg" align="left" class="microblog_book" style="max-width: 60px; margin-right: 20px; margin-top: 0px; padding-top: 0px;">
+<p>Currently reading: <a href="https://micro.blog/books/9780811204811">No Longer Human</a> by Osamu Dazai 📚</p>
+</div>
+          <time class="post-date" datetime="2026-06-04T13:42:26-04:00"><a href="/thinking/2026-06-04-1342/">2026-06-04 // 13:42</a></time>
+        </div>
+        <div class="microblog-entry">
+          <div class="microblog-body"><p>If anyone wants the rommy.blog theme, have at it: <a href="https://github.com/fingerguns/blog">github.com/fingergun&hellip;</a></p>
+</div>
+          <time class="post-date" datetime="2026-06-04T11:05:03-04:00"><a href="/thinking/2026-06-04-1105/">2026-06-04 // 11:05</a></time>
+        </div>
+        <div class="microblog-entry">
+          <div class="microblog-body"><p>Test #2. Sorry for the spam. At least they’re cute photos tho, right?</p>
+<img src="https://rommy.micro.blog/uploads/2026/8b224c4f80.jpg" width="337" height="600" alt="">
+</div>
+          <time class="post-date" datetime="2026-06-04T08:51:33-04:00"><a href="/thinking/2026-06-04-0851/">2026-06-04 // 08:51</a></time>
+        </div>
+        <div class="microblog-entry">
+          <div class="microblog-body"><p>Testing photo uploads from rommy.blog</p>
+<img src="https://rommy.micro.blog/uploads/2026/photo.jpg" width="600" height="337" alt="">
+</div>
+          <time class="post-date" datetime="2026-06-04T08:43:17-04:00"><a href="/thinking/2026-06-04-0843/">2026-06-04 // 08:43</a></time>
+        </div>
+        <div class="microblog-entry">
           <div class="microblog-body"><p>Just migrated from Github Pages to Cloudflare Pages. It was an adventure. Thanks Cursor.</p>
 </div>
           <time class="post-date" datetime="2026-06-03T19:13:33-04:00"><a href="/thinking/2026-06-03-1913/">2026-06-03 // 19:13</a></time>
@@ -108,6 +137,7 @@
       </footer>
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
+    <script>(function(){function init(){document.querySelectorAll(".microblog-body img, .post .body img").forEach(function(img){if(img.dataset.portraitInit)return;function setup(){var w=img.naturalWidth,h=img.naturalHeight;if(!w||!h)return;img.dataset.portraitInit="1";if(h<=w)return;img.classList.add("photo-portrait");img.setAttribute("role","button");img.setAttribute("tabindex","0");img.setAttribute("aria-expanded","false");img.title="Click to enlarge";function toggle(){var ex=img.classList.toggle("photo-expanded");img.setAttribute("aria-expanded",ex?"true":"false");}img.addEventListener("click",toggle);img.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle();}});}if(img.complete)setup();else img.addEventListener("load",setup,{once:true});});}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();}());</script>
     <script>(function(){var BATCH=10;var list=document.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++)items[i].hidden=true;var shown=BATCH;var sentinel=document.createElement('div');document.body.appendChild(sentinel);var obs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++)items[i].hidden=false;shown=next;if(shown>=items.length)obs.disconnect();},{rootMargin:'0px'});obs.observe(sentinel);}());</script>
   </body>
 </html>

@@ -59,3 +59,11 @@ CREATE TABLE IF NOT EXISTS thinking (
   media_alt TEXT,
   updated_at TEXT NOT NULL
 );
+
+-- Failed admin password attempts (brute-force throttling)
+CREATE TABLE IF NOT EXISTS auth_rate_limit (
+  ip TEXT PRIMARY KEY,
+  fail_count INTEGER NOT NULL DEFAULT 0,
+  window_start INTEGER NOT NULL,
+  locked_until INTEGER NOT NULL DEFAULT 0
+);
