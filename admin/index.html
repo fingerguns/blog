@@ -159,7 +159,7 @@
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        margin-bottom: 0.35rem;
+        margin-bottom: 0;
       }
       .thinking-photo-input {
         position: absolute;
@@ -196,9 +196,12 @@
         height: 1.5rem;
       }
       .thinking-photo-name {
-        font-size: 0.68rem;
-        line-height: 1.4;
+        font-size: inherit;
+        line-height: 1.55;
         color: var(--muted);
+      }
+      .thinking-photo-hint {
+        margin: 0.65rem 0 1.25rem;
       }
       .p-submit-row {
         display: flex;
@@ -553,7 +556,7 @@
             </label>
             <span id="t-photo-name" class="thinking-photo-name">No file chosen</span>
           </div>
-          <p class="admin-hint">JPEG, PNG, WebP, or GIF. Up to 5 MB for rommy.blog and micro.blog. Larger photos are automatically compressed for Bluesky only (under 2 MB).</p>
+          <p class="admin-hint thinking-photo-hint">JPEG, PNG, WebP, or GIF. Up to 5 MB for rommy.blog and micro.blog. Larger photos are automatically compressed for Bluesky only (under 2 MB).</p>
           <p id="t-photo-warn" hidden></p>
           <img id="t-photo-preview" class="thinking-photo-preview" alt="" hidden />
           <button type="button" class="admin-secondary-btn" id="t-photo-remove" hidden>Remove photo</button>
