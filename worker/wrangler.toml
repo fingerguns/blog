@@ -7,6 +7,12 @@ GITHUB_OWNER = "fingerguns"
 GITHUB_REPO = "blog"
 GITHUB_BRANCH = "main"
 ALLOWED_ORIGINS = "https://rommy.blog,https://rommy-blog.pages.dev,http://localhost:8799,http://127.0.0.1:8799"
+# Public R2 URL base after enabling public access on rommy-blog-media (e.g. https://pub-xxxx.r2.dev)
+MEDIA_PUBLIC_URL = "https://pub-d918c1f2d7fd45cd8a120234983c1079.r2.dev"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "rommy-blog-media"
 
 [[d1_databases]]
 binding = "DB"

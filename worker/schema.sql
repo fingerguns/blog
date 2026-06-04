@@ -55,5 +55,7 @@ CREATE TABLE IF NOT EXISTS linklog (
 CREATE TABLE IF NOT EXISTS thinking (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   text TEXT NOT NULL DEFAULT '',
+  media_url TEXT,
+  media_alt TEXT,
   updated_at TEXT NOT NULL
 );

@@ -80,6 +80,21 @@ function textToMicroblogHtml(text) {
   return `<div class="microblog-body">${paras.map(p => `<p>${autoLink(escHtml(p).replace(/\n/g, "<br>"))}</p>`).join("")}</div>`;
 }
 
+function renderThinkingHtml(thinking) {
+  const text = (thinking?.text || "").trim();
+  const mediaUrl = thinking?.media_url || "";
+  const mediaAlt = thinking?.media_alt || "Photo";
+  if (!text && !mediaUrl) return "";
+  if (!mediaUrl) return textToMicroblogHtml(text);
+  const img = `<p><img src="${escHtml(mediaUrl)}" alt="${escHtml(mediaAlt)}" loading="lazy" /></p>`;
+  if (!text) return `<div class="microblog-body">${img}</div>`;
+  return textToMicroblogHtml(text).replace("</div>", `${img}</div>`);
+}
+
+function hasThinking(thinking) {
+  return !!(thinking && ((thinking.text || "").trim() || thinking.media_url));
+}
+
 function toIsoZ(p) {
   const d = p.datetime ? new Date(p.datetime) : new Date(`${p.date}T12:00:00.000Z`);
   return d.toISOString();
@@ -257,19 +272,18 @@ const descriptionMeta = descriptionText
   : "";
 const subtitleHtml = descriptionText ? `      <p class="lead">${escHtml(descriptionText)}</p>\n\n` : "";
 
-const thinkingSection =
-  thinking && thinking.text
-    ? `      <section aria-labelledby="now-heading">
+const thinkingSection = hasThinking(thinking)
+  ? `      <section aria-labelledby="now-heading">
         <h2 id="now-heading">Thinking</h2>
         <ol class="post-list">
           <li>
-            ${textToMicroblogHtml(thinking.text)}
+            ${renderThinkingHtml(thinking)}
           </li>
         </ol>
         <a class="see-more" href="/thinking/">→</a>
       </section>
 `
-    : "";
+  : "";
 
 const colophonText =
   typeof optionalColophon === "string" ? optionalColophon.trim() : "";
@@ -458,8 +472,8 @@ const currentBook = orderedReading[0];
 const nowPageHtml = `${archiveHead("Now")}
       <p class="lead">Updated ${escHtml(nowMonthYear)} &middot; Brooklyn, NY &middot; <a href="https://nownownow.com/about" target="_blank" rel="noopener">What's this?</a></p>
       <div class="now-body">
-${thinking && thinking.text ? `        <h2>Thinking</h2>
-        ${textToMicroblogHtml(thinking.text)}
+${hasThinking(thinking) ? `        <h2>Thinking</h2>
+        ${renderThinkingHtml(thinking)}
 ` : ""}${currentBook ? `        <h2>Reading</h2>
         <p><a href="${escHtml(currentBook.url)}" target="_blank" rel="noopener">${escHtml(currentBook.title)}</a></p>
 ` : ""}        <h2>Working</h2>

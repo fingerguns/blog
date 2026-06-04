@@ -87,8 +87,16 @@ export async function loadBlogDataFromD1() {
     "SELECT url, title, date, datetime FROM linklog ORDER BY datetime DESC"
   );
 
-  const thinkingRows = await d1Query("SELECT text FROM thinking WHERE id = 1");
-  const thinking = thinkingRows[0] ? { text: thinkingRows[0].text } : { text: "" };
+  const thinkingRows = await d1Query(
+    "SELECT text, media_url, media_alt FROM thinking WHERE id = 1"
+  );
+  const thinking = thinkingRows[0]
+    ? {
+        text: thinkingRows[0].text || "",
+        media_url: thinkingRows[0].media_url || "",
+        media_alt: thinkingRows[0].media_alt || "",
+      }
+    : { text: "", media_url: "", media_alt: "" };
 
   return {
     site: {

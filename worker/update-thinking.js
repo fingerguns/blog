@@ -10,9 +10,21 @@
  *   BLUESKY_HANDLE       — Bluesky handle (optional)
  *   BLUESKY_APP_PASSWORD — Bluesky app password (optional)
  *   GITHUB_TOKEN         — optional fallback to trigger GitHub workflow_dispatch
+ *
+ * R2 (photos on THINKING):
+ *   Enable R2 in Cloudflare dashboard, then: wrangler r2 bucket create rommy-blog-media
+ *   Enable public access on the bucket and set MEDIA_PUBLIC_URL in wrangler.toml [vars]
  */
 
 const SITE_URL = "https://rommy.blog";
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const IMAGE_EXT = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
 const SITE_TITLE = "rommy.blog";
 const SITE_AUTHOR = "Rommy Ghaly";
 const GA_ID = "G-L1CC5F3DP8";
@@ -46,14 +58,14 @@ export default {
       return json({ error: "Worker is not configured" }, 500, cors);
     }
 
-    let body;
+    let payload;
     try {
-      body = await request.json();
-    } catch {
-      return json({ error: "Invalid JSON body" }, 400, cors);
+      payload = await parseRequest(request);
+    } catch (err) {
+      return json({ error: err.message || "Invalid request body" }, 400, cors);
     }
 
-    const { password, action } = body;
+    const { password, action } = payload;
 
     if (typeof password !== "string") {
       return json({ error: "Missing password" }, 400, cors);
@@ -70,23 +82,23 @@ export default {
     const db = env.DB;
 
     if (action === "thinking") {
-      return handleThinking(body, db, cors, env, ctx);
+      return handleThinking(payload, db, cors, env, ctx);
     }
 
     if (action === "post") {
-      return handlePost(body, db, cors, env);
+      return handlePost(payload, db, cors, env);
     }
 
     if (action === "reading") {
-      return handleReading(body, db, cors, env);
+      return handleReading(payload, db, cors, env);
     }
 
     if (action === "sharing") {
-      return handleSharing(body, db, cors, env);
+      return handleSharing(payload, db, cors, env);
     }
 
     if (action === "fetch-title") {
-      return handleFetchTitle(body, cors);
+      return handleFetchTitle(payload, cors);
     }
 
     if (action === "list-drafts") {
@@ -94,27 +106,27 @@ export default {
     }
 
     if (action === "save-draft") {
-      return handleSaveDraft(body, db, cors);
+      return handleSaveDraft(payload, db, cors);
     }
 
     if (action === "load-draft") {
-      return handleLoadDraft(body, db, cors);
+      return handleLoadDraft(payload, db, cors);
     }
 
     if (action === "delete-draft") {
-      return handleDeleteDraft(body, db, cors);
+      return handleDeleteDraft(payload, db, cors);
     }
 
     if (action === "fetch-post") {
-      return handleFetchPost(body, db, cors);
+      return handleFetchPost(payload, db, cors);
     }
 
     if (action === "edit-post") {
-      return handleEditPost(body, db, cors, env);
+      return handleEditPost(payload, db, cors, env);
     }
 
     if (action === "delete-post") {
-      return handleDeletePost(body, db, cors, env);
+      return handleDeletePost(payload, db, cors, env);
     }
 
     return json({ error: "Unknown action" }, 400, cors);
@@ -173,32 +185,76 @@ async function savePostVersion(db, slug, title, summary, bodyHtml) {
   );
 }
 
+// ─── Request parsing ─────────────────────────────────────────────────────────
+
+async function parseRequest(request) {
+  const ct = request.headers.get("Content-Type") || "";
+  if (ct.includes("multipart/form-data")) {
+    const fd = await request.formData();
+    const photo = fd.get("photo");
+    return {
+      password: fd.get("password"),
+      action: fd.get("action"),
+      text: String(fd.get("text") || ""),
+      photo:
+        photo && typeof photo === "object" && "arrayBuffer" in photo && photo.size > 0
+          ? photo
+          : null,
+    };
+  }
+  return request.json();
+}
+
 // ─── Thinking ────────────────────────────────────────────────────────────────
 
-async function handleThinking(body, db, cors, env, ctx) {
-  const { text } = body;
-  if (typeof text !== "string" || !text.trim()) {
-    return json({ error: "Missing text" }, 400, cors);
-  }
+async function handleThinking(payload, db, cors, env, ctx) {
+  const text = typeof payload.text === "string" ? payload.text.trim() : "";
+  const photo = payload.photo || null;
 
-  const trimmed = text.trim();
-  if (trimmed.length > 2000) {
+  if (!text && !photo) {
+    return json({ error: "Add text or a photo" }, 400, cors);
+  }
+  if (text.length > 2000) {
     return json({ error: "Text must be 2000 characters or fewer" }, 400, cors);
   }
 
   try {
+    let mediaUrl = null;
+    let mediaAlt = text.slice(0, 1000) || "";
+    let imageForBluesky = null;
+
+    if (photo) {
+      const uploaded = await uploadPhotoToR2(env, photo);
+      mediaUrl = uploaded.url;
+      mediaAlt = text.slice(0, 1000) || "Photo";
+      imageForBluesky = {
+        bytes: uploaded.bytes,
+        mimeType: uploaded.mimeType,
+        alt: mediaAlt,
+        aspectRatio: uploaded.aspectRatio,
+      };
+    }
+
     const now = new Date().toISOString();
     await dbRun(
       db,
-      "INSERT INTO thinking (id, text, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET text = excluded.text, updated_at = excluded.updated_at",
-      trimmed,
+      `INSERT INTO thinking (id, text, media_url, media_alt, updated_at)
+       VALUES (1, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         text = excluded.text,
+         media_url = excluded.media_url,
+         media_alt = excluded.media_alt,
+         updated_at = excluded.updated_at`,
+      text,
+      mediaUrl,
+      mediaAlt,
       now
     );
 
     let microblogWarning = null;
     if (env.MICROBLOG_TOKEN) {
       try {
-        await postToMicroblog(env.MICROBLOG_TOKEN, trimmed);
+        await postToMicroblog(env.MICROBLOG_TOKEN, text, photo);
       } catch (mbErr) {
         microblogWarning = mbErr.message || "micro.blog post failed";
       }
@@ -207,27 +263,106 @@ async function handleThinking(body, db, cors, env, ctx) {
     let blueskyWarning = null;
     if (env.BLUESKY_HANDLE && env.BLUESKY_APP_PASSWORD) {
       try {
-        await postToBluesky(env.BLUESKY_HANDLE, env.BLUESKY_APP_PASSWORD, trimmed);
+        await postToBluesky(
+          env.BLUESKY_HANDLE,
+          env.BLUESKY_APP_PASSWORD,
+          text,
+          imageForBluesky
+        );
       } catch (bsErr) {
         blueskyWarning = bsErr.message || "Bluesky post failed";
       }
     }
 
     await triggerRebuild(env);
-    // Delayed rebuild so /thinking/ catches micro.blog feed update
     if (ctx) {
       ctx.waitUntil(
         new Promise((r) => setTimeout(r, 90000)).then(() => triggerRebuild(env))
       );
     }
 
-    return json({ ok: true, text: trimmed, microblogWarning, blueskyWarning }, 200, cors);
+    return json(
+      { ok: true, text, mediaUrl, microblogWarning, blueskyWarning },
+      200,
+      cors
+    );
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
   }
 }
 
-async function postToMicroblog(token, content) {
+async function uploadPhotoToR2(env, file) {
+  if (!env.MEDIA) {
+    throw new Error("R2 is not configured. Enable R2 and create the rommy-blog-media bucket.");
+  }
+  const publicBase = (env.MEDIA_PUBLIC_URL || "").replace(/\/$/, "");
+  if (!publicBase) {
+    throw new Error("MEDIA_PUBLIC_URL is not set in worker config.");
+  }
+
+  const mimeType = file.type || "image/jpeg";
+  if (!ALLOWED_IMAGE_TYPES.has(mimeType)) {
+    throw new Error("Photo must be JPEG, PNG, WebP, or GIF.");
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    throw new Error("Photo must be 5 MB or smaller.");
+  }
+
+  const bytes = await file.arrayBuffer();
+  const ext = IMAGE_EXT[mimeType] || "jpg";
+  const key = `thinking/${toDateStr(new Date())}/${crypto.randomUUID()}.${ext}`;
+
+  await env.MEDIA.put(key, bytes, {
+    httpMetadata: { contentType: mimeType },
+  });
+
+  const aspectRatio = await imageAspectRatio(bytes, mimeType);
+
+  return {
+    url: `${publicBase}/${key}`,
+    bytes,
+    mimeType,
+    aspectRatio,
+  };
+}
+
+async function imageAspectRatio(bytes, mimeType) {
+  try {
+    const blob = new Blob([bytes], { type: mimeType });
+    const bitmap = await createImageBitmap(blob);
+    const ratio = { width: bitmap.width, height: bitmap.height };
+    bitmap.close();
+    return ratio;
+  } catch {
+    return { width: 1, height: 1 };
+  }
+}
+
+async function postToMicroblog(token, content, photoFile = null) {
+  if (photoFile) {
+    const mimeType = photoFile.type || "image/jpeg";
+    const bytes = await photoFile.arrayBuffer();
+    const fd = new FormData();
+    fd.append("h", "entry");
+    if (content) fd.append("content", content);
+    fd.append(
+      "photo",
+      new Blob([bytes], { type: mimeType }),
+      `photo.${IMAGE_EXT[mimeType] || "jpg"}`
+    );
+
+    const res = await fetch("https://micro.blog/micropub", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`micro.blog post failed (${res.status}): ${err}`);
+    }
+    return;
+  }
+
   const res = await fetch("https://micro.blog/micropub", {
     method: "POST",
     headers: {
@@ -243,7 +378,7 @@ async function postToMicroblog(token, content) {
   }
 }
 
-async function postToBluesky(handle, appPassword, content) {
+async function postToBluesky(handle, appPassword, content, image = null) {
   const sessionRes = await fetch(
     "https://bsky.social/xrpc/com.atproto.server.createSession",
     {
@@ -296,11 +431,39 @@ async function postToBluesky(handle, appPassword, content) {
     }
   }
 
+  let embed;
+  if (image) {
+    const blobRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessJwt}`,
+        "Content-Type": image.mimeType,
+      },
+      body: image.bytes,
+    });
+    if (!blobRes.ok) {
+      const err = await blobRes.text();
+      throw new Error(`Bluesky image upload failed (${blobRes.status}): ${err}`);
+    }
+    const { blob } = await blobRes.json();
+    embed = {
+      $type: "app.bsky.embed.images",
+      images: [
+        {
+          alt: image.alt || "",
+          image: blob,
+          aspectRatio: image.aspectRatio,
+        },
+      ],
+    };
+  }
+
   const record = {
     $type: "app.bsky.feed.post",
     text,
     createdAt: new Date().toISOString(),
-    ...(facets.length ? { facets } : {}),
+    ...(embed ? { embed } : {}),
+    ...(!embed && facets.length ? { facets } : {}),
   };
 
   const postRes = await fetch(

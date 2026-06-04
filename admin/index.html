@@ -139,6 +139,14 @@
         margin: -0.9rem 0 1.25rem;
         line-height: 1.5;
       }
+      .thinking-photo-preview {
+        display: block;
+        max-width: 100%;
+        max-height: 240px;
+        width: auto;
+        margin: 0 0 1.25rem;
+        border-radius: 4px;
+      }
       .p-submit-row {
         display: flex;
         align-items: center;
@@ -357,7 +365,12 @@
 
         <form class="admin-form" id="thinking-form">
           <label for="t-text">Thought</label>
-          <textarea id="t-text" maxlength="2000" required placeholder="What's on your mind?"></textarea>
+          <textarea id="t-text" maxlength="2000" placeholder="What's on your mind? (optional if you add a photo)"></textarea>
+
+          <label for="t-photo">Photo</label>
+          <input id="t-photo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
+          <p class="admin-hint">JPEG, PNG, WebP, or GIF — max 5 MB. Posted to micro.blog and Bluesky when configured.</p>
+          <img id="t-photo-preview" class="thinking-photo-preview" alt="" hidden />
 
           <button type="submit" id="t-submit">Save</button>
           <p class="admin-status" id="t-status" hidden></p>
@@ -627,25 +640,71 @@
 
       // ── Thinking form ──────────────────────────────────────────────────────
 
+      async function callThinkingAPI(text, photoFile) {
+        var pw = loadSession();
+        if (!pw) throw new Error("You need to be signed in. Go to the Login tab.");
+        var res;
+        if (photoFile) {
+          var fd = new FormData();
+          fd.append("password", pw);
+          fd.append("action", "thinking");
+          fd.append("text", text);
+          fd.append("photo", photoFile);
+          res = await fetch(API_URL, { method: "POST", body: fd });
+        } else {
+          res = await fetch(API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password: pw, action: "thinking", text: text }),
+          });
+        }
+        var data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Request failed");
+        return data;
+      }
+
       (function () {
         var form = document.getElementById("thinking-form");
         var status = document.getElementById("t-status");
         var submit = document.getElementById("t-submit");
+        var photoInput = document.getElementById("t-photo");
+        var preview = document.getElementById("t-photo-preview");
+
+        photoInput.addEventListener("change", function () {
+          var file = photoInput.files && photoInput.files[0];
+          if (!file) {
+            preview.hidden = true;
+            preview.removeAttribute("src");
+            return;
+          }
+          preview.src = URL.createObjectURL(file);
+          preview.hidden = false;
+        });
 
         form.addEventListener("submit", async function (e) {
           e.preventDefault();
+          var text = document.getElementById("t-text").value.trim();
+          var file = photoInput.files && photoInput.files[0];
+          if (!text && !file) {
+            showStatus(status, "Add text or a photo.", true);
+            return;
+          }
+          if (file && file.size > 5 * 1024 * 1024) {
+            showStatus(status, "Photo must be 5 MB or smaller.", true);
+            return;
+          }
           submit.disabled = true;
           showStatus(status, "Saving…", false);
           try {
-            var result = await callAPI({
-              action: "thinking",
-              text: document.getElementById("t-text").value,
-            });
+            var result = await callThinkingAPI(document.getElementById("t-text").value, file || null);
             var msg = "Saved. Site will rebuild shortly.";
             if (result.microblogWarning) msg += " (micro.blog: " + result.microblogWarning + ")";
             if (result.blueskyWarning) msg += " (Bluesky: " + result.blueskyWarning + ")";
             showStatus(status, msg, false, true);
             document.getElementById("t-text").value = "";
+            photoInput.value = "";
+            preview.hidden = true;
+            preview.removeAttribute("src");
           } catch (err) {
             showStatus(status, err.message, true);
           } finally {
