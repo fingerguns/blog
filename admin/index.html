@@ -363,32 +363,37 @@
       }
       .post-image-toolbar {
         display: flex;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         align-items: center;
-        gap: 0.45rem;
-        padding: 0.55rem 0.65rem;
+        gap: 0.28rem;
+        padding: 0.3rem 0.45rem;
         border: 1px solid var(--rule);
         border-top: none;
         background: var(--bg);
         margin-bottom: 0;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
       }
       .post-image-toolbar-label {
-        font-size: 0.68rem;
+        flex-shrink: 0;
+        font-size: 0.58rem;
         font-weight: 600;
-        letter-spacing: 0.06em;
+        letter-spacing: 0.08em;
         text-transform: uppercase;
         color: var(--muted);
-        margin-right: 0.25rem;
+        margin-right: 0.15rem;
       }
       .post-image-btn {
+        flex-shrink: 0;
         font: inherit;
-        font-size: 0.78rem;
-        font-weight: 600;
+        font-size: 0.62rem;
+        font-weight: 500;
+        line-height: 1.2;
         color: var(--text);
         background: transparent;
         border: 1px solid var(--rule);
-        border-radius: 0.25rem;
-        padding: 0.35rem 0.6rem;
+        border-radius: 0.2rem;
+        padding: 0.18rem 0.38rem;
         cursor: pointer;
         white-space: nowrap;
       }
@@ -398,11 +403,11 @@
       }
       .post-image-btn-danger {
         color: #b44;
-        border-color: #b44;
+        border-color: #c99;
       }
       [data-theme="dark"] .post-image-btn-danger {
         color: #e88;
-        border-color: #e88;
+        border-color: #855;
       }
       #p-body-editor .ql-container.ql-snow {
         border-top: 1px solid var(--rule);
@@ -510,11 +515,11 @@
             <p class="admin-hint" style="margin-top: -0.75rem">Photos upload to R2. Place the cursor in the paragraph where you want the image, then insert. Keep typing in that same paragraph so text wraps (do not press Enter before the caption). Click a photo to select it, then use the image controls below the toolbar.</p>
             <div id="p-body-editor"></div>
             <div id="p-image-toolbar" class="post-image-toolbar" hidden>
-              <span class="post-image-toolbar-label">Photo selected</span>
-              <button type="button" class="post-image-btn" data-wrap="left">Wrap left</button>
-              <button type="button" class="post-image-btn" data-wrap="right">Wrap right</button>
+              <span class="post-image-toolbar-label">Photo</span>
+              <button type="button" class="post-image-btn" data-wrap="left">Left</button>
+              <button type="button" class="post-image-btn" data-wrap="right">Right</button>
               <button type="button" class="post-image-btn" data-wrap="center">Center</button>
-              <button type="button" class="post-image-btn" data-wrap="full">Full width</button>
+              <button type="button" class="post-image-btn" data-wrap="full">Full</button>
               <button type="button" class="post-image-btn post-image-btn-danger" data-action="delete">Delete</button>
             </div>
 
@@ -1178,7 +1183,35 @@
 
       quill.root.addEventListener("click", function (e) {
         if (e.target && e.target.tagName === "IMG") selectPostImage(e.target);
-        else if (!e.target.closest || !e.target.closest("img")) selectPostImage(null);
+      });
+
+      document.addEventListener(
+        "mousedown",
+        function (e) {
+          if (!selectedPostImage) return;
+          if (e.target.closest && e.target.closest(".post-image-toolbar")) return;
+          if (e.target === selectedPostImage) return;
+          if (e.target.closest && e.target.closest("#p-body-editor img.post-photo")) return;
+          selectPostImage(null);
+        },
+        true
+      );
+
+      quill.on("selection-change", function (range) {
+        if (!selectedPostImage) return;
+        if (!range) {
+          selectPostImage(null);
+          return;
+        }
+        if (range.length > 0) {
+          selectPostImage(null);
+          return;
+        }
+        try {
+          var blot = Quill.find(selectedPostImage);
+          if (blot && quill.getIndex(blot) === range.index) return;
+        } catch (e) {}
+        selectPostImage(null);
       });
 
       quill.root.addEventListener("keydown", function (e) {
