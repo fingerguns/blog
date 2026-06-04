@@ -368,7 +368,27 @@
       .ql-snow button.ql-wrap-left,
       .ql-snow button.ql-wrap-right,
       .ql-snow button.ql-wrap-center,
-      .ql-snow button.ql-wrap-full { width: auto; padding: 0 0.35rem; }
+      .ql-snow button.ql-wrap-full,
+      .ql-snow button.ql-image-delete { width: auto; padding: 0 0.35rem; }
+      .ql-snow .ql-image-delete::before {
+        content: "Delete";
+        font-size: 0.65rem;
+        font-weight: 600;
+      }
+      .admin-secondary-btn {
+        font: inherit;
+        font-size: 0.85rem;
+        color: var(--text);
+        background: transparent;
+        border: 1px solid var(--rule);
+        border-radius: 0.25rem;
+        padding: 0.4rem 0.75rem;
+        margin: -0.5rem 0 1.25rem;
+        cursor: pointer;
+      }
+      .admin-secondary-btn:hover {
+        border-color: var(--text);
+      }
     </style>
   </head>
   <body>
@@ -427,6 +447,7 @@
           <p class="admin-hint">JPEG, PNG, WebP, or GIF. Up to 5 MB for rommy.blog and micro.blog. Larger photos are automatically compressed for Bluesky only (under 2 MB).</p>
           <p id="t-photo-warn" hidden></p>
           <img id="t-photo-preview" class="thinking-photo-preview" alt="" hidden />
+          <button type="button" class="admin-secondary-btn" id="t-photo-remove" hidden>Remove photo</button>
 
           <button type="submit" id="t-submit">Save</button>
           <p class="admin-status" id="t-status" hidden></p>
@@ -451,7 +472,7 @@
             <input id="p-summary" type="text" required placeholder="One sentence description for meta/feed" />
 
             <label>Body</label>
-            <p class="admin-hint" style="margin-top: -0.75rem">Photos upload to R2. Place the cursor in the paragraph where you want the image, then insert. Keep typing in that same paragraph so text wraps (do not press Enter before the caption). Use Wrap L / R / Center / Full on a selected photo.</p>
+            <p class="admin-hint" style="margin-top: -0.75rem">Photos upload to R2. Place the cursor in the paragraph where you want the image, then insert. Keep typing in that same paragraph so text wraps (do not press Enter before the caption). Click a photo to select it — then Wrap L / R / Center / Full, Delete on the toolbar, or press Backspace/Delete.</p>
             <div id="p-body-editor"></div>
 
             <div class="p-submit-row">
@@ -815,18 +836,28 @@
         var photoInput = document.getElementById("t-photo");
         var preview = document.getElementById("t-photo-preview");
         var photoWarn = document.getElementById("t-photo-warn");
+        var photoRemove = document.getElementById("t-photo-remove");
+
+        function clearThinkingPhoto() {
+          photoInput.value = "";
+          preview.hidden = true;
+          preview.removeAttribute("src");
+          photoRemove.hidden = true;
+          photoWarn.hidden = true;
+          photoWarn.textContent = "";
+        }
+
+        photoRemove.addEventListener("click", clearThinkingPhoto);
 
         photoInput.addEventListener("change", function () {
           var file = photoInput.files && photoInput.files[0];
           if (!file) {
-            preview.hidden = true;
-            preview.removeAttribute("src");
-            photoWarn.hidden = true;
-            photoWarn.textContent = "";
+            clearThinkingPhoto();
             return;
           }
           preview.src = URL.createObjectURL(file);
           preview.hidden = false;
+          photoRemove.hidden = false;
           if (file.size > MAX_PHOTO_SITE) {
             photoWarn.textContent =
               "rommy.blog: This file is " +
@@ -877,11 +908,7 @@
             var out = formatThinkingSaveStatus(result);
             showStatus(status, out.text, false, !out.warn, out.warn);
             document.getElementById("t-text").value = "";
-            photoInput.value = "";
-            preview.hidden = true;
-            preview.removeAttribute("src");
-            photoWarn.hidden = true;
-            photoWarn.textContent = "";
+            clearThinkingPhoto();
           } catch (err) {
             var errMsg = err.message || "Request failed";
             if (!/^rommy\.blog:|^micro\.blog:|^Bluesky:/i.test(errMsg)) {
@@ -993,6 +1020,27 @@
         if (merged !== quill.root.innerHTML) refreshEditorHtml(merged);
       }
 
+      function deleteSelectedPostImage() {
+        if (!selectedPostImage) return;
+        var img = selectedPostImage;
+        selectPostImage(null);
+        try {
+          var blot = Quill.find(img);
+          if (blot) {
+            var index = quill.getIndex(blot);
+            quill.deleteText(index, 1, "user");
+            var next = quill.getText(index, 1);
+            if (next === "\u200b" || next === "\u200B") {
+              quill.deleteText(index, 1, "user");
+            }
+          } else {
+            img.remove();
+          }
+        } catch (err) {
+          img.remove();
+        }
+      }
+
       function insertPostImage(url, wrap) {
         wrap = wrap || "right";
         var range = quill.getSelection(true);
@@ -1037,6 +1085,7 @@
       quillIcons["wrap-right"] = "R";
       quillIcons["wrap-center"] = "C";
       quillIcons["wrap-full"] = "F";
+      quillIcons["image-delete"] = "×";
 
       var quill = new Quill("#p-body-editor", {
         theme: "snow",
@@ -1061,7 +1110,7 @@
               [{ list: "ordered" }, { list: "bullet" }],
               [{ align: [] }],
               ["link", "blockquote", "image"],
-              ["wrap-left", "wrap-right", "wrap-center", "wrap-full"],
+              ["wrap-left", "wrap-right", "wrap-center", "wrap-full", "image-delete"],
               ["clean"],
             ],
             handlers: {
@@ -1078,6 +1127,7 @@
               "wrap-full": function () {
                 setPostImageWrap("full");
               },
+              "image-delete": deleteSelectedPostImage,
             },
           },
         },
@@ -1086,6 +1136,15 @@
       quill.root.addEventListener("click", function (e) {
         if (e.target && e.target.tagName === "IMG") selectPostImage(e.target);
         else if (!e.target.closest || !e.target.closest("img")) selectPostImage(null);
+      });
+
+      quill.root.addEventListener("keydown", function (e) {
+        if (!selectedPostImage) return;
+        if (e.key === "Delete" || e.key === "Backspace") {
+          e.preventDefault();
+          e.stopPropagation();
+          deleteSelectedPostImage();
+        }
       });
 
       var coalesceTimer;
