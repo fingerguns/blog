@@ -97,13 +97,53 @@ function parseOpenGraph(html, pageUrl) {
 
   if (!title && !description && !image) return null;
 
-  return {
+  return normalizePreview({
     url: pageUrl,
     title: title.slice(0, 140),
     description: description.slice(0, 220),
     image,
     siteName: siteName.slice(0, 80),
+  });
+}
+
+function previewHostname(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./i, "");
+  } catch {
+    return "";
+  }
+}
+
+/** Drop site name duplicated in the title; footer uses hostname (Bluesky-style). */
+function normalizePreview(preview) {
+  let title = (preview.title || "").trim();
+  const siteName = (preview.siteName || "").trim();
+  const domain = previewHostname(preview.url);
+
+  if (siteName && title) {
+    const siteRe = new RegExp(`^${escapeRegExp(siteName)}[\\s\\-–—:|]+`, "i");
+    if (siteRe.test(title)) {
+      title = title.replace(siteRe, "").trim();
+    } else if (title.toLowerCase().startsWith(siteName.toLowerCase())) {
+      title = title.slice(siteName.length).replace(/^[\s\-–—:|]+/, "").trim();
+    }
+  }
+
+  if (!title && preview.description) {
+    title = preview.description.split(/\n/)[0].slice(0, 140);
+  }
+
+  return {
+    url: preview.url,
+    title: title.slice(0, 140),
+    description: (preview.description || "").slice(0, 220),
+    image: preview.image || "",
+    domain,
   };
+}
+
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 export async function fetchLinkPreview(url, cache) {
@@ -143,17 +183,19 @@ export async function fetchLinkPreview(url, cache) {
 
 export function renderLinkPreviewCard(preview, escHtml) {
   if (!preview?.url) return "";
-  const img = preview.image
-    ? `<img class="link-preview-card__image" src="${escHtml(preview.image)}" alt="" loading="lazy" decoding="async" />`
+  const normalized = normalizePreview(preview);
+  const img = normalized.image
+    ? `<img class="link-preview-card__image" src="${escHtml(normalized.image)}" alt="" loading="lazy" decoding="async" />`
     : "";
-  const site = preview.siteName
-    ? `<span class="link-preview-card__site">${escHtml(preview.siteName)}</span>`
+  const desc = normalized.description
+    ? `<span class="link-preview-card__desc">${escHtml(normalized.description)}</span>`
     : "";
-  const desc = preview.description
-    ? `<span class="link-preview-card__desc">${escHtml(preview.description)}</span>`
+  const domain = normalized.domain
+    ? `<span class="link-preview-card__domain">${escHtml(normalized.domain)}</span>`
     : "";
+  const title = normalized.title || normalized.domain || normalized.url;
   return `<aside class="link-preview-card">
-  <a class="link-preview-card__link" href="${escHtml(preview.url)}" target="_blank" rel="noopener noreferrer">${img}<span class="link-preview-card__body">${site}<span class="link-preview-card__title">${escHtml(preview.title || preview.url)}</span>${desc}</span></a>
+  <a class="link-preview-card__link" href="${escHtml(normalized.url)}" target="_blank" rel="noopener noreferrer">${img}<span class="link-preview-card__body"><span class="link-preview-card__title">${escHtml(title)}</span>${desc}${domain}</span></a>
 </aside>`;
 }
 

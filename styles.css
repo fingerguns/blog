@@ -359,18 +359,17 @@ h2 {
 }
 .microblog-body a { color: var(--link); }
 
-/* Link preview cards (build-time unfurl in Thinking) */
+/* Link preview cards (build-time unfurl in Thinking; Bluesky-style) */
 .link-preview-card {
+  max-width: 22rem;
   margin: 0.75rem 0 0;
   border: 1px solid var(--rule);
-  border-radius: 6px;
+  border-radius: 10px;
   overflow: hidden;
   background: var(--bg);
 }
 .link-preview-card__link {
-  display: flex;
-  align-items: stretch;
-  gap: 0;
+  display: block;
   text-decoration: none;
   color: inherit;
 }
@@ -378,52 +377,43 @@ h2 {
   color: var(--link-hover);
 }
 .link-preview-card__image {
-  flex-shrink: 0;
-  width: 7.5rem;
-  height: 5.5rem;
-  object-fit: cover;
   display: block;
+  width: 100%;
+  height: auto;
+  max-height: 7.5rem;
+  aspect-ratio: 1.91 / 1;
+  object-fit: cover;
   background: var(--rule);
 }
 .link-preview-card__body {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.2rem;
-  min-width: 0;
-  padding: 0.65rem 0.75rem;
-}
-.link-preview-card__site {
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
+  display: block;
+  padding: 0.6rem 0.7rem 0.5rem;
 }
 .link-preview-card__title {
-  font-size: 0.9rem;
+  display: block;
+  font-size: 0.86rem;
   font-weight: 600;
   line-height: 1.35;
   color: var(--text);
+  margin: 0 0 0.2rem;
 }
 .link-preview-card__desc {
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   line-height: 1.45;
   color: var(--muted);
+  margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-@media (max-width: 480px) {
-  .link-preview-card__link {
-    flex-direction: column;
-  }
-  .link-preview-card__image {
-    width: 100%;
-    height: auto;
-    max-height: 10rem;
-  }
+.link-preview-card__domain {
+  display: block;
+  margin-top: 0.45rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.7rem;
+  color: var(--muted);
 }
 
 /* Quill alignment classes (used in rich-text post bodies) */
