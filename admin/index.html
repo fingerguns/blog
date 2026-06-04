@@ -131,8 +131,16 @@
         color: var(--muted);
       }
       .admin-status.ok { color: var(--text); }
-      .admin-status.err { color: #b44; }
+      .admin-status.warn { color: var(--text); white-space: pre-line; line-height: 1.55; }
+      .admin-status.err { color: #b44; white-space: pre-line; line-height: 1.55; }
       [data-theme="dark"] .admin-status.err { color: #e88; }
+      #t-photo-warn {
+        font-size: 0.75rem;
+        color: #b44;
+        margin: -0.75rem 0 1rem;
+        line-height: 1.5;
+      }
+      [data-theme="dark"] #t-photo-warn { color: #e88; }
       .admin-hint {
         font-size: 0.75rem;
         color: var(--muted);
@@ -369,7 +377,8 @@
 
           <label for="t-photo">Photo</label>
           <input id="t-photo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
-          <p class="admin-hint">JPEG, PNG, WebP, or GIF — max 5 MB. Posted to micro.blog and Bluesky when configured.</p>
+          <p class="admin-hint">JPEG, PNG, WebP, or GIF. Up to 5 MB for rommy.blog and micro.blog; Bluesky needs under 2 MB or it will be skipped.</p>
+          <p id="t-photo-warn" hidden></p>
           <img id="t-photo-preview" class="thinking-photo-preview" alt="" hidden />
 
           <button type="submit" id="t-submit">Save</button>
@@ -598,10 +607,27 @@
         return data;
       }
 
-      function showStatus(el, msg, isErr, isOk) {
+      function showStatus(el, msg, isErr, isOk, isWarn) {
         el.hidden = false;
         el.textContent = msg;
-        el.className = "admin-status" + (isErr ? " err" : isOk ? " ok" : "");
+        el.className =
+          "admin-status" + (isErr ? " err" : isWarn ? " warn" : isOk ? " ok" : "");
+      }
+
+      var MAX_PHOTO_SITE = 5 * 1024 * 1024;
+      var MAX_PHOTO_BLUESKY = 2 * 1024 * 1024;
+
+      function formatBytes(n) {
+        if (n < 1024 * 1024) return Math.round(n / 1024) + " KB";
+        return (n / (1024 * 1024)).toFixed(1) + " MB";
+      }
+
+      function formatThinkingSaveStatus(result) {
+        var lines = ["rommy.blog: Saved. Site will rebuild shortly."];
+        if (result.microblogWarning) lines.push(result.microblogWarning);
+        if (result.blueskyWarning) lines.push(result.blueskyWarning);
+        var warn = !!(result.microblogWarning || result.blueskyWarning);
+        return { text: lines.join("\n"), warn: warn };
       }
 
       // ── Login form ─────────────────────────────────────────────────────────
@@ -669,16 +695,35 @@
         var submit = document.getElementById("t-submit");
         var photoInput = document.getElementById("t-photo");
         var preview = document.getElementById("t-photo-preview");
+        var photoWarn = document.getElementById("t-photo-warn");
 
         photoInput.addEventListener("change", function () {
           var file = photoInput.files && photoInput.files[0];
           if (!file) {
             preview.hidden = true;
             preview.removeAttribute("src");
+            photoWarn.hidden = true;
+            photoWarn.textContent = "";
             return;
           }
           preview.src = URL.createObjectURL(file);
           preview.hidden = false;
+          if (file.size > MAX_PHOTO_SITE) {
+            photoWarn.textContent =
+              "rommy.blog: This file is " +
+              formatBytes(file.size) +
+              " (max 5 MB). Choose a smaller photo.";
+            photoWarn.hidden = false;
+          } else if (file.size > MAX_PHOTO_BLUESKY) {
+            photoWarn.textContent =
+              "Bluesky: This file is " +
+              formatBytes(file.size) +
+              " (max 2 MB). It can still post to rommy.blog and micro.blog.";
+            photoWarn.hidden = false;
+          } else {
+            photoWarn.hidden = true;
+            photoWarn.textContent = "";
+          }
         });
 
         form.addEventListener("submit", async function (e) {
@@ -689,24 +734,32 @@
             showStatus(status, "Add text or a photo.", true);
             return;
           }
-          if (file && file.size > 5 * 1024 * 1024) {
-            showStatus(status, "Photo must be 5 MB or smaller.", true);
+          if (file && file.size > MAX_PHOTO_SITE) {
+            showStatus(
+              status,
+              "rommy.blog: Photo must be 5 MB or smaller (yours is " + formatBytes(file.size) + ").",
+              true
+            );
             return;
           }
           submit.disabled = true;
-          showStatus(status, "Saving…", false);
+          showStatus(status, "Saving to rommy.blog…", false);
           try {
             var result = await callThinkingAPI(document.getElementById("t-text").value, file || null);
-            var msg = "Saved. Site will rebuild shortly.";
-            if (result.microblogWarning) msg += " (micro.blog: " + result.microblogWarning + ")";
-            if (result.blueskyWarning) msg += " (Bluesky: " + result.blueskyWarning + ")";
-            showStatus(status, msg, false, true);
+            var out = formatThinkingSaveStatus(result);
+            showStatus(status, out.text, false, !out.warn, out.warn);
             document.getElementById("t-text").value = "";
             photoInput.value = "";
             preview.hidden = true;
             preview.removeAttribute("src");
+            photoWarn.hidden = true;
+            photoWarn.textContent = "";
           } catch (err) {
-            showStatus(status, err.message, true);
+            var errMsg = err.message || "Request failed";
+            if (!/^rommy\.blog:|^micro\.blog:|^Bluesky:/i.test(errMsg)) {
+              errMsg = "rommy.blog: " + errMsg;
+            }
+            showStatus(status, errMsg, true);
           } finally {
             submit.disabled = false;
           }

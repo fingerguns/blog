@@ -18,6 +18,7 @@
 
 const SITE_URL = "https://rommy.blog";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_BLUESKY_IMAGE_BYTES = 2_000_000;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const IMAGE_EXT = {
   "image/jpeg": "jpg",
@@ -256,7 +257,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
       try {
         await postToMicroblog(env.MICROBLOG_TOKEN, text, photo);
       } catch (mbErr) {
-        microblogWarning = mbErr.message || "micro.blog post failed";
+        microblogWarning = formatServiceWarning("micro.blog", mbErr.message);
       }
     }
 
@@ -270,7 +271,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
           imageForBluesky
         );
       } catch (bsErr) {
-        blueskyWarning = bsErr.message || "Bluesky post failed";
+        blueskyWarning = formatServiceWarning("Bluesky", bsErr.message);
       }
     }
 
@@ -287,17 +288,58 @@ async function handleThinking(payload, db, cors, env, ctx) {
       cors
     );
   } catch (err) {
-    return json({ error: err.message || "Update failed" }, 500, cors);
+    return json({ error: formatServiceError("rommy.blog", err.message) }, 500, cors);
+  }
+}
+
+function formatServiceError(service, message) {
+  const msg = message || "Something went wrong.";
+  if (msg.startsWith(`${service}:`) || msg.startsWith(`${service} —`)) return msg;
+  return `${service}: ${msg}`;
+}
+
+function formatServiceWarning(service, message) {
+  const msg = message || "Post failed.";
+  if (msg.startsWith(`${service}:`) || msg.startsWith(`${service} —`)) return msg;
+  return `${service}: ${msg}`;
+}
+
+function blueskyImageError(byteLength, status, body) {
+  if (byteLength > MAX_BLUESKY_IMAGE_BYTES) {
+    return "Photo is over the 2 MB limit. rommy.blog and micro.blog were still updated.";
+  }
+  const lower = String(body).toLowerCase();
+  if (
+    lower.includes("too large") ||
+    lower.includes("maximum") ||
+    lower.includes("maxsize") ||
+    lower.includes("blob size")
+  ) {
+    return "Photo is too large (Bluesky max is 2 MB). rommy.blog and micro.blog were still updated.";
+  }
+  const detail = summarizeApiBody(body);
+  return detail
+    ? `Could not upload the photo (${status}: ${detail}). rommy.blog and micro.blog were still updated.`
+    : `Could not upload the photo (HTTP ${status}). rommy.blog and micro.blog were still updated.`;
+}
+
+function summarizeApiBody(body) {
+  try {
+    const j = JSON.parse(body);
+    return j.message || j.error || j.error_description || "";
+  } catch {
+    const t = String(body).trim();
+    return t.length > 120 ? t.slice(0, 117) + "…" : t;
   }
 }
 
 async function uploadPhotoToR2(env, file) {
   if (!env.MEDIA) {
-    throw new Error("R2 is not configured. Enable R2 and create the rommy-blog-media bucket.");
+    throw new Error("Photo storage is not configured (R2).");
   }
   const publicBase = (env.MEDIA_PUBLIC_URL || "").replace(/\/$/, "");
   if (!publicBase) {
-    throw new Error("MEDIA_PUBLIC_URL is not set in worker config.");
+    throw new Error("Photo storage is missing a public URL (MEDIA_PUBLIC_URL).");
   }
 
   const mimeType = file.type || "image/jpeg";
@@ -305,7 +347,7 @@ async function uploadPhotoToR2(env, file) {
     throw new Error("Photo must be JPEG, PNG, WebP, or GIF.");
   }
   if (file.size > MAX_IMAGE_BYTES) {
-    throw new Error("Photo must be 5 MB or smaller.");
+    throw new Error("Photo must be 5 MB or smaller for rommy.blog.");
   }
 
   const bytes = await file.arrayBuffer();
@@ -358,7 +400,9 @@ async function postToMicroblog(token, content, photoFile = null) {
     });
     if (!res.ok) {
       const err = await res.text();
-      throw new Error(`micro.blog post failed (${res.status}): ${err}`);
+      throw new Error(
+        `micropub request failed (${res.status})${summarizeApiBody(err) ? ": " + summarizeApiBody(err) : ""}`
+      );
     }
     return;
   }
@@ -374,7 +418,9 @@ async function postToMicroblog(token, content, photoFile = null) {
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`micro.blog post failed (${res.status}): ${err}`);
+    throw new Error(
+      `micropub request failed (${res.status})${summarizeApiBody(err) ? ": " + summarizeApiBody(err) : ""}`
+    );
   }
 }
 
@@ -389,7 +435,10 @@ async function postToBluesky(handle, appPassword, content, image = null) {
   );
   if (!sessionRes.ok) {
     const err = await sessionRes.text();
-    throw new Error(`Bluesky auth failed (${sessionRes.status}): ${err}`);
+    const detail = summarizeApiBody(err);
+    throw new Error(
+      detail ? `Sign-in failed (${sessionRes.status}: ${detail})` : `Sign-in failed (HTTP ${sessionRes.status}).`
+    );
   }
   const { accessJwt, did } = await sessionRes.json();
 
@@ -433,6 +482,11 @@ async function postToBluesky(handle, appPassword, content, image = null) {
 
   let embed;
   if (image) {
+    const byteLength = image.bytes?.byteLength ?? 0;
+    if (byteLength > MAX_BLUESKY_IMAGE_BYTES) {
+      throw new Error(blueskyImageError(byteLength, 0, ""));
+    }
+
     const blobRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", {
       method: "POST",
       headers: {
@@ -443,7 +497,7 @@ async function postToBluesky(handle, appPassword, content, image = null) {
     });
     if (!blobRes.ok) {
       const err = await blobRes.text();
-      throw new Error(`Bluesky image upload failed (${blobRes.status}): ${err}`);
+      throw new Error(blueskyImageError(byteLength, blobRes.status, err));
     }
     const { blob } = await blobRes.json();
     embed = {
@@ -479,7 +533,12 @@ async function postToBluesky(handle, appPassword, content, image = null) {
   );
   if (!postRes.ok) {
     const err = await postRes.text();
-    throw new Error(`Bluesky post failed (${postRes.status}): ${err}`);
+    const detail = summarizeApiBody(err);
+    throw new Error(
+      detail
+        ? `Post failed (${postRes.status}: ${detail})`
+        : `Post failed (HTTP ${postRes.status}).`
+    );
   }
 }
 
