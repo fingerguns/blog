@@ -141,4 +141,4 @@ There is no install wizard; expect to read `worker/schema.sql` and the colophon.
 
 ## License
 
-No license file is included. The code is public on GitHub for transparency; ask before reusing substantial portions elsewhere.
+[MIT License](LICENSE). Prose and photos published on [rommy.blog](https://rommy.blog) are not covered by that license unless noted otherwise.
