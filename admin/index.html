@@ -361,20 +361,49 @@
         outline: 2px solid var(--text);
         outline-offset: 2px;
       }
-      .ql-snow .ql-wrap-left::before { content: "Wrap L"; font-size: 0.65rem; font-weight: 600; }
-      .ql-snow .ql-wrap-right::before { content: "Wrap R"; font-size: 0.65rem; font-weight: 600; }
-      .ql-snow .ql-wrap-center::before { content: "Center"; font-size: 0.65rem; font-weight: 600; }
-      .ql-snow .ql-wrap-full::before { content: "Full"; font-size: 0.65rem; font-weight: 600; }
-      .ql-snow button.ql-wrap-left,
-      .ql-snow button.ql-wrap-right,
-      .ql-snow button.ql-wrap-center,
-      .ql-snow button.ql-wrap-full,
-      .ql-snow button.ql-image-delete { width: auto; padding: 0 0.35rem; }
-      .ql-snow .ql-image-delete::before {
-        content: "Delete";
-        font-size: 0.65rem;
-        font-weight: 600;
+      /* Custom image toolbar buttons: hide empty Quill SVGs, show text labels always */
+      .ql-snow .ql-toolbar button.ql-wrap-left svg,
+      .ql-snow .ql-toolbar button.ql-wrap-right svg,
+      .ql-snow .ql-toolbar button.ql-wrap-center svg,
+      .ql-snow .ql-toolbar button.ql-wrap-full svg,
+      .ql-snow .ql-toolbar button.ql-image-delete svg {
+        display: none;
       }
+      .ql-snow .ql-toolbar button.ql-wrap-left,
+      .ql-snow .ql-toolbar button.ql-wrap-right,
+      .ql-snow .ql-toolbar button.ql-wrap-center,
+      .ql-snow .ql-toolbar button.ql-wrap-full,
+      .ql-snow .ql-toolbar button.ql-image-delete {
+        color: var(--text);
+        width: auto;
+        min-width: 2.85rem;
+        height: 28px;
+        padding: 0 0.45rem;
+        font: inherit;
+        font-size: 0.68rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      .ql-snow .ql-toolbar button.ql-wrap-left:hover,
+      .ql-snow .ql-toolbar button.ql-wrap-right:hover,
+      .ql-snow .ql-toolbar button.ql-wrap-center:hover,
+      .ql-snow .ql-toolbar button.ql-wrap-full:hover,
+      .ql-snow .ql-toolbar button.ql-image-delete:hover {
+        color: var(--text);
+        background: var(--rule);
+      }
+      .ql-snow .ql-wrap-left::before,
+      .ql-snow .ql-wrap-right::before,
+      .ql-snow .ql-wrap-center::before,
+      .ql-snow .ql-wrap-full::before,
+      .ql-snow .ql-image-delete::before {
+        color: var(--text);
+      }
+      .ql-snow .ql-wrap-left::before { content: "Wrap L"; }
+      .ql-snow .ql-wrap-right::before { content: "Wrap R"; }
+      .ql-snow .ql-wrap-center::before { content: "Center"; }
+      .ql-snow .ql-wrap-full::before { content: "Full"; }
+      .ql-snow .ql-image-delete::before { content: "Delete"; }
       .admin-secondary-btn {
         font: inherit;
         font-size: 0.85rem;
@@ -1079,13 +1108,6 @@
         };
         input.click();
       }
-
-      var quillIcons = Quill.import("ui/icons");
-      quillIcons["wrap-left"] = "L";
-      quillIcons["wrap-right"] = "R";
-      quillIcons["wrap-center"] = "C";
-      quillIcons["wrap-full"] = "F";
-      quillIcons["image-delete"] = "×";
 
       var quill = new Quill("#p-body-editor", {
         theme: "snow",
