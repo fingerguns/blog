@@ -156,9 +156,11 @@
         border-radius: 4px;
       }
       .thinking-photo-upload {
+        position: relative;
         display: flex;
         align-items: center;
         gap: 0.5rem;
+        min-height: 1.75rem;
         margin-bottom: 1.25rem;
       }
       .thinking-photo-input {
@@ -173,7 +175,7 @@
         border: 0;
       }
       .thinking-photo-icon-btn {
-        display: inline-flex;
+        display: flex;
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
@@ -181,7 +183,7 @@
         height: 1.75rem;
         margin: 0;
         padding: 0;
-        line-height: 1;
+        line-height: 0;
         font-size: inherit;
         font-weight: inherit;
         letter-spacing: normal;
@@ -200,17 +202,15 @@
         display: block;
         width: 1.75rem;
         height: 1.75rem;
+        transform: translateY(-0.5px);
       }
       .thinking-photo-name {
-        display: inline-flex;
-        align-items: center;
-        height: 1.75rem;
+        font-size: 0.75rem;
         line-height: 1;
-        font-size: inherit;
-        font-weight: inherit;
-        letter-spacing: normal;
-        text-transform: none;
+        margin: 0;
+        padding: 0;
         color: var(--muted);
+        transform: translateY(0.5px);
       }
       .p-submit-row {
         display: flex;
