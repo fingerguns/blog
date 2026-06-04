@@ -159,6 +159,7 @@
         display: flex;
         align-items: center;
         gap: 0.9rem;
+        margin-top: 2rem;
       }
       .p-submit-row .admin-hint {
         margin: 0;
@@ -290,7 +291,7 @@
         border-radius: 0 0 0.25rem 0.25rem;
         font-family: inherit;
         font-size: 1rem;
-        margin-bottom: 1.25rem;
+        margin-bottom: 0;
       }
       .ql-editor {
         min-height: 18rem;
@@ -381,33 +382,41 @@
         letter-spacing: 0.08em;
         text-transform: uppercase;
         color: var(--muted);
-        margin-right: 0.15rem;
+        margin-right: 0.2rem;
       }
-      .post-image-btn {
+      .post-image-toolbar-links {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 0;
+      }
+      .post-image-link {
         flex-shrink: 0;
         font: inherit;
         font-size: 0.62rem;
         font-weight: 500;
         line-height: 1.2;
-        color: var(--text);
-        background: transparent;
-        border: 1px solid var(--rule);
-        border-radius: 0.2rem;
-        padding: 0.18rem 0.38rem;
+        color: var(--link);
+        text-decoration: underline;
+        text-underline-offset: 0.12em;
         cursor: pointer;
         white-space: nowrap;
       }
-      .post-image-btn:hover {
-        border-color: var(--text);
-        background: var(--rule);
+      .post-image-link:hover {
+        color: var(--link-hover);
       }
-      .post-image-btn-danger {
+      .post-image-link + .post-image-link::before {
+        content: "·";
+        margin: 0 0.32rem;
+        color: var(--muted);
+        text-decoration: none;
+        display: inline-block;
+      }
+      .post-image-link-danger {
         color: #b44;
-        border-color: #c99;
       }
-      [data-theme="dark"] .post-image-btn-danger {
+      [data-theme="dark"] .post-image-link-danger {
         color: #e88;
-        border-color: #855;
       }
       #p-body-editor .ql-container.ql-snow {
         border-top: 1px solid var(--rule);
@@ -516,11 +525,13 @@
             <div id="p-body-editor"></div>
             <div id="p-image-toolbar" class="post-image-toolbar" hidden>
               <span class="post-image-toolbar-label">Photo</span>
-              <button type="button" class="post-image-btn" data-wrap="left">Left</button>
-              <button type="button" class="post-image-btn" data-wrap="right">Right</button>
-              <button type="button" class="post-image-btn" data-wrap="center">Center</button>
-              <button type="button" class="post-image-btn" data-wrap="full">Full</button>
-              <button type="button" class="post-image-btn post-image-btn-danger" data-action="delete">Delete</button>
+              <span class="post-image-toolbar-links">
+                <a href="#" class="post-image-link" data-wrap="left">Left</a>
+                <a href="#" class="post-image-link" data-wrap="right">Right</a>
+                <a href="#" class="post-image-link" data-wrap="center">Center</a>
+                <a href="#" class="post-image-link" data-wrap="full">Full</a>
+                <a href="#" class="post-image-link post-image-link-danger" data-action="delete">Delete</a>
+              </span>
             </div>
 
             <div class="p-submit-row">
@@ -1023,6 +1034,7 @@
         quill.clipboard.dangerouslyPasteHTML(html || "");
         normalizePostImages(quill.root);
         quill.setSelection(Math.min(index, Math.max(0, quill.getLength() - 1)), 0);
+        syncPostImageToolbar();
       }
 
       async function uploadMediaFile(file, folder) {
@@ -1055,13 +1067,49 @@
 
       var postImageToolbar = document.getElementById("p-image-toolbar");
 
+      function isCaretOnSelectedImage() {
+        if (!selectedPostImage || !quill.root.contains(selectedPostImage)) return false;
+        try {
+          var range = quill.getSelection();
+          if (!range || range.length > 0) return false;
+          var blot = Quill.find(selectedPostImage);
+          return !!(blot && quill.getIndex(blot) === range.index);
+        } catch (e) {
+          return false;
+        }
+      }
+
+      function syncPostImageToolbar() {
+        if (!selectedPostImage || !quill.root.contains(selectedPostImage)) {
+          selectPostImage(null);
+          return;
+        }
+        if (!isCaretOnSelectedImage()) {
+          quill.root.querySelectorAll("img.post-photo-selected").forEach(function (el) {
+            el.classList.remove("post-photo-selected");
+          });
+          if (postImageToolbar) postImageToolbar.hidden = true;
+          return;
+        }
+        selectedPostImage.classList.add("post-photo-selected");
+        if (postImageToolbar) postImageToolbar.hidden = false;
+      }
+
       function selectPostImage(img) {
         quill.root.querySelectorAll("img.post-photo-selected").forEach(function (el) {
           el.classList.remove("post-photo-selected");
         });
         selectedPostImage = img || null;
-        if (img) img.classList.add("post-photo-selected");
-        if (postImageToolbar) postImageToolbar.hidden = !img;
+        if (!img) {
+          if (postImageToolbar) postImageToolbar.hidden = true;
+          return;
+        }
+        img.classList.add("post-photo-selected");
+        try {
+          var blot = Quill.find(img);
+          if (blot) quill.setSelection(quill.getIndex(blot), 0, "silent");
+        } catch (e) {}
+        syncPostImageToolbar();
       }
 
       function setPostImageWrap(wrap) {
@@ -1170,48 +1218,29 @@
         }
         if (postImageToolbar) {
           postImageToolbar.addEventListener("click", function (e) {
-            var btn = e.target.closest("[data-wrap], [data-action='delete']");
-            if (!btn || !selectedPostImage) return;
-            if (btn.getAttribute("data-action") === "delete") {
+            var link = e.target.closest(".post-image-link");
+            if (!link || !selectedPostImage) return;
+            e.preventDefault();
+            if (link.getAttribute("data-action") === "delete") {
               deleteSelectedPostImage();
               return;
             }
-            setPostImageWrap(btn.getAttribute("data-wrap"));
+            setPostImageWrap(link.getAttribute("data-wrap"));
+            setTimeout(syncPostImageToolbar, 0);
           });
         }
       })();
 
       quill.root.addEventListener("click", function (e) {
-        if (e.target && e.target.tagName === "IMG") selectPostImage(e.target);
+        if (e.target && e.target.tagName === "IMG") {
+          selectPostImage(e.target);
+          return;
+        }
+        setTimeout(syncPostImageToolbar, 0);
       });
 
-      document.addEventListener(
-        "mousedown",
-        function (e) {
-          if (!selectedPostImage) return;
-          if (e.target.closest && e.target.closest(".post-image-toolbar")) return;
-          if (e.target === selectedPostImage) return;
-          if (e.target.closest && e.target.closest("#p-body-editor img.post-photo")) return;
-          selectPostImage(null);
-        },
-        true
-      );
-
-      quill.on("selection-change", function (range) {
-        if (!selectedPostImage) return;
-        if (!range) {
-          selectPostImage(null);
-          return;
-        }
-        if (range.length > 0) {
-          selectPostImage(null);
-          return;
-        }
-        try {
-          var blot = Quill.find(selectedPostImage);
-          if (blot && quill.getIndex(blot) === range.index) return;
-        } catch (e) {}
-        selectPostImage(null);
+      quill.on("selection-change", function () {
+        syncPostImageToolbar();
       });
 
       quill.root.addEventListener("keydown", function (e) {
@@ -1234,6 +1263,7 @@
             refreshEditorHtml(merged);
             if (sel) quill.setSelection(Math.min(sel.index, quill.getLength() - 1), 0);
           }
+          syncPostImageToolbar();
         }, 700);
       });
 
