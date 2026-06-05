@@ -271,7 +271,15 @@ const renderPostItem = (p, absolute = false) =>
             <a href="${absolute ? `/posts/${escHtml(safeSlug(p.slug))}/` : `posts/${escHtml(safeSlug(p.slug))}/`}">${escHtml(p.title)}</a>
           </li>`;
 
-const orderedReading = [...(reading || [])];
+function sortReadingDesc(a, b) {
+  const aAt = a.added_at ? new Date(a.added_at).getTime() : NaN;
+  const bAt = b.added_at ? new Date(b.added_at).getTime() : NaN;
+  if (Number.isFinite(aAt) && Number.isFinite(bAt) && aAt !== bAt) return bAt - aAt;
+  if (Number.isFinite(aAt) && Number.isFinite(bAt)) return (a.id || 0) - (b.id || 0);
+  return 0;
+}
+
+const orderedReading = [...(reading || [])].sort(sortReadingDesc);
 const renderReadingItem = (r) =>
   `          <li>
             <span class="post-date">${escHtml(r.ym)}</span>

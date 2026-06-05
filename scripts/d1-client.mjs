@@ -80,7 +80,7 @@ export async function loadBlogDataFromD1() {
   );
 
   const reading = await d1Query(
-    "SELECT ym, title, url, added_at FROM reading ORDER BY id DESC"
+    "SELECT id, ym, title, url, added_at FROM reading ORDER BY added_at DESC, id ASC"
   );
 
   const linklog = await d1Query(
@@ -117,9 +117,11 @@ export async function loadBlogDataFromD1() {
       datetime: p.datetime,
     })),
     reading: reading.map((r) => ({
+      id: r.id,
       ym: r.ym,
       title: r.title,
       url: r.url,
+      added_at: r.added_at,
     })),
     linklog: linklog.map((l) => ({
       url: l.url,
