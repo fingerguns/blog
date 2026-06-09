@@ -77,15 +77,16 @@ const thinkingAdminDeleteScript = `    <script>(function(){
       }
       function attachDelete(entry){
         if(entry.querySelector(".thinking-delete"))return;
-        var btn=document.createElement("button");
-        btn.type="button";
-        btn.className="thinking-delete";
-        btn.textContent="Delete";
-        btn.addEventListener("click",async function(){
+        var link=document.createElement("a");
+        link.href="#";
+        link.className="thinking-delete";
+        link.textContent="delete";
+        link.addEventListener("click",async function(e){
+          e.preventDefault();
           var slug=entry.getAttribute("data-slug");
           var mbUrl=entry.getAttribute("data-microblog-url")||"";
           if(!slug||!confirm("Delete this Thinking post from rommy.blog and Micro.blog? Bluesky too if we saved it when you posted."))return;
-          btn.disabled=true;
+          link.setAttribute("aria-disabled","true");
           try{
             var res=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:loadPw(),action:"delete-thinking",slug:slug,microblog_url:mbUrl})});
             var data=await res.json();
@@ -98,14 +99,14 @@ const thinkingAdminDeleteScript = `    <script>(function(){
             alert(msg.join("\\n"));
             if(entry.classList.contains("post"))location.href="/thinking/";
             else entry.remove();
-          }catch(e){
-            alert(e.message||"Could not delete.");
-            btn.disabled=false;
+          }catch(err){
+            alert(err.message||"Could not delete.");
+            link.removeAttribute("aria-disabled");
           }
         });
         var time=entry.querySelector("time.post-date");
-        if(time){time.appendChild(document.createTextNode(" "));time.appendChild(btn);}
-        else entry.appendChild(btn);
+        if(time){time.appendChild(document.createTextNode(" · "));time.appendChild(link);}
+        else entry.appendChild(link);
       }
       function init(){
         if(!loadPw())return;

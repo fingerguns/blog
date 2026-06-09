@@ -326,24 +326,21 @@ h2 {
   margin-bottom: 0.5rem;
   font-variant-numeric: tabular-nums;
 }
-.microblog-body p  { margin: 0 0 0.65rem; line-height: 1.65; }
-.microblog-body p:last-child { margin-bottom: 0; }
-.microblog-entry time { margin-top: 0.75rem; display: block; }
-.thinking-delete {
-  font: inherit;
-  font-size: 0.78rem;
-  color: var(--muted);
-  background: none;
-  border: none;
-  padding: 0;
-  margin-left: 0.35rem;
-  cursor: pointer;
-  vertical-align: baseline;
+.microblog-entry .post-date a {
+  color: inherit;
+  font-weight: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-underline-offset: 0.2em;
 }
-.thinking-delete:hover { color: #b44; }
-[data-theme="dark"] .thinking-delete:hover { color: #e88; }
-.thinking-delete:disabled { opacity: 0.5; cursor: default; }
-.microblog-body img {
+.microblog-entry .post-date a:hover {
+  color: var(--link-hover);
+  text-decoration-color: currentColor;
+}
+.microblog-entry .post-date a.thinking-delete[aria-disabled="true"] {
+  opacity: 0.5;
+  pointer-events: none;
+}
   max-width: 100%;
   height: auto;
   border-radius: 4px;
