@@ -119,6 +119,7 @@ wrangler deploy
 | `post` | Publish Writing post |
 | `edit-post` | Edit post (version history) |
 | `delete-post` | Delete published post |
+| `delete-thinking` | Delete Thinking post from archive (Micro.blog + Bluesky when saved) |
 | `fetch-post` | Load post for editing |
 | `list-drafts` / `save-draft` / `load-draft` / `delete-draft` | Writing drafts |
 | `reading` | Add Reading entry |

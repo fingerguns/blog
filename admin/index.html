@@ -680,10 +680,12 @@
       function saveSession(pw, remember) {
         _sessionPw = pw;
         try {
+          sessionStorage.removeItem(SESSION_KEY);
           if (remember) {
             localStorage.setItem(SESSION_KEY, JSON.stringify({ pw: pw, ts: Date.now() }));
           } else {
             localStorage.removeItem(SESSION_KEY);
+            sessionStorage.setItem(SESSION_KEY, JSON.stringify({ pw: pw }));
           }
         } catch (e) {}
       }
@@ -692,26 +694,37 @@
         if (_sessionPw) return _sessionPw;
         try {
           var raw = localStorage.getItem(SESSION_KEY);
-          if (!raw) return null;
-          var s = JSON.parse(raw);
-          if (!s || !s.pw || !s.ts || Date.now() - s.ts >= SESSION_TTL) {
+          if (raw) {
+            var s = JSON.parse(raw);
+            if (s && s.pw && s.ts && Date.now() - s.ts < SESSION_TTL) {
+              _sessionPw = s.pw;
+              return _sessionPw;
+            }
             localStorage.removeItem(SESSION_KEY);
-            return null;
           }
-          _sessionPw = s.pw;
-          return _sessionPw;
+          raw = sessionStorage.getItem(SESSION_KEY);
+          if (raw) {
+            var tab = JSON.parse(raw);
+            if (tab && tab.pw) {
+              _sessionPw = tab.pw;
+              return _sessionPw;
+            }
+            sessionStorage.removeItem(SESSION_KEY);
+          }
         } catch (e) {
           try {
             localStorage.removeItem(SESSION_KEY);
+            sessionStorage.removeItem(SESSION_KEY);
           } catch (e2) {}
-          return null;
         }
+        return null;
       }
 
       function clearSession() {
         _sessionPw = null;
         try {
           localStorage.removeItem(SESSION_KEY);
+          sessionStorage.removeItem(SESSION_KEY);
         } catch (e) {}
         setLoginState(false);
       }

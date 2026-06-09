@@ -57,7 +57,15 @@ CREATE TABLE IF NOT EXISTS thinking (
   text TEXT NOT NULL DEFAULT '',
   media_url TEXT,
   media_alt TEXT,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  slug TEXT
+);
+
+CREATE TABLE IF NOT EXISTS thinking_syndication (
+  slug TEXT PRIMARY KEY,
+  microblog_url TEXT,
+  bluesky_uri TEXT,
+  created_at TEXT NOT NULL
 );
 
 -- Failed admin password attempts (brute-force throttling)

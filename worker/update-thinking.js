@@ -155,6 +155,10 @@ export default {
       return handleDeletePost(payload, db, cors, env);
     }
 
+    if (action === "delete-thinking") {
+      return handleDeleteThinking(payload, db, cors, env, ctx);
+    }
+
     return json({ error: "Unknown action" }, 400, cors);
   },
 };
@@ -354,6 +358,8 @@ async function handleThinking(payload, db, cors, env, ctx) {
   }
 
   try {
+    await ensureThinkingSyndicationTable(db);
+
     let mediaUrl = null;
     let mediaAlt = text.slice(0, 1000) || "";
     let uploadedForBluesky = null;
@@ -371,31 +377,38 @@ async function handleThinking(payload, db, cors, env, ctx) {
       };
     }
 
-    const now = new Date().toISOString();
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const slug = thinkingSlugFromDate(now);
+
     await dbRun(
       db,
-      `INSERT INTO thinking (id, text, media_url, media_alt, updated_at)
-       VALUES (1, ?, ?, ?, ?)
+      `INSERT INTO thinking (id, text, media_url, media_alt, updated_at, slug)
+       VALUES (1, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          text = excluded.text,
          media_url = excluded.media_url,
          media_alt = excluded.media_alt,
-         updated_at = excluded.updated_at`,
+         updated_at = excluded.updated_at,
+         slug = excluded.slug`,
       text,
       mediaUrl,
       mediaAlt,
-      now
+      nowIso,
+      slug
     );
 
+    let microblogUrl = null;
     let microblogWarning = null;
     if (env.MICROBLOG_TOKEN) {
       try {
-        await postToMicroblog(env.MICROBLOG_TOKEN, text, photo);
+        microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, text, photo);
       } catch (mbErr) {
         microblogWarning = formatServiceWarning("micro.blog", mbErr.message);
       }
     }
 
+    let blueskyUri = null;
     let blueskyWarning = null;
     if (env.BLUESKY_HANDLE && env.BLUESKY_APP_PASSWORD) {
       try {
@@ -408,7 +421,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
           blueskyImage = prepared.image;
           blueskyCompressed = prepared.compressed;
         }
-        await postToBluesky(
+        blueskyUri = await postToBluesky(
           env.BLUESKY_HANDLE,
           env.BLUESKY_APP_PASSWORD,
           text,
@@ -419,6 +432,20 @@ async function handleThinking(payload, db, cors, env, ctx) {
       }
     }
 
+    await dbRun(
+      db,
+      `INSERT INTO thinking_syndication (slug, microblog_url, bluesky_uri, created_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(slug) DO UPDATE SET
+         microblog_url = COALESCE(excluded.microblog_url, thinking_syndication.microblog_url),
+         bluesky_uri = COALESCE(excluded.bluesky_uri, thinking_syndication.bluesky_uri),
+         created_at = excluded.created_at`,
+      slug,
+      microblogUrl,
+      blueskyUri,
+      nowIso
+    );
+
     await triggerRebuild(env);
     if (ctx) {
       ctx.waitUntil(
@@ -427,7 +454,14 @@ async function handleThinking(payload, db, cors, env, ctx) {
     }
 
     return json(
-      { ok: true, text, mediaUrl, microblogWarning, blueskyWarning, blueskyCompressed },
+      {
+        ok: true,
+        text,
+        mediaUrl,
+        microblogWarning,
+        blueskyWarning,
+        blueskyCompressed,
+      },
       200,
       cors
     );
@@ -641,7 +675,7 @@ async function postToMicroblog(token, content, photoFile = null) {
         `micropub request failed (${res.status})${summarizeApiBody(err) ? ": " + summarizeApiBody(err) : ""}`
       );
     }
-    return;
+    return micropubPostUrl(res);
   }
 
   const res = await fetch("https://micro.blog/micropub", {
@@ -659,9 +693,16 @@ async function postToMicroblog(token, content, photoFile = null) {
       `micropub request failed (${res.status})${summarizeApiBody(err) ? ": " + summarizeApiBody(err) : ""}`
     );
   }
+  return micropubPostUrl(res);
 }
 
-async function postToBluesky(handle, appPassword, content, image = null) {
+function micropubPostUrl(res) {
+  const location = res.headers.get("Location");
+  if (location) return location;
+  return null;
+}
+
+async function blueskySession(handle, appPassword) {
   const sessionRes = await fetch(
     "https://bsky.social/xrpc/com.atproto.server.createSession",
     {
@@ -677,7 +718,11 @@ async function postToBluesky(handle, appPassword, content, image = null) {
       detail ? `Sign-in failed (${sessionRes.status}: ${detail})` : `Sign-in failed (HTTP ${sessionRes.status}).`
     );
   }
-  const { accessJwt, did } = await sessionRes.json();
+  return sessionRes.json();
+}
+
+async function postToBluesky(handle, appPassword, content, image = null) {
+  const { accessJwt, did } = await blueskySession(handle, appPassword);
 
   const LINK_URL = `${SITE_URL}/thinking/`;
   const MAX = 300;
@@ -773,6 +818,167 @@ async function postToBluesky(handle, appPassword, content, image = null) {
         ? `Post failed (${postRes.status}: ${detail})`
         : `Post failed (HTTP ${postRes.status}).`
     );
+  }
+  const created = await postRes.json();
+  return created.uri || null;
+}
+
+function thinkingSlugFromDate(date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const get = (type) => parts.find((p) => p.type === type)?.value || "";
+  return `${get("year")}-${get("month")}-${get("day")}-${get("hour")}${get("minute")}`;
+}
+
+async function ensureThinkingSyndicationTable(db) {
+  await dbRun(
+    db,
+    `CREATE TABLE IF NOT EXISTS thinking_syndication (
+      slug TEXT PRIMARY KEY,
+      microblog_url TEXT,
+      bluesky_uri TEXT,
+      created_at TEXT NOT NULL
+    )`
+  );
+}
+
+async function deleteFromMicroblog(token, url) {
+  const res = await fetch("https://micro.blog/micropub", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({ action: "delete", url }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(
+      `micropub delete failed (${res.status})${summarizeApiBody(err) ? ": " + summarizeApiBody(err) : ""}`
+    );
+  }
+}
+
+async function deleteFromBluesky(handle, appPassword, uri) {
+  const { accessJwt } = await blueskySession(handle, appPassword);
+  const match = String(uri).match(/^at:\/\/([^/]+)\/([^/]+)\/([^/]+)$/);
+  if (!match) {
+    throw new Error("Invalid Bluesky URI");
+  }
+  const [, repo, collection, rkey] = match;
+  const res = await fetch("https://bsky.social/xrpc/com.atproto.repo.deleteRecord", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessJwt}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ repo, collection, rkey }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    const detail = summarizeApiBody(err);
+    throw new Error(
+      detail
+        ? `Bluesky delete failed (${res.status}: ${detail})`
+        : `Bluesky delete failed (HTTP ${res.status}).`
+    );
+  }
+}
+
+async function handleDeleteThinking(payload, db, cors, env, ctx) {
+  const rawSlug = payload.slug;
+  if (typeof rawSlug !== "string" || !rawSlug.trim()) {
+    return json({ error: "Missing slug" }, 400, cors);
+  }
+  const slug = rawSlug.trim().replace(/[^0-9-]/g, "");
+  if (!/^\d{4}-\d{2}-\d{2}-\d{4}$/.test(slug)) {
+    return json({ error: "Invalid slug" }, 400, cors);
+  }
+
+  const microblogUrl =
+    typeof payload.microblog_url === "string" ? payload.microblog_url.trim() : "";
+
+  try {
+    await ensureThinkingSyndicationTable(db);
+
+    const synd = await dbFirst(
+      db,
+      "SELECT microblog_url, bluesky_uri FROM thinking_syndication WHERE slug = ?",
+      slug
+    );
+    const mbUrl = microblogUrl || synd?.microblog_url || null;
+    const blueskyUri = synd?.bluesky_uri || null;
+
+    let microblogWarning = null;
+    if (env.MICROBLOG_TOKEN && mbUrl) {
+      try {
+        await deleteFromMicroblog(env.MICROBLOG_TOKEN, mbUrl);
+      } catch (mbErr) {
+        microblogWarning = formatServiceWarning("micro.blog", mbErr.message);
+      }
+    } else if (env.MICROBLOG_TOKEN && !mbUrl) {
+      microblogWarning = formatServiceWarning(
+        "micro.blog",
+        "No Micro.blog URL for this post — archive may still list it until the feed updates."
+      );
+    }
+
+    let blueskyWarning = null;
+    let blueskyDeleted = false;
+    let blueskySkipped = false;
+    if (env.BLUESKY_HANDLE && env.BLUESKY_APP_PASSWORD) {
+      if (blueskyUri) {
+        try {
+          await deleteFromBluesky(env.BLUESKY_HANDLE, env.BLUESKY_APP_PASSWORD, blueskyUri);
+          blueskyDeleted = true;
+        } catch (bsErr) {
+          blueskyWarning = formatServiceWarning("Bluesky", bsErr.message);
+        }
+      } else {
+        blueskySkipped = true;
+      }
+    }
+
+    const current = await dbFirst(db, "SELECT slug FROM thinking WHERE id = 1");
+    if (current?.slug === slug) {
+      await dbRun(
+        db,
+        `UPDATE thinking
+         SET text = '', media_url = NULL, media_alt = '', slug = NULL, updated_at = ?
+         WHERE id = 1`,
+        new Date().toISOString()
+      );
+    }
+
+    await dbRun(db, "DELETE FROM thinking_syndication WHERE slug = ?", slug);
+
+    await triggerRebuild(env);
+    if (ctx) {
+      ctx.waitUntil(
+        new Promise((r) => setTimeout(r, 90000)).then(() => triggerRebuild(env))
+      );
+    }
+
+    return json(
+      {
+        ok: true,
+        microblogWarning,
+        blueskyWarning,
+        blueskyDeleted,
+        blueskySkipped,
+      },
+      200,
+      cors
+    );
+  } catch (err) {
+    return json({ error: err.message || "Delete failed" }, 500, cors);
   }
 }
 

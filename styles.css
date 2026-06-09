@@ -329,6 +329,20 @@ h2 {
 .microblog-body p  { margin: 0 0 0.65rem; line-height: 1.65; }
 .microblog-body p:last-child { margin-bottom: 0; }
 .microblog-entry time { margin-top: 0.75rem; display: block; }
+.thinking-delete {
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--muted);
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 0.35rem;
+  cursor: pointer;
+  vertical-align: baseline;
+}
+.thinking-delete:hover { color: #b44; }
+[data-theme="dark"] .thinking-delete:hover { color: #e88; }
+.thinking-delete:disabled { opacity: 0.5; cursor: default; }
 .microblog-body img {
   max-width: 100%;
   height: auto;

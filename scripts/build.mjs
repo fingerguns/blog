@@ -4,7 +4,7 @@
  * Run from project root: node scripts/build.mjs
  */
 import { execSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { d1Configured, loadBlogDataFromD1 } from "./d1-client.mjs";
@@ -55,6 +55,64 @@ const gaSnippet = `    <script async src="https://www.googletagmanager.com/gtag/
     <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}');</script>`;
 
 const portraitPhotoToggleScript = `    <script>(function(){function init(){document.querySelectorAll(".microblog-body img, .post .body img").forEach(function(img){if(img.dataset.portraitInit)return;function setup(){var w=img.naturalWidth,h=img.naturalHeight;if(!w||!h)return;img.dataset.portraitInit="1";if(h<=w)return;img.classList.add("photo-portrait");img.setAttribute("role","button");img.setAttribute("tabindex","0");img.setAttribute("aria-expanded","false");img.title="Click to enlarge";function toggle(){var ex=img.classList.toggle("photo-expanded");img.setAttribute("aria-expanded",ex?"true":"false");}img.addEventListener("click",toggle);img.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle();}});}if(img.complete)setup();else img.addEventListener("load",setup,{once:true});});}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();}());</script>`;
+
+const thinkingAdminDeleteScript = `    <script>(function(){
+      var API_URL="https://rommy-blog-admin.fingerguns.workers.dev";
+      var SESSION_KEY="admin_session";
+      var SESSION_TTL=${30 * 24 * 60 * 60 * 1000};
+      function loadPw(){
+        try{
+          var raw=localStorage.getItem(SESSION_KEY);
+          if(raw){
+            var s=JSON.parse(raw);
+            if(s&&s.pw&&s.ts&&Date.now()-s.ts<SESSION_TTL)return s.pw;
+          }
+          raw=sessionStorage.getItem(SESSION_KEY);
+          if(raw){
+            var tab=JSON.parse(raw);
+            if(tab&&tab.pw)return tab.pw;
+          }
+        }catch(e){}
+        return null;
+      }
+      function attachDelete(entry){
+        if(entry.querySelector(".thinking-delete"))return;
+        var btn=document.createElement("button");
+        btn.type="button";
+        btn.className="thinking-delete";
+        btn.textContent="Delete";
+        btn.addEventListener("click",async function(){
+          var slug=entry.getAttribute("data-slug");
+          var mbUrl=entry.getAttribute("data-microblog-url")||"";
+          if(!slug||!confirm("Delete this Thinking post from rommy.blog and Micro.blog? Bluesky too if we saved it when you posted."))return;
+          btn.disabled=true;
+          try{
+            var res=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:loadPw(),action:"delete-thinking",slug:slug,microblog_url:mbUrl})});
+            var data=await res.json();
+            if(!res.ok)throw new Error(data.error||"Delete failed");
+            var msg=["Deleted. Site will rebuild shortly."];
+            if(data.microblogWarning)msg.push(data.microblogWarning);
+            if(data.blueskyWarning)msg.push(data.blueskyWarning);
+            else if(data.blueskyDeleted)msg.push("Bluesky: Deleted.");
+            else if(data.blueskySkipped)msg.push("Bluesky: No saved post to delete (older posts may need manual removal).");
+            alert(msg.join("\\n"));
+            if(entry.classList.contains("post"))location.href="/thinking/";
+            else entry.remove();
+          }catch(e){
+            alert(e.message||"Could not delete.");
+            btn.disabled=false;
+          }
+        });
+        var time=entry.querySelector("time.post-date");
+        if(time){time.appendChild(document.createTextNode(" "));time.appendChild(btn);}
+        else entry.appendChild(btn);
+      }
+      function init(){
+        if(!loadPw())return;
+        document.querySelectorAll(".microblog-entry[data-slug]").forEach(attachDelete);
+      }
+      if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
+    }());</script>`;
 
 function escHtml(s) {
   return String(s)
@@ -510,6 +568,18 @@ ${portraitPhotoToggleScript}
 </html>
 `;
 
+const thinkingArchiveFoot = `      <footer class="site-footer">
+        <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><a href="#" class="theme-toggle" id="theme-toggle"></a></p>
+        <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
+      </footer>
+    </article>
+    <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
+${portraitPhotoToggleScript}
+${thinkingAdminDeleteScript}
+  </body>
+</html>
+`;
+
 const writingPageHtml = `${archiveHead("Writing")}
       <ol class="post-list" reversed>
 ${postListAllHtml}
@@ -601,7 +671,7 @@ ${ogMetaTags({
 ${gaSnippet}
   </head>
   <body>
-    <article class="post">
+    <article class="post microblog-entry" data-slug="${escHtml(mbSlug(iso))}" data-microblog-url="${escHtml(item.url || "")}">
       <a class="post-back" href="/thinking/">←</a>`;
 };
 
@@ -612,13 +682,14 @@ const thinkingPostFoot = `      <footer class="site-footer">
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
 ${portraitPhotoToggleScript}
+${thinkingAdminDeleteScript}
   </body>
 </html>`;
 
 const microblogEntriesHtml = microblogItems.length > 0
   ? microblogItems.map((item) => {
       const slug = mbSlug(item.date_published);
-      return `        <div class="microblog-entry">
+      return `        <div class="microblog-entry" data-slug="${escHtml(slug)}" data-microblog-url="${escHtml(item.url || "")}">
           <div class="microblog-body">${item.content_html}</div>
           <time class="post-date" datetime="${escHtml(item.date_published)}"><a href="/thinking/${escHtml(slug)}/">${escHtml(formatMbDate(item.date_published))}</a></time>
         </div>`;
@@ -629,7 +700,7 @@ const microblogPageHtml = `${archiveHead("Thinking")}
       <div class="microblog-feed">
 ${microblogEntriesHtml}
       </div>
-${archiveFoot}`;
+${thinkingArchiveFoot}`;
 
 const archiveUrls = [
   ...(hasMorePosts ? [`${base}/writing/`] : []),
@@ -689,6 +760,12 @@ mkdirSync(join(root, "changelog"), { recursive: true });
 writeFileSync(join(root, "changelog/index.html"), changelogPageHtml, "utf8");
 
 mkdirSync(join(root, "thinking"), { recursive: true });
+for (const ent of readdirSync(join(root, "thinking"))) {
+  const entPath = join(root, "thinking", ent);
+  if (ent !== "index.html" && statSync(entPath).isDirectory()) {
+    rmSync(entPath, { recursive: true, force: true });
+  }
+}
 writeFileSync(join(root, "thinking/index.html"), microblogPageHtml, "utf8");
 rmSync(join(root, "microblog"), { recursive: true, force: true });
 

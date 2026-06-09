@@ -66,6 +66,7 @@ Add `PAGES_DEPLOY_HOOK` to GitHub repo secrets (same URL as worker secret).
 | `post` | Publish new writing post |
 | `edit-post` | Edit post (saves version history) |
 | `delete-post` | Delete a published writing post |
+| `delete-thinking` | Delete a Thinking post (Micro.blog, Bluesky if saved, rebuild) |
 | `fetch-post` | Load post for editing |
 | `reading` | Add reading entry |
 | `sharing` | Add linklog entry |
