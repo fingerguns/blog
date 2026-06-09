@@ -302,6 +302,7 @@
         padding: 0;
         cursor: pointer;
         flex-shrink: 0;
+        text-decoration: none;
       }
       .draft-item-delete:hover { color: #b44; }
       [data-theme="dark"] .draft-item-delete:hover { color: #e88; }
@@ -575,7 +576,7 @@
 
         <div id="thinking-archive-admin" hidden>
           <h3 class="thinking-archive-heading">Archive</h3>
-          <p class="admin-hint">Delete posts below — use this on mobile if delete on the archive page does not respond.</p>
+          <p class="admin-hint">Tap Delete to open the post and confirm on the page (no pop-up).</p>
           <ul class="drafts-list" id="thinking-archive-list"></ul>
           <p class="admin-status" id="thinking-archive-status" hidden></p>
         </div>
@@ -1005,33 +1006,6 @@
         return (d.textContent || "").replace(/\s+/g, " ").trim();
       }
 
-      async function deleteThinkingFromAdmin(slug, microblogUrl, label) {
-        var status = document.getElementById("thinking-archive-status");
-        var preview = label.length > 80 ? label.slice(0, 80) + "…" : label;
-        if (!confirm("Delete this Thinking post?\n\n" + preview)) return;
-        showStatus(status, "Deleting…", false);
-        try {
-          var data = await callAPI({
-            action: "delete-thinking",
-            slug: slug,
-            microblog_url: microblogUrl,
-          });
-          var lines = ["Deleted. Site will rebuild shortly."];
-          if (data.microblogWarning) lines.push(data.microblogWarning);
-          if (data.blueskyWarning) lines.push(data.blueskyWarning);
-          showStatus(
-            status,
-            lines.join(" "),
-            false,
-            true,
-            !!(data.microblogWarning || data.blueskyWarning)
-          );
-          await loadThinkingArchive();
-        } catch (err) {
-          showStatus(status, err.message || "Delete failed", true);
-        }
-      }
-
       async function loadThinkingArchive() {
         var wrap = document.getElementById("thinking-archive-admin");
         var list = document.getElementById("thinking-archive-list");
@@ -1070,14 +1044,10 @@
             dateEl.textContent = item.date_published.slice(0, 10) + " // " + item.date_published.slice(11, 16);
             main.appendChild(titleEl);
             main.appendChild(dateEl);
-            var del = document.createElement("button");
-            del.type = "button";
+            var del = document.createElement("a");
             del.className = "draft-item-delete";
             del.textContent = "Delete";
-            del.addEventListener("click", function (e) {
-              e.stopPropagation();
-              deleteThinkingFromAdmin(slug, item.url || "", label);
-            });
+            del.href = "/thinking/" + slug + "/?delete";
             li.appendChild(main);
             li.appendChild(del);
             list.appendChild(li);

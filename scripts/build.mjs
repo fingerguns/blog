@@ -56,7 +56,43 @@ const gaSnippet = `    <script async src="https://www.googletagmanager.com/gtag/
 
 const portraitPhotoToggleScript = `    <script>(function(){function init(){document.querySelectorAll(".microblog-body img, .post .body img").forEach(function(img){if(img.dataset.portraitInit)return;function setup(){var w=img.naturalWidth,h=img.naturalHeight;if(!w||!h)return;img.dataset.portraitInit="1";if(h<=w)return;img.classList.add("photo-portrait");img.setAttribute("role","button");img.setAttribute("tabindex","0");img.setAttribute("aria-expanded","false");img.title="Click to enlarge";function toggle(){var ex=img.classList.toggle("photo-expanded");img.setAttribute("aria-expanded",ex?"true":"false");}img.addEventListener("click",toggle);img.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle();}});}if(img.complete)setup();else img.addEventListener("load",setup,{once:true});});}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();}());</script>`;
 
-const thinkingAdminDeleteScript = `    <script>(function(){
+const thinkingDeleteLinkScript = `    <script>(function(){
+      var SESSION_KEY="admin_session";
+      var SESSION_TTL=${30 * 24 * 60 * 60 * 1000};
+      function loadPw(){
+        try{
+          var raw=localStorage.getItem(SESSION_KEY);
+          if(raw){
+            var s=JSON.parse(raw);
+            if(s&&s.pw&&s.ts&&Date.now()-s.ts<SESSION_TTL)return s.pw;
+          }
+          raw=sessionStorage.getItem(SESSION_KEY);
+          if(raw){
+            var tab=JSON.parse(raw);
+            if(tab&&tab.pw)return tab.pw;
+          }
+        }catch(e){}
+        return null;
+      }
+      function attachDeleteLinks(){
+        if(!loadPw())return;
+        document.querySelectorAll(".microblog-entry[data-slug]").forEach(function(entry){
+          if(entry.querySelector("a.thinking-delete"))return;
+          var slug=entry.getAttribute("data-slug");
+          if(!slug)return;
+          var a=document.createElement("a");
+          a.href=entry.classList.contains("post")?("?delete"):("/thinking/"+slug+"/?delete");
+          a.className="thinking-delete";
+          a.textContent="delete";
+          var time=entry.querySelector("time.post-date");
+          if(time){time.appendChild(document.createTextNode(" · "));time.appendChild(a);}
+        });
+      }
+      if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",attachDeleteLinks);else attachDeleteLinks();
+      window.addEventListener("pageshow",attachDeleteLinks);
+    }());</script>`;
+
+const thinkingDeleteConfirmScript = `    <script>(function(){
       var API_URL=(function(){var h=location.hostname;if(h==="localhost"||h==="127.0.0.1")return"https://rommy-blog-admin.fingerguns.workers.dev";return"/api/admin";})();
       var SESSION_KEY="admin_session";
       var SESSION_TTL=${30 * 24 * 60 * 60 * 1000};
@@ -75,60 +111,61 @@ const thinkingAdminDeleteScript = `    <script>(function(){
         }catch(e){}
         return null;
       }
-      async function deleteThinking(btn,entry){
+      function initDeletePage(){
+        if(!/[?&]delete(?:=|$)/.test(location.search))return;
+        var entry=document.querySelector(".microblog-entry[data-slug]");
+        var panel=document.getElementById("thinking-delete-panel");
+        if(!entry||!panel)return;
         var slug=entry.getAttribute("data-slug");
         var mbUrl=entry.getAttribute("data-microblog-url")||"";
+        var signin=panel.querySelector(".thinking-delete-signin");
+        var confirm=panel.querySelector(".thinking-delete-confirm");
+        var status=panel.querySelector(".thinking-delete-status");
+        var cancel=panel.querySelector(".thinking-delete-cancel");
+        var go=panel.querySelector(".thinking-delete-go");
+        panel.hidden=false;
+        try{panel.scrollIntoView({behavior:"smooth",block:"nearest"});}catch(e){}
+        if(cancel)cancel.href=location.pathname;
         var pw=loadPw();
-        if(!pw){alert("Sign in at /admin/ on this device first.");return;}
-        if(!slug||!confirm("Delete this Thinking post from rommy.blog and Micro.blog? Bluesky too if we saved it when you posted."))return;
-        btn.setAttribute("aria-disabled","true");
-        try{
-          var res=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:pw,action:"delete-thinking",slug:slug,microblog_url:mbUrl})});
-          var data={};
-          try{data=await res.json();}catch(e){}
-          if(!res.ok)throw new Error(data.error||("Delete failed (HTTP "+res.status+")"));
-          var msg=["Deleted. Site will rebuild shortly."];
-          if(data.microblogWarning)msg.push(data.microblogWarning);
-          if(data.blueskyWarning)msg.push(data.blueskyWarning);
-          else if(data.blueskyDeleted)msg.push("Bluesky: Deleted.");
-          else if(data.blueskySkipped)msg.push("Bluesky: No saved post to delete (older posts may need manual removal).");
-          alert(msg.join("\\n"));
-          if(entry.classList.contains("post"))location.href="/thinking/";
-          else entry.remove();
-        }catch(err){
-          var errMsg=err&&err.message?err.message:"Could not delete.";
-          if(/failed to fetch|networkerror|load failed/i.test(errMsg)){
-            errMsg="Request failed. Try deleting from the Thinking tab in /admin/ instead.";
-          }
-          alert(errMsg);
-          btn.removeAttribute("aria-disabled");
+        if(!pw){
+          if(signin)signin.hidden=false;
+          if(confirm)confirm.hidden=true;
+          return;
         }
+        if(signin)signin.hidden=true;
+        if(confirm)confirm.hidden=false;
+        if(!go||go.dataset.bound)return;
+        go.dataset.bound="1";
+        go.addEventListener("click",async function(){
+          go.disabled=true;
+          if(status){status.hidden=false;status.textContent="Deleting…";status.className="thinking-delete-status";}
+          try{
+            var res=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:pw,action:"delete-thinking",slug:slug,microblog_url:mbUrl})});
+            var data={};
+            try{data=await res.json();}catch(e){}
+            if(!res.ok)throw new Error(data.error||("Delete failed (HTTP "+res.status+")"));
+            if(status){status.textContent="Deleted. Returning to archive…";status.className="thinking-delete-status ok";}
+            setTimeout(function(){location.href="/thinking/";},900);
+          }catch(err){
+            if(status){status.textContent=err&&err.message?err.message:"Could not delete.";status.className="thinking-delete-status err";}
+            go.disabled=false;
+          }
+        });
       }
-      function attachDelete(entry){
-        if(entry.querySelector(".thinking-delete"))return;
-        var btn=document.createElement("button");
-        btn.type="button";
-        btn.className="thinking-delete";
-        btn.textContent="delete";
-        var time=entry.querySelector("time.post-date");
-        if(time){time.appendChild(document.createTextNode(" · "));time.appendChild(btn);}
-        else entry.appendChild(btn);
-      }
-      function init(){
-        if(!loadPw())return;
-        document.querySelectorAll(".microblog-entry[data-slug]").forEach(attachDelete);
-      }
-      document.addEventListener("click",function(e){
-        var btn=e.target.closest("button.thinking-delete");
-        if(!btn||btn.getAttribute("aria-disabled")==="true")return;
-        var entry=btn.closest(".microblog-entry[data-slug]");
-        if(!entry)return;
-        e.preventDefault();
-        deleteThinking(btn,entry);
-      });
-      if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
-      window.addEventListener("pageshow",init);
+      if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",initDeletePage);else initDeletePage();
     }());</script>`;
+
+const thinkingDeletePanelHtml = `      <div id="thinking-delete-panel" class="thinking-delete-panel" hidden>
+        <p class="thinking-delete-signin" hidden>Sign in at <a href="/admin/">admin</a> on this device, then open this page again with <code>?delete</code>.</p>
+        <div class="thinking-delete-confirm" hidden>
+          <p class="thinking-delete-lead">Delete this post from rommy.blog and Micro.blog? Bluesky too if we saved it when you posted.</p>
+          <p class="thinking-delete-actions">
+            <a class="thinking-delete-cancel" href="#">Cancel</a>
+            <button type="button" class="thinking-delete-go">Delete permanently</button>
+          </p>
+          <p class="thinking-delete-status" hidden></p>
+        </div>
+      </div>`;
 
 function escHtml(s) {
   return String(s)
@@ -591,7 +628,7 @@ const thinkingArchiveFoot = `      <footer class="site-footer">
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
 ${portraitPhotoToggleScript}
-${thinkingAdminDeleteScript}
+${thinkingDeleteLinkScript}
   </body>
 </html>
 `;
@@ -698,7 +735,8 @@ const thinkingPostFoot = `      <footer class="site-footer">
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
 ${portraitPhotoToggleScript}
-${thinkingAdminDeleteScript}
+${thinkingDeleteLinkScript}
+${thinkingDeleteConfirmScript}
   </body>
 </html>`;
 
@@ -791,6 +829,7 @@ for (const item of microblogItems) {
   const postHtml = `${thinkingPostHead(item.date_published, item)}
       <div class="microblog-body" style="margin-top:1.5rem">${item.content_html}</div>
       <time class="post-date" style="display:block;margin-top:0.75rem" datetime="${escHtml(item.date_published)}">${escHtml(formatMbDate(item.date_published))}</time>
+${thinkingDeletePanelHtml}
 ${thinkingPostFoot}`;
   mkdirSync(join(root, "thinking", slug), { recursive: true });
   writeFileSync(join(root, "thinking", slug, "index.html"), postHtml, "utf8");

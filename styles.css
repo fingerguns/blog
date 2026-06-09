@@ -337,31 +337,64 @@ h2 {
   color: var(--link-hover);
   text-decoration-color: currentColor;
 }
-.microblog-entry .post-date .thinking-delete {
-  display: inline;
-  font: inherit;
-  font-size: inherit;
-  font-variant-numeric: tabular-nums;
+.microblog-entry .post-date a.thinking-delete {
   color: inherit;
-  background: none;
-  border: none;
-  padding: 0;
+  font-weight: inherit;
+}
+.thinking-delete-panel {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+}
+.thinking-delete-lead {
+  margin: 0 0 0.85rem;
+  line-height: 1.55;
+}
+.thinking-delete-signin {
   margin: 0;
-  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.thinking-delete-signin code {
+  font-size: 0.85em;
+}
+.thinking-delete-actions {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem 1.25rem;
+  align-items: center;
+}
+.thinking-delete-cancel {
+  color: var(--muted);
   text-decoration: underline;
   text-decoration-color: var(--rule);
   text-underline-offset: 0.2em;
-  -webkit-appearance: none;
-  appearance: none;
 }
-.microblog-entry .post-date .thinking-delete:hover {
+.thinking-delete-cancel:hover {
   color: var(--link-hover);
-  text-decoration-color: currentColor;
 }
-.microblog-entry .post-date .thinking-delete[aria-disabled="true"] {
-  opacity: 0.5;
-  pointer-events: none;
+.thinking-delete-go {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.45rem 0.85rem;
+  cursor: pointer;
 }
+.thinking-delete-go:hover { border-color: var(--text); }
+.thinking-delete-go:disabled { opacity: 0.5; cursor: default; }
+.thinking-delete-status {
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.thinking-delete-status.ok { color: var(--text); }
+.thinking-delete-status.err { color: #b44; }
+[data-theme="dark"] .thinking-delete-status.err { color: #e88; }
 .microblog-body p  { margin: 0 0 0.65rem; line-height: 1.65; }
 .microblog-body p:last-child { margin-bottom: 0; }
 .microblog-entry time { margin-top: 0.75rem; display: block; }
