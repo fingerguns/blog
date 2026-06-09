@@ -11,6 +11,7 @@ import { d1Configured, loadBlogDataFromD1 } from "./d1-client.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
+const cssV = new Date().toISOString().slice(0, 10);
 
 let data;
 if (d1Configured()) {
@@ -303,7 +304,7 @@ ${ogMetaTags({
     <link rel="apple-touch-icon" href="../../favicon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="stylesheet" href="../../styles.css?v=${cssV}" />
     <link
       rel="alternate"
       type="application/atom+xml"
@@ -481,7 +482,7 @@ ${descriptionText ? `    <meta property="og:description" content="${escHtml(desc
     <link rel="apple-touch-icon" href="/favicon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=${cssV}" />
     <link
       rel="alternate"
       type="application/atom+xml"
@@ -594,7 +595,7 @@ const archiveHead = (title) => `<!DOCTYPE html>
     <link rel="apple-touch-icon" href="/favicon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=${cssV}" />
     <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);}());</script>
     <link
       rel="alternate"
@@ -720,7 +721,7 @@ ${ogMetaTags({
   image: og.image,
 })}
     <link rel="icon" href="/favicon.png" type="image/png" />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=${cssV}" />
 ${gaSnippet}
   </head>
   <body>
