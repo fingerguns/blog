@@ -57,7 +57,7 @@ const gaSnippet = `    <script async src="https://www.googletagmanager.com/gtag/
 const portraitPhotoToggleScript = `    <script>(function(){function init(){document.querySelectorAll(".microblog-body img, .post .body img").forEach(function(img){if(img.dataset.portraitInit)return;function setup(){var w=img.naturalWidth,h=img.naturalHeight;if(!w||!h)return;img.dataset.portraitInit="1";if(h<=w)return;img.classList.add("photo-portrait");img.setAttribute("role","button");img.setAttribute("tabindex","0");img.setAttribute("aria-expanded","false");img.title="Click to enlarge";function toggle(){var ex=img.classList.toggle("photo-expanded");img.setAttribute("aria-expanded",ex?"true":"false");}img.addEventListener("click",toggle);img.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle();}});}if(img.complete)setup();else img.addEventListener("load",setup,{once:true});});}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();}());</script>`;
 
 const thinkingAdminDeleteScript = `    <script>(function(){
-      var API_URL="https://rommy-blog-admin.fingerguns.workers.dev";
+      var API_URL=(function(){var h=location.hostname;if(h==="localhost"||h==="127.0.0.1")return"https://rommy-blog-admin.fingerguns.workers.dev";return"/api/admin";})();
       var SESSION_KEY="admin_session";
       var SESSION_TTL=${30 * 24 * 60 * 60 * 1000};
       function loadPw(){
@@ -75,34 +75,45 @@ const thinkingAdminDeleteScript = `    <script>(function(){
         }catch(e){}
         return null;
       }
+      async function deleteThinking(link,entry){
+        var slug=entry.getAttribute("data-slug");
+        var mbUrl=entry.getAttribute("data-microblog-url")||"";
+        var pw=loadPw();
+        if(!pw){alert("Sign in at /admin/ on this device first.");return;}
+        if(!slug||!confirm("Delete this Thinking post from rommy.blog and Micro.blog? Bluesky too if we saved it when you posted."))return;
+        link.setAttribute("aria-disabled","true");
+        try{
+          var res=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:pw,action:"delete-thinking",slug:slug,microblog_url:mbUrl})});
+          var data={};
+          try{data=await res.json();}catch(e){}
+          if(!res.ok)throw new Error(data.error||("Delete failed (HTTP "+res.status+")"));
+          var msg=["Deleted. Site will rebuild shortly."];
+          if(data.microblogWarning)msg.push(data.microblogWarning);
+          if(data.blueskyWarning)msg.push(data.blueskyWarning);
+          else if(data.blueskyDeleted)msg.push("Bluesky: Deleted.");
+          else if(data.blueskySkipped)msg.push("Bluesky: No saved post to delete (older posts may need manual removal).");
+          alert(msg.join("\\n"));
+          if(entry.classList.contains("post"))location.href="/thinking/";
+          else entry.remove();
+        }catch(err){
+          var errMsg=err&&err.message?err.message:"Could not delete.";
+          if(/failed to fetch|networkerror|load failed/i.test(errMsg)){
+            errMsg="Request blocked or offline. If you use Brave, try turning Shields off for rommy.blog or sign in again at /admin/.";
+          }
+          alert(errMsg);
+          link.removeAttribute("aria-disabled");
+        }
+      }
       function attachDelete(entry){
         if(entry.querySelector(".thinking-delete"))return;
         var link=document.createElement("a");
-        link.href="#";
+        link.href="javascript:void(0)";
         link.className="thinking-delete";
+        link.setAttribute("role","button");
         link.textContent="delete";
-        link.addEventListener("click",async function(e){
+        link.addEventListener("click",function(e){
           e.preventDefault();
-          var slug=entry.getAttribute("data-slug");
-          var mbUrl=entry.getAttribute("data-microblog-url")||"";
-          if(!slug||!confirm("Delete this Thinking post from rommy.blog and Micro.blog? Bluesky too if we saved it when you posted."))return;
-          link.setAttribute("aria-disabled","true");
-          try{
-            var res=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:loadPw(),action:"delete-thinking",slug:slug,microblog_url:mbUrl})});
-            var data=await res.json();
-            if(!res.ok)throw new Error(data.error||"Delete failed");
-            var msg=["Deleted. Site will rebuild shortly."];
-            if(data.microblogWarning)msg.push(data.microblogWarning);
-            if(data.blueskyWarning)msg.push(data.blueskyWarning);
-            else if(data.blueskyDeleted)msg.push("Bluesky: Deleted.");
-            else if(data.blueskySkipped)msg.push("Bluesky: No saved post to delete (older posts may need manual removal).");
-            alert(msg.join("\\n"));
-            if(entry.classList.contains("post"))location.href="/thinking/";
-            else entry.remove();
-          }catch(err){
-            alert(err.message||"Could not delete.");
-            link.removeAttribute("aria-disabled");
-          }
+          deleteThinking(link,entry);
         });
         var time=entry.querySelector("time.post-date");
         if(time){time.appendChild(document.createTextNode(" · "));time.appendChild(link);}

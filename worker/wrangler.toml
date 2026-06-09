@@ -1,6 +1,7 @@
 name = "rommy-blog-admin"
 main = "update-thinking.js"
 compatibility_date = "2025-04-01"
+workers_dev = true
 
 [vars]
 GITHUB_OWNER = "fingerguns"
@@ -18,6 +19,10 @@ bucket_name = "rommy-blog-media"
 binding = "DB"
 database_name = "rommy-blog-db"
 database_id = "2cb5dcd1-ff1b-4152-b081-58f56c9e5a55"
+
+[[routes]]
+pattern = "rommy.blog/api/admin*"
+zone_name = "rommy.blog"
 
 # Set via: wrangler secret put ADMIN_PASSWORD
 # Set via: wrangler secret put GITHUB_TOKEN
