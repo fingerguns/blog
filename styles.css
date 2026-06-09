@@ -343,54 +343,61 @@ h2 {
 }
 .thinking-delete-panel {
   margin-top: 1.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--rule);
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--muted) 10%, var(--bg));
 }
 .thinking-delete-lead {
-  margin: 0 0 0.85rem;
-  line-height: 1.55;
+  margin: 0;
+  line-height: 1.65;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+.thinking-delete-lead em {
+  font-style: italic;
 }
 .thinking-delete-signin {
   margin: 0;
   color: var(--muted);
   font-size: 0.9rem;
+  font-style: italic;
 }
 .thinking-delete-signin code {
   font-size: 0.85em;
+  font-style: normal;
 }
-.thinking-delete-actions {
-  margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.85rem 1.25rem;
-  align-items: center;
-}
-.thinking-delete-cancel {
-  color: var(--muted);
+.thinking-delete-lead a {
+  font-style: normal;
   text-decoration: underline;
   text-decoration-color: var(--rule);
   text-underline-offset: 0.2em;
 }
+.thinking-delete-go {
+  color: var(--text);
+  font-weight: 500;
+}
+.thinking-delete-go:hover {
+  color: #b44;
+  text-decoration-color: currentColor;
+}
+[data-theme="dark"] .thinking-delete-go:hover { color: #e88; }
+.thinking-delete-go[aria-disabled="true"] {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.thinking-delete-cancel {
+  color: var(--muted);
+}
 .thinking-delete-cancel:hover {
   color: var(--link-hover);
+  text-decoration-color: currentColor;
 }
-.thinking-delete-go {
-  font: inherit;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--rule);
-  border-radius: 4px;
-  padding: 0.45rem 0.85rem;
-  cursor: pointer;
-}
-.thinking-delete-go:hover { border-color: var(--text); }
-.thinking-delete-go:disabled { opacity: 0.5; cursor: default; }
 .thinking-delete-status {
   margin: 0.75rem 0 0;
   font-size: 0.85rem;
   color: var(--muted);
+  font-style: italic;
 }
 .thinking-delete-status.ok { color: var(--text); }
 .thinking-delete-status.err { color: #b44; }

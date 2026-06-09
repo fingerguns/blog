@@ -136,20 +136,24 @@ const thinkingDeleteConfirmScript = `    <script>(function(){
         if(confirm)confirm.hidden=false;
         if(!go||go.dataset.bound)return;
         go.dataset.bound="1";
-        go.addEventListener("click",async function(){
-          go.disabled=true;
+        go.addEventListener("click",function(e){
+          e.preventDefault();
+          if(go.getAttribute("aria-disabled")==="true")return;
+          go.setAttribute("aria-disabled","true");
           if(status){status.hidden=false;status.textContent="Deleting…";status.className="thinking-delete-status";}
-          try{
-            var res=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:pw,action:"delete-thinking",slug:slug,microblog_url:mbUrl})});
-            var data={};
-            try{data=await res.json();}catch(e){}
-            if(!res.ok)throw new Error(data.error||("Delete failed (HTTP "+res.status+")"));
-            if(status){status.textContent="Deleted. Returning to archive…";status.className="thinking-delete-status ok";}
-            setTimeout(function(){location.href="/thinking/";},900);
-          }catch(err){
-            if(status){status.textContent=err&&err.message?err.message:"Could not delete.";status.className="thinking-delete-status err";}
-            go.disabled=false;
-          }
+          (async function(){
+            try{
+              var res=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:pw,action:"delete-thinking",slug:slug,microblog_url:mbUrl})});
+              var data={};
+              try{data=await res.json();}catch(err){}
+              if(!res.ok)throw new Error(data.error||("Delete failed (HTTP "+res.status+")"));
+              if(status){status.textContent="Deleted. Returning to archive…";status.className="thinking-delete-status ok";}
+              setTimeout(function(){location.href="/thinking/";},900);
+            }catch(err){
+              if(status){status.textContent=err&&err.message?err.message:"Could not delete.";status.className="thinking-delete-status err";}
+              go.removeAttribute("aria-disabled");
+            }
+          })();
         });
       }
       if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",initDeletePage);else initDeletePage();
@@ -158,11 +162,7 @@ const thinkingDeleteConfirmScript = `    <script>(function(){
 const thinkingDeletePanelHtml = `      <div id="thinking-delete-panel" class="thinking-delete-panel" hidden>
         <p class="thinking-delete-signin" hidden>Sign in at <a href="/admin/">admin</a> on this device, then open this page again with <code>?delete</code>.</p>
         <div class="thinking-delete-confirm" hidden>
-          <p class="thinking-delete-lead">Delete this post from rommy.blog and Micro.blog? Bluesky too if we saved it when you posted.</p>
-          <p class="thinking-delete-actions">
-            <a class="thinking-delete-cancel" href="#">Cancel</a>
-            <button type="button" class="thinking-delete-go">Delete permanently</button>
-          </p>
+          <p class="thinking-delete-lead"><em>Delete this post from rommy.blog and Micro.blog? Bluesky too if we saved it when you posted.</em> <a href="#" class="thinking-delete-go">Delete permanently?</a> · <a class="thinking-delete-cancel" href="#">Cancel</a></p>
           <p class="thinking-delete-status" hidden></p>
         </div>
       </div>`;
