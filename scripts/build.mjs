@@ -75,13 +75,13 @@ const thinkingAdminDeleteScript = `    <script>(function(){
         }catch(e){}
         return null;
       }
-      async function deleteThinking(link,entry){
+      async function deleteThinking(btn,entry){
         var slug=entry.getAttribute("data-slug");
         var mbUrl=entry.getAttribute("data-microblog-url")||"";
         var pw=loadPw();
         if(!pw){alert("Sign in at /admin/ on this device first.");return;}
         if(!slug||!confirm("Delete this Thinking post from rommy.blog and Micro.blog? Bluesky too if we saved it when you posted."))return;
-        link.setAttribute("aria-disabled","true");
+        btn.setAttribute("aria-disabled","true");
         try{
           var res=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:pw,action:"delete-thinking",slug:slug,microblog_url:mbUrl})});
           var data={};
@@ -98,32 +98,36 @@ const thinkingAdminDeleteScript = `    <script>(function(){
         }catch(err){
           var errMsg=err&&err.message?err.message:"Could not delete.";
           if(/failed to fetch|networkerror|load failed/i.test(errMsg)){
-            errMsg="Request blocked or offline. If you use Brave, try turning Shields off for rommy.blog or sign in again at /admin/.";
+            errMsg="Request failed. Try deleting from the Thinking tab in /admin/ instead.";
           }
           alert(errMsg);
-          link.removeAttribute("aria-disabled");
+          btn.removeAttribute("aria-disabled");
         }
       }
       function attachDelete(entry){
         if(entry.querySelector(".thinking-delete"))return;
-        var link=document.createElement("a");
-        link.href="javascript:void(0)";
-        link.className="thinking-delete";
-        link.setAttribute("role","button");
-        link.textContent="delete";
-        link.addEventListener("click",function(e){
-          e.preventDefault();
-          deleteThinking(link,entry);
-        });
+        var btn=document.createElement("button");
+        btn.type="button";
+        btn.className="thinking-delete";
+        btn.textContent="delete";
         var time=entry.querySelector("time.post-date");
-        if(time){time.appendChild(document.createTextNode(" · "));time.appendChild(link);}
-        else entry.appendChild(link);
+        if(time){time.appendChild(document.createTextNode(" · "));time.appendChild(btn);}
+        else entry.appendChild(btn);
       }
       function init(){
         if(!loadPw())return;
         document.querySelectorAll(".microblog-entry[data-slug]").forEach(attachDelete);
       }
+      document.addEventListener("click",function(e){
+        var btn=e.target.closest("button.thinking-delete");
+        if(!btn||btn.getAttribute("aria-disabled")==="true")return;
+        var entry=btn.closest(".microblog-entry[data-slug]");
+        if(!entry)return;
+        e.preventDefault();
+        deleteThinking(btn,entry);
+      });
       if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
+      window.addEventListener("pageshow",init);
     }());</script>`;
 
 function escHtml(s) {

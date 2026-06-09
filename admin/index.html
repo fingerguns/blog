@@ -305,6 +305,11 @@
       }
       .draft-item-delete:hover { color: #b44; }
       [data-theme="dark"] .draft-item-delete:hover { color: #e88; }
+      .thinking-archive-heading {
+        font-size: 1rem;
+        font-weight: 600;
+        margin: 2rem 0 0.75rem;
+      }
       /* ── Mobile responsive ── */
       @media (max-width: 480px) {
         /* Prevent iOS auto-zoom on any interactive element */
@@ -567,6 +572,13 @@
           <button type="submit" id="t-submit">Save</button>
           <p class="admin-status" id="t-status" hidden></p>
         </form>
+
+        <div id="thinking-archive-admin" hidden>
+          <h3 class="thinking-archive-heading">Archive</h3>
+          <p class="admin-hint">Delete posts below — use this on mobile if delete on the archive page does not respond.</p>
+          <ul class="drafts-list" id="thinking-archive-list"></ul>
+          <p class="admin-status" id="thinking-archive-status" hidden></p>
+        </div>
       </div>
 
       <!-- ── WRITING ───────────────────────────────── -->
@@ -747,6 +759,11 @@
             ? "<strong>Signed in.</strong> Remembered on this device for up to 30 days, or until you sign out."
             : "<strong>Signed in.</strong> Until you sign out or close this tab.";
         }
+        if (signedIn) loadThinkingArchive();
+        else {
+          var archiveWrap = document.getElementById("thinking-archive-admin");
+          if (archiveWrap) archiveWrap.hidden = true;
+        }
       }
 
       (function () {
@@ -812,6 +829,7 @@
             sections.forEach(function (s) { s.classList.remove("active"); });
             tab.classList.add("active");
             document.getElementById("tab-" + target).classList.add("active");
+            if (target === "thinking") loadThinkingArchive();
           });
         });
       })();
@@ -977,6 +995,99 @@
 
       // ── Thinking form ──────────────────────────────────────────────────────
 
+      function thinkingSlugFromIso(iso) {
+        return iso.slice(0, 10) + "-" + iso.slice(11, 13) + iso.slice(14, 16);
+      }
+
+      function stripThinkingHtml(html) {
+        var d = document.createElement("div");
+        d.innerHTML = html || "";
+        return (d.textContent || "").replace(/\s+/g, " ").trim();
+      }
+
+      async function deleteThinkingFromAdmin(slug, microblogUrl, label) {
+        var status = document.getElementById("thinking-archive-status");
+        var preview = label.length > 80 ? label.slice(0, 80) + "…" : label;
+        if (!confirm("Delete this Thinking post?\n\n" + preview)) return;
+        showStatus(status, "Deleting…", false);
+        try {
+          var data = await callAPI({
+            action: "delete-thinking",
+            slug: slug,
+            microblog_url: microblogUrl,
+          });
+          var lines = ["Deleted. Site will rebuild shortly."];
+          if (data.microblogWarning) lines.push(data.microblogWarning);
+          if (data.blueskyWarning) lines.push(data.blueskyWarning);
+          showStatus(
+            status,
+            lines.join(" "),
+            false,
+            true,
+            !!(data.microblogWarning || data.blueskyWarning)
+          );
+          await loadThinkingArchive();
+        } catch (err) {
+          showStatus(status, err.message || "Delete failed", true);
+        }
+      }
+
+      async function loadThinkingArchive() {
+        var wrap = document.getElementById("thinking-archive-admin");
+        var list = document.getElementById("thinking-archive-list");
+        var status = document.getElementById("thinking-archive-status");
+        if (!wrap || !list) return;
+        if (!loadSession()) {
+          wrap.hidden = true;
+          return;
+        }
+        wrap.hidden = false;
+        list.innerHTML = '<li><span class="admin-hint">Loading…</span></li>';
+        if (status) status.hidden = true;
+        try {
+          var res = await fetch("https://rommy.micro.blog/feed.json");
+          if (!res.ok) throw new Error("Could not load archive");
+          var data = await res.json();
+          var items = (data.items || []).filter(function (item) {
+            return item.content_html && item.date_published && item.date_published >= "2026";
+          });
+          list.innerHTML = "";
+          if (!items.length) {
+            list.innerHTML = '<li><span class="admin-hint">No posts yet.</span></li>';
+            return;
+          }
+          items.slice(0, 30).forEach(function (item) {
+            var slug = thinkingSlugFromIso(item.date_published);
+            var label = stripThinkingHtml(item.content_html).slice(0, 120) || slug;
+            var li = document.createElement("li");
+            var main = document.createElement("div");
+            main.className = "draft-item-main";
+            var titleEl = document.createElement("div");
+            titleEl.className = "draft-item-title";
+            titleEl.textContent = label;
+            var dateEl = document.createElement("div");
+            dateEl.className = "draft-item-date";
+            dateEl.textContent = item.date_published.slice(0, 10) + " // " + item.date_published.slice(11, 16);
+            main.appendChild(titleEl);
+            main.appendChild(dateEl);
+            var del = document.createElement("button");
+            del.type = "button";
+            del.className = "draft-item-delete";
+            del.textContent = "Delete";
+            del.addEventListener("click", function (e) {
+              e.stopPropagation();
+              deleteThinkingFromAdmin(slug, item.url || "", label);
+            });
+            li.appendChild(main);
+            li.appendChild(del);
+            list.appendChild(li);
+          });
+        } catch (err) {
+          list.innerHTML = "";
+          showStatus(status, err.message || "Could not load archive", true);
+        }
+      }
+
       async function callThinkingAPI(text, photoFile, blueskyPhotoFile) {
         var pw = loadSession();
         if (!pw) throw new Error("You need to be signed in. Go to the Login tab.");
@@ -1084,6 +1195,7 @@
             showStatus(status, out.text, false, !out.warn, out.warn);
             document.getElementById("t-text").value = "";
             clearThinkingPhoto();
+            loadThinkingArchive();
           } catch (err) {
             var errMsg = err.message || "Request failed";
             if (!/^rommy\.blog:|^micro\.blog:|^Bluesky:/i.test(errMsg)) {
