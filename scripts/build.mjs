@@ -163,7 +163,12 @@ const thinkingDeleteConfirmScript = `    <script>(function(){
 const thinkingDeletePanelHtml = `      <div id="thinking-delete-panel" class="thinking-delete-panel" hidden>
         <p class="thinking-delete-signin" hidden>Sign in at <a href="/admin/">admin</a> on this device, then open this page again with <code>?delete</code>.</p>
         <div class="thinking-delete-confirm" hidden>
-          <p class="thinking-delete-lead"><em>Delete this post from rommy.blog and Micro.blog? Bluesky too if we saved it when you posted.</em> <a href="#" class="thinking-delete-go">Delete permanently?</a> · <a class="thinking-delete-cancel" href="#">Cancel</a></p>
+          <p class="thinking-delete-lead"><em>Delete this post from rommy.blog and Micro.blog? Bluesky too if we saved it when you posted.</em></p>
+          <p class="thinking-delete-actions">
+            <a href="#" class="thinking-delete-go">Delete permanently?</a>
+            ·
+            <a class="thinking-delete-cancel" href="#">Cancel</a>
+          </p>
           <p class="thinking-delete-status" hidden></p>
         </div>
       </div>`;

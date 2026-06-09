@@ -382,7 +382,12 @@ h2 {
   font-style: normal;
   font-family: ui-monospace, monospace;
 }
-.thinking-delete-lead a {
+.thinking-delete-actions {
+  margin: 0.65rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+.thinking-delete-actions a {
   font-family: "Inter", system-ui, -apple-system, sans-serif;
   font-style: normal;
   font-weight: 500;
