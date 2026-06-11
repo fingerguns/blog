@@ -22,7 +22,7 @@ if (d1Configured()) {
   data = JSON.parse(readFileSync(join(root, "data/posts.json"), "utf8"));
 }
 
-const { site, thinking, posts, reading, linklog, links, optionalColophon } = data;
+const { site, thinking, thinkingPosts = [], posts, reading, linklog, links, optionalColophon } = data;
 
 const base = site.url.replace(/\/$/, "");
 const toSortableMs = (p) => {
@@ -252,6 +252,22 @@ function thinkingOgFromItem(item) {
   return { description, image };
 }
 
+// Renders inner HTML (no wrapper div) from a D1 thinking_posts row — used as
+// fallback when content_html is absent (e.g. rows inserted before this field existed).
+function renderThinkingInnerHtml({ text, media_url, media_alt }) {
+  const t = (text || "").trim();
+  const parts = [];
+  if (t) {
+    for (const p of t.split(/\n\n+/).filter(Boolean)) {
+      parts.push(`<p>${autoLink(escHtml(p).replace(/\n/g, "<br>"))}</p>`);
+    }
+  }
+  if (media_url) {
+    parts.push(`<img class="thinking-photo" src="${escHtml(media_url)}" alt="${escHtml(media_alt || "Photo")}" loading="lazy" decoding="async" />`);
+  }
+  return parts.join("\n");
+}
+
 function renderThinkingHtml(thinking) {
   const text = (thinking?.text || "").trim();
   const mediaUrl = thinking?.media_url || "";
@@ -346,22 +362,13 @@ const safeSlug = (s) => String(s).replace(/[^a-zA-Z0-9-_]/g, "");
 
 const MAX_PER_SECTION = 5;
 
-// Microblog from micro.blog JSON feed
-let microblogItems = [];
-try {
-  const mbRes = await fetch("https://rommy.micro.blog/feed.json", {
-    headers: { "User-Agent": "rommy-blog-builder/1.0" },
-    signal: AbortSignal.timeout(8000),
-  });
-  if (mbRes.ok) {
-    const mbData = await mbRes.json();
-    microblogItems = (mbData.items || []).filter(
-      (item) => item.content_html && item.date_published >= "2026"
-    );
-  }
-} catch (e) {
-  // Graceful fallback — page still builds without network
-}
+// Thinking posts from D1 (populated by the admin Worker on every post/delete)
+const microblogItems = thinkingPosts.map((p) => ({
+  _slug: p.slug,
+  content_html: p.content_html || renderThinkingInnerHtml(p),
+  date_published: p.datetime,
+  url: p.microblog_url || "",
+}));
 
 // Changelog from git log
 let changelogEntries = [];
@@ -748,7 +755,7 @@ ${thinkingDeleteConfirmScript}
 
 const microblogEntriesHtml = microblogItems.length > 0
   ? microblogItems.map((item) => {
-      const slug = mbSlug(item.date_published);
+      const slug = (item._slug || mbSlug(item.date_published));
       return `        <div class="microblog-entry" data-slug="${escHtml(slug)}" data-microblog-url="${escHtml(item.url || "")}">
           <div class="microblog-body">${item.content_html}</div>
           <time class="post-date" datetime="${escHtml(item.date_published)}"><a href="/thinking/${escHtml(slug)}/">${escHtml(formatMbDate(item.date_published))}</a></time>
@@ -777,7 +784,7 @@ const urls = [
   `${base}/now/`,
   `${base}/changelog/`,
   `${base}/thinking/`,
-  ...microblogItems.map((item) => `${base}/thinking/${mbSlug(item.date_published)}/`),
+  ...microblogItems.map((item) => `${base}/thinking/${(item._slug || mbSlug(item.date_published))}/`),
   ...archiveUrls,
   ...ordered.map((p) => `${base}/posts/${safeSlug(p.slug)}/`),
 ];
@@ -831,7 +838,7 @@ rmSync(join(root, "microblog"), { recursive: true, force: true });
 
 // Individual thinking post pages
 for (const item of microblogItems) {
-  const slug = mbSlug(item.date_published);
+  const slug = (item._slug || mbSlug(item.date_published));
   const postHtml = `${thinkingPostHead(item.date_published, item)}
       <div class="microblog-body" style="margin-top:1.5rem">${item.content_html}</div>
       <time class="post-date" style="display:block;margin-top:0.75rem" datetime="${escHtml(item.date_published)}">${escHtml(formatMbDate(item.date_published))}</time>

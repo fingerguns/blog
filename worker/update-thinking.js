@@ -446,6 +446,28 @@ async function handleThinking(payload, db, cors, env, ctx) {
       nowIso
     );
 
+    const contentHtml = renderThinkingContentHtml(text, mediaUrl, mediaAlt);
+    await dbRun(
+      db,
+      `INSERT INTO thinking_posts (slug, text, media_url, media_alt, content_html, datetime, microblog_url, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(slug) DO UPDATE SET
+         text = excluded.text,
+         media_url = excluded.media_url,
+         media_alt = excluded.media_alt,
+         content_html = excluded.content_html,
+         microblog_url = COALESCE(excluded.microblog_url, thinking_posts.microblog_url),
+         datetime = excluded.datetime`,
+      slug,
+      text,
+      mediaUrl,
+      mediaAlt,
+      contentHtml,
+      nowIso,
+      microblogUrl,
+      nowIso
+    );
+
     await triggerRebuild(env);
     if (ctx) {
       ctx.waitUntil(
@@ -837,6 +859,20 @@ function thinkingSlugFromDate(date) {
   return `${get("year")}-${get("month")}-${get("day")}-${get("hour")}${get("minute")}`;
 }
 
+function renderThinkingContentHtml(text, mediaUrl, mediaAlt) {
+  const t = (text || "").trim();
+  const parts = [];
+  if (t) {
+    for (const para of t.split(/\n\n+/).filter(Boolean)) {
+      parts.push(`<p>${escHtml(para).replace(/\n/g, "<br>")}</p>`);
+    }
+  }
+  if (mediaUrl) {
+    parts.push(`<img src="${escHtml(mediaUrl)}" alt="${escHtml(mediaAlt || "Photo")}" loading="lazy" decoding="async" />`);
+  }
+  return parts.join("\n");
+}
+
 async function ensureThinkingSyndicationTable(db) {
   await dbRun(
     db,
@@ -958,6 +994,7 @@ async function handleDeleteThinking(payload, db, cors, env, ctx) {
     }
 
     await dbRun(db, "DELETE FROM thinking_syndication WHERE slug = ?", slug);
+    await dbRun(db, "DELETE FROM thinking_posts WHERE slug = ?", slug);
 
     await triggerRebuild(env);
     if (ctx) {

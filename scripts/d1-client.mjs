@@ -87,15 +87,21 @@ export async function loadBlogDataFromD1() {
     "SELECT url, title, date, datetime FROM linklog ORDER BY datetime DESC"
   );
 
-  const thinkingRows = await d1Query(
-    "SELECT text, media_url, media_alt FROM thinking WHERE id = 1"
+  const thinkingPostRows = await d1Query(
+    "SELECT slug, text, media_url, media_alt, content_html, datetime, microblog_url FROM thinking_posts ORDER BY datetime DESC"
   );
-  const thinking = thinkingRows[0]
-    ? {
-        text: thinkingRows[0].text || "",
-        media_url: thinkingRows[0].media_url || "",
-        media_alt: thinkingRows[0].media_alt || "",
-      }
+  const thinkingPosts = thinkingPostRows.map((r) => ({
+    slug: r.slug,
+    text: r.text || "",
+    media_url: r.media_url || "",
+    media_alt: r.media_alt || "",
+    content_html: r.content_html || "",
+    datetime: r.datetime,
+    microblog_url: r.microblog_url || "",
+  }));
+  const latest = thinkingPosts[0];
+  const thinking = latest
+    ? { text: latest.text, media_url: latest.media_url, media_alt: latest.media_alt }
     : { text: "", media_url: "", media_alt: "" };
 
   return {
@@ -108,6 +114,7 @@ export async function loadBlogDataFromD1() {
       description: site.description || "",
     },
     thinking,
+    thinkingPosts,
     posts: posts.map((p) => ({
       slug: p.slug,
       title: p.title,
