@@ -52,15 +52,6 @@ CREATE TABLE IF NOT EXISTS linklog (
   datetime TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS thinking (
-  id INTEGER PRIMARY KEY CHECK (id = 1),
-  text TEXT NOT NULL DEFAULT '',
-  media_url TEXT,
-  media_alt TEXT,
-  updated_at TEXT NOT NULL,
-  slug TEXT
-);
-
 CREATE TABLE IF NOT EXISTS thinking_posts (
   slug TEXT PRIMARY KEY,
   text TEXT NOT NULL DEFAULT '',
@@ -68,12 +59,6 @@ CREATE TABLE IF NOT EXISTS thinking_posts (
   media_alt TEXT,
   content_html TEXT,
   datetime TEXT NOT NULL,
-  microblog_url TEXT,
-  created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS thinking_syndication (
-  slug TEXT PRIMARY KEY,
   microblog_url TEXT,
   bluesky_uri TEXT,
   created_at TEXT NOT NULL

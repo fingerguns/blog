@@ -17,6 +17,12 @@ cd worker
 wrangler d1 execute rommy-blog-db --file=schema.sql --remote
 ```
 
+If upgrading from an older install with `thinking` / `thinking_syndication` tables:
+
+```bash
+wrangler d1 execute rommy-blog-db --file=migrate-thinking-consolidate.sql --remote
+```
+
 Migrate existing content from `data/posts.json`:
 
 ```bash
@@ -54,15 +60,12 @@ In Pages project settings → Environment variables, add:
 Build command: `node build-pages.mjs`  
 Output directory: `dist`
 
-### GitHub secret (hourly rebuild)
-
-Add `PAGES_DEPLOY_HOOK` to GitHub repo secrets (same URL as worker secret).
-
 ## Admin actions
 
 | Action | Description |
 |---|---|
 | `thinking` | Update thinking text in D1 |
+| `list-thinking` | List Thinking archive from D1 |
 | `post` | Publish new writing post |
 | `edit-post` | Edit post (saves version history) |
 | `delete-post` | Delete a published writing post |

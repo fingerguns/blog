@@ -996,14 +996,18 @@
 
       // ── Thinking form ──────────────────────────────────────────────────────
 
-      function thinkingSlugFromIso(iso) {
-        return iso.slice(0, 10) + "-" + iso.slice(11, 13) + iso.slice(14, 16);
-      }
-
-      function stripThinkingHtml(html) {
-        var d = document.createElement("div");
-        d.innerHTML = html || "";
-        return (d.textContent || "").replace(/\s+/g, " ").trim();
+      function formatThinkingDate(iso) {
+        var d = new Date(iso);
+        return (
+          new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(d) +
+          " // " +
+          new Intl.DateTimeFormat("en-US", {
+            timeZone: "America/New_York",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          }).format(d)
+        );
       }
 
       async function loadThinkingArchive() {
@@ -1019,20 +1023,16 @@
         list.innerHTML = '<li><span class="admin-hint">Loading…</span></li>';
         if (status) status.hidden = true;
         try {
-          var res = await fetch("https://rommy.micro.blog/feed.json");
-          if (!res.ok) throw new Error("Could not load archive");
-          var data = await res.json();
-          var items = (data.items || []).filter(function (item) {
-            return item.content_html && item.date_published && item.date_published >= "2026";
-          });
+          var data = await callAPI({ action: "list-thinking" });
+          var items = data.items || [];
           list.innerHTML = "";
           if (!items.length) {
             list.innerHTML = '<li><span class="admin-hint">No posts yet.</span></li>';
             return;
           }
-          items.slice(0, 30).forEach(function (item) {
-            var slug = thinkingSlugFromIso(item.date_published);
-            var label = stripThinkingHtml(item.content_html).slice(0, 120) || slug;
+          items.forEach(function (item) {
+            var slug = item.slug;
+            var label = item.label || slug;
             var li = document.createElement("li");
             var main = document.createElement("div");
             main.className = "draft-item-main";
@@ -1041,7 +1041,7 @@
             titleEl.textContent = label;
             var dateEl = document.createElement("div");
             dateEl.className = "draft-item-date";
-            dateEl.textContent = item.date_published.slice(0, 10) + " // " + item.date_published.slice(11, 16);
+            dateEl.textContent = formatThinkingDate(item.datetime);
             main.appendChild(titleEl);
             main.appendChild(dateEl);
             var del = document.createElement("a");

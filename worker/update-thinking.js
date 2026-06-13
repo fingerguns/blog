@@ -1,3 +1,8 @@
+import { thinkingSlugFromDate } from "../scripts/lib/thinking-slug.mjs";
+import { escHtml } from "../scripts/lib/html.mjs";
+import { coalesceImageParagraphsHtml } from "../scripts/lib/coalesce-images.mjs";
+import { renderThinkingContentHtml } from "../scripts/lib/thinking-html.mjs";
+
 /**
  * Cloudflare Worker: admin API for rommy.blog
  *
@@ -104,7 +109,11 @@ export default {
     }
 
     if (action === "thinking") {
-      return handleThinking(payload, db, cors, env, ctx);
+      return handleThinking(payload, db, cors, env);
+    }
+
+    if (action === "list-thinking") {
+      return handleListThinking(db, cors);
     }
 
     if (action === "post") {
@@ -156,7 +165,7 @@ export default {
     }
 
     if (action === "delete-thinking") {
-      return handleDeleteThinking(payload, db, cors, env, ctx);
+      return handleDeleteThinking(payload, db, cors, env);
     }
 
     return json({ error: "Unknown action" }, 400, cors);
@@ -346,7 +355,7 @@ async function parseRequest(request) {
 
 // ─── Thinking ────────────────────────────────────────────────────────────────
 
-async function handleThinking(payload, db, cors, env, ctx) {
+async function handleThinking(payload, db, cors, env) {
   const text = typeof payload.text === "string" ? payload.text.trim() : "";
   const photo = payload.photo || null;
 
@@ -358,8 +367,6 @@ async function handleThinking(payload, db, cors, env, ctx) {
   }
 
   try {
-    await ensureThinkingSyndicationTable(db);
-
     let mediaUrl = null;
     let mediaAlt = text.slice(0, 1000) || "";
     let uploadedForBluesky = null;
@@ -380,23 +387,6 @@ async function handleThinking(payload, db, cors, env, ctx) {
     const now = new Date();
     const nowIso = now.toISOString();
     const slug = thinkingSlugFromDate(now);
-
-    await dbRun(
-      db,
-      `INSERT INTO thinking (id, text, media_url, media_alt, updated_at, slug)
-       VALUES (1, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
-         text = excluded.text,
-         media_url = excluded.media_url,
-         media_alt = excluded.media_alt,
-         updated_at = excluded.updated_at,
-         slug = excluded.slug`,
-      text,
-      mediaUrl,
-      mediaAlt,
-      nowIso,
-      slug
-    );
 
     let microblogUrl = null;
     let microblogWarning = null;
@@ -432,31 +422,18 @@ async function handleThinking(payload, db, cors, env, ctx) {
       }
     }
 
-    await dbRun(
-      db,
-      `INSERT INTO thinking_syndication (slug, microblog_url, bluesky_uri, created_at)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(slug) DO UPDATE SET
-         microblog_url = COALESCE(excluded.microblog_url, thinking_syndication.microblog_url),
-         bluesky_uri = COALESCE(excluded.bluesky_uri, thinking_syndication.bluesky_uri),
-         created_at = excluded.created_at`,
-      slug,
-      microblogUrl,
-      blueskyUri,
-      nowIso
-    );
-
     const contentHtml = renderThinkingContentHtml(text, mediaUrl, mediaAlt);
     await dbRun(
       db,
-      `INSERT INTO thinking_posts (slug, text, media_url, media_alt, content_html, datetime, microblog_url, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO thinking_posts (slug, text, media_url, media_alt, content_html, datetime, microblog_url, bluesky_uri, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(slug) DO UPDATE SET
          text = excluded.text,
          media_url = excluded.media_url,
          media_alt = excluded.media_alt,
          content_html = excluded.content_html,
          microblog_url = COALESCE(excluded.microblog_url, thinking_posts.microblog_url),
+         bluesky_uri = COALESCE(excluded.bluesky_uri, thinking_posts.bluesky_uri),
          datetime = excluded.datetime`,
       slug,
       text,
@@ -465,15 +442,11 @@ async function handleThinking(payload, db, cors, env, ctx) {
       contentHtml,
       nowIso,
       microblogUrl,
+      blueskyUri,
       nowIso
     );
 
     await triggerRebuild(env);
-    if (ctx) {
-      ctx.waitUntil(
-        new Promise((r) => setTimeout(r, 90000)).then(() => triggerRebuild(env))
-      );
-    }
 
     return json(
       {
@@ -490,6 +463,34 @@ async function handleThinking(payload, db, cors, env, ctx) {
   } catch (err) {
     return json({ error: formatServiceError("rommy.blog", err.message) }, 500, cors);
   }
+}
+
+async function handleListThinking(db, cors) {
+  const rows = await dbAll(
+    db,
+    `SELECT slug, text, content_html, datetime, microblog_url
+     FROM thinking_posts
+     ORDER BY datetime DESC
+     LIMIT 50`
+  );
+  const items = rows.map((row) => ({
+    slug: row.slug,
+    datetime: row.datetime,
+    label: thinkingArchiveLabel(row),
+    microblog_url: row.microblog_url || "",
+  }));
+  return json({ ok: true, items }, 200, cors);
+}
+
+function thinkingArchiveLabel(row) {
+  const text = (row.text || "").trim();
+  if (text) return text.slice(0, 120);
+  const plain = String(row.content_html || "")
+    .replace(/<img[^>]*>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return plain.slice(0, 120) || row.slug;
 }
 
 function formatServiceError(service, message) {
@@ -818,7 +819,7 @@ async function postToBluesky(handle, appPassword, content, image = null) {
     text,
     createdAt: new Date().toISOString(),
     ...(embed ? { embed } : {}),
-    ...(!embed && facets.length ? { facets } : {}),
+    ...(facets.length ? { facets } : {}),
   };
 
   const postRes = await fetch(
@@ -843,46 +844,6 @@ async function postToBluesky(handle, appPassword, content, image = null) {
   }
   const created = await postRes.json();
   return created.uri || null;
-}
-
-function thinkingSlugFromDate(date) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).formatToParts(date);
-  const get = (type) => parts.find((p) => p.type === type)?.value || "";
-  return `${get("year")}-${get("month")}-${get("day")}-${get("hour")}${get("minute")}`;
-}
-
-function renderThinkingContentHtml(text, mediaUrl, mediaAlt) {
-  const t = (text || "").trim();
-  const parts = [];
-  if (t) {
-    for (const para of t.split(/\n\n+/).filter(Boolean)) {
-      parts.push(`<p>${escHtml(para).replace(/\n/g, "<br>")}</p>`);
-    }
-  }
-  if (mediaUrl) {
-    parts.push(`<img src="${escHtml(mediaUrl)}" alt="${escHtml(mediaAlt || "Photo")}" loading="lazy" decoding="async" />`);
-  }
-  return parts.join("\n");
-}
-
-async function ensureThinkingSyndicationTable(db) {
-  await dbRun(
-    db,
-    `CREATE TABLE IF NOT EXISTS thinking_syndication (
-      slug TEXT PRIMARY KEY,
-      microblog_url TEXT,
-      bluesky_uri TEXT,
-      created_at TEXT NOT NULL
-    )`
-  );
 }
 
 async function deleteFromMicroblog(token, url) {
@@ -928,7 +889,7 @@ async function deleteFromBluesky(handle, appPassword, uri) {
   }
 }
 
-async function handleDeleteThinking(payload, db, cors, env, ctx) {
+async function handleDeleteThinking(payload, db, cors, env) {
   const rawSlug = payload.slug;
   if (typeof rawSlug !== "string" || !rawSlug.trim()) {
     return json({ error: "Missing slug" }, 400, cors);
@@ -942,15 +903,16 @@ async function handleDeleteThinking(payload, db, cors, env, ctx) {
     typeof payload.microblog_url === "string" ? payload.microblog_url.trim() : "";
 
   try {
-    await ensureThinkingSyndicationTable(db);
-
-    const synd = await dbFirst(
+    const row = await dbFirst(
       db,
-      "SELECT microblog_url, bluesky_uri FROM thinking_syndication WHERE slug = ?",
+      "SELECT microblog_url, bluesky_uri FROM thinking_posts WHERE slug = ?",
       slug
     );
-    const mbUrl = microblogUrl || synd?.microblog_url || null;
-    const blueskyUri = synd?.bluesky_uri || null;
+    if (!row) {
+      return json({ error: "Post not found" }, 404, cors);
+    }
+    const mbUrl = microblogUrl || row.microblog_url || null;
+    const blueskyUri = row.bluesky_uri || null;
 
     let microblogWarning = null;
     if (env.MICROBLOG_TOKEN && mbUrl) {
@@ -982,26 +944,9 @@ async function handleDeleteThinking(payload, db, cors, env, ctx) {
       }
     }
 
-    const current = await dbFirst(db, "SELECT slug FROM thinking WHERE id = 1");
-    if (current?.slug === slug) {
-      await dbRun(
-        db,
-        `UPDATE thinking
-         SET text = '', media_url = NULL, media_alt = '', slug = NULL, updated_at = ?
-         WHERE id = 1`,
-        new Date().toISOString()
-      );
-    }
-
-    await dbRun(db, "DELETE FROM thinking_syndication WHERE slug = ?", slug);
     await dbRun(db, "DELETE FROM thinking_posts WHERE slug = ?", slug);
 
     await triggerRebuild(env);
-    if (ctx) {
-      ctx.waitUntil(
-        new Promise((r) => setTimeout(r, 90000)).then(() => triggerRebuild(env))
-      );
-    }
 
     return json(
       {
@@ -1442,14 +1387,6 @@ function json(data, status, cors, extraHeaders = {}) {
   });
 }
 
-function escHtml(s) {
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 function cleanBodyHtml(raw) {
   let html = raw.replace(/(<p><br\s*\/?><\/p>)+/g, "").trim();
   html = html.replace(/(<br\s*\/?>\s*){2,}/g, "</p><p>");
@@ -1458,19 +1395,6 @@ function cleanBodyHtml(raw) {
   html = html.replace(/<p>\s*<\/p>/g, "");
   html = coalesceImageParagraphsHtml(html);
   return html.trim();
-}
-
-/** Merge image-only <p> with the following <p> so floats wrap text (same as admin). */
-function coalesceImageParagraphsHtml(html) {
-  const imgPara =
-    /<p>(?:\s*)<img([^>]*class="[^"]*post-photo[^"]*"[^>]*)>(?:\s*(?:\u200b|&#8203;|&ZeroWidthSpace;)?\s*)<\/p>\s*<p>((?:(?!<\/p>).)+)<\/p>/gi;
-  let prev = "";
-  let out = html;
-  while (out !== prev) {
-    prev = out;
-    out = out.replace(imgPara, "<p><img$1>$2</p>");
-  }
-  return out;
 }
 
 function toSlug(s) {

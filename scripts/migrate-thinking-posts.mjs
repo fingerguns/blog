@@ -14,6 +14,7 @@ import { execSync } from "node:child_process";
 import { writeFileSync, unlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { thinkingSlugFromIso } from "./lib/thinking-slug.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
@@ -21,10 +22,6 @@ const DB_NAME = "rommy-blog-db";
 
 function escSql(s) {
   return String(s ?? "").replace(/'/g, "''");
-}
-
-function mbSlug(iso) {
-  return `${iso.slice(0, 10)}-${iso.slice(11, 13)}${iso.slice(14, 16)}`;
 }
 
 function extractText(html) {
@@ -70,7 +67,7 @@ console.log(`Found ${items.length} items.`);
 
 const lines = [];
 for (const item of items) {
-  const slug = mbSlug(item.date_published);
+  const slug = thinkingSlugFromIso(item.date_published);
   const contentHtml = innerHtml(item.content_html);
   const text = extractText(item.content_html);
   const mediaUrl = extractImgSrc(item.content_html) || null;

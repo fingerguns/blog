@@ -458,7 +458,21 @@ h2 {
   cursor: zoom-in;
   transition: width 0.2s ease, max-width 0.2s ease;
 }
-.microblog-body a { color: var(--link); }
+.post-list .microblog-body a,
+.microblog-body a {
+  color: var(--link);
+  font-weight: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-underline-offset: 0.2em;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+
+.post-list .microblog-body a:hover,
+.microblog-body a:hover {
+  color: var(--link-hover);
+  text-decoration-color: currentColor;
+}
 
 /* Quill alignment classes (used in rich-text post bodies) */
 .ql-align-center { text-align: center; }

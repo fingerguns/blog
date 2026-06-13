@@ -3,3 +3,16 @@ worker/node_modules/
 worker/.wrangler/
 .wrangler/
 dist/
+
+# Generated site output (built into dist/ only)
+/index.html
+/feed.xml
+/robots.txt
+/sitemap.xml
+/changelog/
+/now/
+/posts/
+/thinking/
+/writing/
+/reading/
+/sharing/

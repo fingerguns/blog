@@ -4,13 +4,16 @@
  * Run from project root: node scripts/build.mjs
  */
 import { execSync } from "node:child_process";
-import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { d1Configured, loadBlogDataFromD1 } from "./d1-client.mjs";
+import { escHtml, escXml } from "./lib/html.mjs";
+import { thinkingSlugFromIso } from "./lib/thinking-slug.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
+const outDir = join(root, process.env.BUILD_OUT_DIR || "dist");
 const cssV = new Date().toISOString().slice(0, 10);
 
 let data;
@@ -41,15 +44,6 @@ const sortDesc = (a, b) => {
   return String(a.slug || "").localeCompare(String(b.slug || ""));
 };
 const ordered = [...posts].sort(sortDesc);
-
-function escXml(s) {
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
 
 const GA_ID = "G-L1CC5F3DP8";
 const gaSnippet = `    <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_ID}"></script>
@@ -173,16 +167,6 @@ const thinkingDeletePanelHtml = `      <div id="thinking-delete-panel" class="th
         </div>
       </div>`;
 
-function escHtml(s) {
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-// Wraps bare URLs in <a> tags. Must run after escHtml() so we only match
-// real URLs, not anything inside existing HTML attributes.
 function autoLink(html) {
   return html.replace(/https?:\/\/[^\s<>"]+/g, (url) => {
     // Strip trailing punctuation that's likely not part of the URL
@@ -711,12 +695,11 @@ const formatMbDate = (iso) => {
   const d = new Date(iso);
   return `${etDateFmt.format(d)} // ${etTimeFmt.format(d)}`;
 };
-// Slug stays UTC-based so existing URLs don't break
-const mbSlug = (iso) => `${iso.slice(0, 10)}-${iso.slice(11, 13)}${iso.slice(14, 16)}`;
+const thinkingSlug = (item) => item._slug || thinkingSlugFromIso(item.date_published);
 
-const thinkingPostHead = (iso, item) => {
+const thinkingPostHead = (iso, item, slug) => {
   const pageTitle = `${formatMbDate(iso)} — ${site.title}`;
-  const pageUrl = `${base}/thinking/${mbSlug(iso)}/`;
+  const pageUrl = `${base}/thinking/${slug}/`;
   const og = thinkingOgFromItem(item);
   return `<!DOCTYPE html>
 <html lang="en">
@@ -737,7 +720,7 @@ ${ogMetaTags({
 ${gaSnippet}
   </head>
   <body>
-    <article class="post microblog-entry" data-slug="${escHtml(mbSlug(iso))}" data-microblog-url="${escHtml(item.url || "")}">
+    <article class="post microblog-entry" data-slug="${escHtml(slug)}" data-microblog-url="${escHtml(item.url || "")}">
       <a class="post-back" href="/thinking/">←</a>`;
 };
 
@@ -755,7 +738,7 @@ ${thinkingDeleteConfirmScript}
 
 const microblogEntriesHtml = microblogItems.length > 0
   ? microblogItems.map((item) => {
-      const slug = (item._slug || mbSlug(item.date_published));
+      const slug = thinkingSlug(item);
       return `        <div class="microblog-entry" data-slug="${escHtml(slug)}" data-microblog-url="${escHtml(item.url || "")}">
           <div class="microblog-body">${item.content_html}</div>
           <time class="post-date" datetime="${escHtml(item.date_published)}"><a href="/thinking/${escHtml(slug)}/">${escHtml(formatMbDate(item.date_published))}</a></time>
@@ -784,7 +767,7 @@ const urls = [
   `${base}/now/`,
   `${base}/changelog/`,
   `${base}/thinking/`,
-  ...microblogItems.map((item) => `${base}/thinking/${(item._slug || mbSlug(item.date_published))}/`),
+  ...microblogItems.map((item) => `${base}/thinking/${thinkingSlug(item)}/`),
   ...archiveUrls,
   ...ordered.map((p) => `${base}/posts/${safeSlug(p.slug)}/`),
 ];
@@ -801,18 +784,19 @@ ${urls
 </urlset>
 `;
 
-writeFileSync(join(root, "index.html"), indexHtml, "utf8");
-writeFileSync(join(root, "feed.xml"), feedXml, "utf8");
-writeFileSync(join(root, "robots.txt"), robotsTxt, "utf8");
-writeFileSync(join(root, "sitemap.xml"), sitemapXml, "utf8");
+rmSync(outDir, { recursive: true, force: true });
+mkdirSync(outDir, { recursive: true });
+
+writeFileSync(join(outDir, "index.html"), indexHtml, "utf8");
+writeFileSync(join(outDir, "feed.xml"), feedXml, "utf8");
+writeFileSync(join(outDir, "robots.txt"), robotsTxt, "utf8");
+writeFileSync(join(outDir, "sitemap.xml"), sitemapXml, "utf8");
 
 // Archive pages: written when section exceeds MAX_PER_SECTION, removed when it doesn't
 const manageArchive = (needed, dir, html) => {
   if (needed) {
-    mkdirSync(join(root, dir), { recursive: true });
-    writeFileSync(join(root, dir, "index.html"), html, "utf8");
-  } else {
-    rmSync(join(root, dir), { recursive: true, force: true });
+    mkdirSync(join(outDir, dir), { recursive: true });
+    writeFileSync(join(outDir, dir, "index.html"), html, "utf8");
   }
 };
 
@@ -820,42 +804,40 @@ manageArchive(hasMorePosts, "writing", writingPageHtml);
 manageArchive(hasMoreReading, "reading", readingPageHtml);
 manageArchive(hasMoreLinklog, "sharing", sharingPageHtml);
 
-mkdirSync(join(root, "now"), { recursive: true });
-writeFileSync(join(root, "now/index.html"), nowPageHtml, "utf8");
+mkdirSync(join(outDir, "now"), { recursive: true });
+writeFileSync(join(outDir, "now/index.html"), nowPageHtml, "utf8");
 
-mkdirSync(join(root, "changelog"), { recursive: true });
-writeFileSync(join(root, "changelog/index.html"), changelogPageHtml, "utf8");
+mkdirSync(join(outDir, "changelog"), { recursive: true });
+writeFileSync(join(outDir, "changelog/index.html"), changelogPageHtml, "utf8");
 
-mkdirSync(join(root, "thinking"), { recursive: true });
-for (const ent of readdirSync(join(root, "thinking"))) {
-  const entPath = join(root, "thinking", ent);
-  if (ent !== "index.html" && statSync(entPath).isDirectory()) {
-    rmSync(entPath, { recursive: true, force: true });
-  }
-}
-writeFileSync(join(root, "thinking/index.html"), microblogPageHtml, "utf8");
-rmSync(join(root, "microblog"), { recursive: true, force: true });
+mkdirSync(join(outDir, "thinking"), { recursive: true });
+writeFileSync(join(outDir, "thinking/index.html"), microblogPageHtml, "utf8");
 
 // Individual thinking post pages
 for (const item of microblogItems) {
-  const slug = (item._slug || mbSlug(item.date_published));
-  const postHtml = `${thinkingPostHead(item.date_published, item)}
+  const slug = thinkingSlug(item);
+  const postHtml = `${thinkingPostHead(item.date_published, item, slug)}
       <div class="microblog-body" style="margin-top:1.5rem">${item.content_html}</div>
       <time class="post-date" style="display:block;margin-top:0.75rem" datetime="${escHtml(item.date_published)}">${escHtml(formatMbDate(item.date_published))}</time>
 ${thinkingDeletePanelHtml}
 ${thinkingPostFoot}`;
-  mkdirSync(join(root, "thinking", slug), { recursive: true });
-  writeFileSync(join(root, "thinking", slug, "index.html"), postHtml, "utf8");
+  mkdirSync(join(outDir, "thinking", slug), { recursive: true });
+  writeFileSync(join(outDir, "thinking", slug, "index.html"), postHtml, "utf8");
 }
 
-// Writing post pages — generated from D1; skip when using posts.json fallback
-if (d1Configured()) {
-  rmSync(join(root, "posts"), { recursive: true, force: true });
-  for (const p of ordered) {
-    const slug = safeSlug(p.slug);
-    mkdirSync(join(root, "posts", slug), { recursive: true });
-    writeFileSync(join(root, "posts", slug, "index.html"), renderPostPage(p), "utf8");
+// Writing post pages
+for (const p of ordered) {
+  const slug = safeSlug(p.slug);
+  mkdirSync(join(outDir, "posts", slug), { recursive: true });
+  writeFileSync(join(outDir, "posts", slug, "index.html"), renderPostPage(p), "utf8");
+}
+
+const STATIC_ENTRIES = ["styles.css", "favicon.png", "about", "admin", "colophon", "contact"];
+for (const entry of STATIC_ENTRIES) {
+  const src = join(root, entry);
+  if (existsSync(src)) {
+    cpSync(src, join(outDir, entry), { recursive: true });
   }
 }
 
-console.log("Wrote index.html, feed.xml, robots.txt, sitemap.xml, now/index.html, changelog/index.html, thinking/, and posts/");
+console.log(`Wrote ${outDir}/ (generated pages + static assets)`);

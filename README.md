@@ -26,7 +26,7 @@ Admin (Pages) → Worker API → D1 (write) + R2 (photos)
 Pages build → D1 HTTP API (read) → scripts/build.mjs → dist/ → rommy.blog
 ```
 
-The Thinking **archive** is built from Micro.blog’s JSON feed at deploy time so older notes stay in sync with your timeline there. The homepage Thinking section comes from D1 (including R2 images). External links in Thinking are not unfurled at build time — only basic `<a>` tags in the HTML.
+The Thinking **archive** and permalink pages are built from the `thinking_posts` table in D1 at deploy time (same source as the homepage blurb). Slugs use US Eastern time. External links in Thinking are not unfurled at build time — only basic `<a>` tags in the HTML.
 
 Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on their own platforms when you include links there.
 
@@ -35,13 +35,14 @@ Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on the
 | Path | Purpose |
 |------|---------|
 | `admin/` | Admin UI (static HTML + JS) |
-| `scripts/build.mjs` | Regenerates homepage, feed, posts, thinking pages, changelog |
+| `scripts/build.mjs` | Regenerates site into `dist/` |
+| `scripts/lib/` | Shared HTML, slug, and thinking helpers (build + Worker) |
 | `scripts/d1-client.mjs` | D1 queries for local/Pages builds |
-| `build-pages.mjs` | Cloudflare Pages entrypoint (build + copy to `dist/`) |
+| `build-pages.mjs` | Cloudflare Pages entrypoint (git unshallow + build) |
 | `worker/` | Cloudflare Worker (`update-thinking.js`) — admin API |
 | `data/posts.json` | Legacy fallback if D1 env vars are not set |
 | `styles.css` | Site styles (light/dark) |
-| `posts/`, `thinking/` | Generated HTML (committed so the repo is browsable without D1) |
+| `about/`, `admin/`, `colophon/`, `contact/` | Hand-authored static pages (copied into `dist/` at build) |
 
 ## Requirements
 
@@ -53,7 +54,10 @@ Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on the
 
 ```bash
 npm run build
+npm run preview   # serves dist/ at http://localhost:3000
 ```
+
+Output goes to **`dist/`** (gitignored). Generated HTML is not committed; CI/Pages builds from source + D1.
 
 Reads from D1 when these env vars are set:
 
@@ -83,7 +87,7 @@ Set the same `CF_*` variables in the Pages project (Production environment).
 
 The build expands shallow Git clones when possible so the changelog has enough history.
 
-Deploys run on push to `main`. A scheduled GitHub Action (`.github/workflows/build.yml`) can also POST a **Pages deploy hook** once per hour as a backup.
+Deploys run on push to `main`. The Worker triggers a Pages rebuild via deploy hook after each content change. You can also run the **Manual rebuild** GitHub Action (`workflow_dispatch`) if needed.
 
 ## Cloudflare Worker
 
@@ -115,6 +119,7 @@ wrangler deploy
 | Action | Description |
 |--------|-------------|
 | `thinking` | Update Thinking text/photo in D1; optional Micro.blog + Bluesky |
+| `list-thinking` | List Thinking archive from D1 (admin) |
 | `upload-media` | Upload image to R2 (`thinking/` or `writing/`) |
 | `post` | Publish Writing post |
 | `edit-post` | Edit post (version history) |

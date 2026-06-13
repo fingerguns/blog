@@ -3,6 +3,7 @@
   "private": true,
   "description": "Static minimalist blog with Atom feed; optional Node build for index + feed",
   "scripts": {
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "preview": "npx serve dist -p 3000"
   }
 }
