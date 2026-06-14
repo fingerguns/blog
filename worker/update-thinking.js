@@ -48,7 +48,7 @@ export default {
       .filter(Boolean);
 
     const origin = request.headers.get("Origin") || "";
-    const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+    const corsOrigin = resolveCorsOrigin(origin, allowedOrigins);
 
     const cors = {
       "Access-Control-Allow-Origin": corsOrigin,
@@ -173,6 +173,14 @@ export default {
 };
 
 // ─── Auth hardening ───────────────────────────────────────────────────────────
+
+function resolveCorsOrigin(origin, allowedOrigins) {
+  if (!origin) return allowedOrigins[0];
+  if (allowedOrigins.includes(origin)) return origin;
+  if (/^https:\/\/([a-z0-9-]+\.)*rommy-blog\.pages\.dev$/i.test(origin)) return origin;
+  if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) return origin;
+  return allowedOrigins[0];
+}
 
 class RateLimitError extends Error {
   constructor(retryAfterSec) {
@@ -466,14 +474,14 @@ async function handleThinking(payload, db, cors, env) {
 }
 
 async function handleListThinking(db, cors) {
-  const rows = await dbAll(
+  const { results: rows } = await dbAll(
     db,
     `SELECT slug, text, content_html, datetime, microblog_url
      FROM thinking_posts
      ORDER BY datetime DESC
      LIMIT 50`
   );
-  const items = rows.map((row) => ({
+  const items = (rows || []).map((row) => ({
     slug: row.slug,
     datetime: row.datetime,
     label: thinkingArchiveLabel(row),

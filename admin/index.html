@@ -672,7 +672,8 @@
     <script>
       const API_URL = (function () {
         var h = location.hostname;
-        if (h === "localhost" || h === "127.0.0.1") {
+        if (h === "rommy.blog") return "/api/admin";
+        if (h === "localhost" || h === "127.0.0.1" || h.endsWith(".pages.dev")) {
           return "https://rommy-blog-admin.fingerguns.workers.dev";
         }
         return "/api/admin";
@@ -863,7 +864,22 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(Object.assign({ password: pw }, payload)),
         });
-        var data = await res.json();
+        var ct = (res.headers.get("content-type") || "").toLowerCase();
+        var text = await res.text();
+        if (!text || ct.indexOf("json") === -1) {
+          throw new Error(
+            "API returned an unexpected response (HTTP " + res.status + "). " +
+              (API_URL.indexOf("workers.dev") !== -1
+                ? "Check that the Worker is deployed."
+                : "Try again from rommy.blog/admin/.")
+          );
+        }
+        var data;
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          throw new Error("Could not parse API response.");
+        }
         if (!res.ok) throw new Error(data.error || "Request failed");
         return data;
       }
