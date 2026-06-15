@@ -67,6 +67,27 @@
         min-height: 7rem;
         resize: vertical;
         line-height: 1.55;
+        margin-bottom: 0.35rem;
+      }
+      .thinking-char-count {
+        margin: 0 0 1.25rem;
+        text-align: right;
+        font-size: 0.75rem;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+      .thinking-char-count.near-limit {
+        color: #b44;
+      }
+      [data-theme="dark"] .thinking-char-count.near-limit {
+        color: #e88;
+      }
+      .thinking-char-count.at-limit {
+        color: #b44;
+        font-weight: 600;
+      }
+      [data-theme="dark"] .thinking-char-count.at-limit {
+        color: #e88;
       }
       .admin-form textarea.body-field {
         min-height: 18rem;
@@ -547,6 +568,7 @@
         <form class="admin-form" id="thinking-form">
           <label for="t-text">Thought</label>
           <textarea id="t-text" maxlength="2000" placeholder="What's on your mind? (optional if you add a photo)"></textarea>
+          <p id="t-char-count" class="thinking-char-count" aria-live="polite">0 / 2000</p>
 
           <div class="thinking-photo-upload">
             <input
@@ -1099,14 +1121,30 @@
       }
 
       (function () {
+        var THINKING_MAX = 2000;
         var form = document.getElementById("thinking-form");
         var status = document.getElementById("t-status");
         var submit = document.getElementById("t-submit");
+        var textInput = document.getElementById("t-text");
+        var charCount = document.getElementById("t-char-count");
         var photoInput = document.getElementById("t-photo");
         var preview = document.getElementById("t-photo-preview");
         var photoWarn = document.getElementById("t-photo-warn");
         var photoRemove = document.getElementById("t-photo-remove");
         var photoName = document.getElementById("t-photo-name");
+
+        function updateThinkingCharCount() {
+          if (!charCount || !textInput) return;
+          var n = textInput.value.length;
+          charCount.textContent = n + " / " + THINKING_MAX;
+          charCount.classList.toggle("at-limit", n >= THINKING_MAX);
+          charCount.classList.toggle("near-limit", n >= THINKING_MAX - 100 && n < THINKING_MAX);
+        }
+
+        if (textInput) {
+          textInput.addEventListener("input", updateThinkingCharCount);
+          updateThinkingCharCount();
+        }
 
         function clearThinkingPhoto() {
           photoInput.value = "";
@@ -1150,7 +1188,7 @@
 
         form.addEventListener("submit", async function (e) {
           e.preventDefault();
-          var text = document.getElementById("t-text").value.trim();
+          var text = textInput.value.trim();
           var file = photoInput.files && photoInput.files[0];
           if (!text && !file) {
             showStatus(status, "Add text or a photo.", true);
@@ -1173,13 +1211,14 @@
               blueskyFile = await compressPhotoForBluesky(file);
             }
             var result = await callThinkingAPI(
-              document.getElementById("t-text").value,
+              textInput.value,
               file || null,
               blueskyFile
             );
             var out = formatThinkingSaveStatus(result);
             showStatus(status, out.text, false, !out.warn, out.warn);
-            document.getElementById("t-text").value = "";
+            textInput.value = "";
+            updateThinkingCharCount();
             clearThinkingPhoto();
             loadThinkingArchive();
           } catch (err) {
