@@ -373,6 +373,7 @@ async function handleThinking(payload, db, cors, env) {
   if (text.length > 2000) {
     return json({ error: "Text must be 2000 characters or fewer" }, 400, cors);
   }
+  // Bluesky cross-post truncates at 300; admin shows a soft 300-char guide.
 
   try {
     let mediaUrl = null;

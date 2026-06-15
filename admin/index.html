@@ -77,17 +77,11 @@
         font-variant-numeric: tabular-nums;
         flex-shrink: 0;
       }
-      .thinking-char-count.near-limit {
-        color: #b44;
-      }
-      [data-theme="dark"] .thinking-char-count.near-limit {
-        color: #e88;
-      }
-      .thinking-char-count.at-limit {
+      .thinking-char-count.over-limit {
         color: #b44;
         font-weight: 600;
       }
-      [data-theme="dark"] .thinking-char-count.at-limit {
+      [data-theme="dark"] .thinking-char-count.over-limit {
         color: #e88;
       }
       .admin-form textarea.body-field {
@@ -580,7 +574,7 @@
 
         <form class="admin-form" id="thinking-form">
           <label for="t-text">Thought</label>
-          <textarea id="t-text" maxlength="2000" placeholder="What's on your mind? (optional if you add a photo)"></textarea>
+          <textarea id="t-text" placeholder="What's on your mind? (optional if you add a photo)"></textarea>
 
           <div class="thinking-meta-row">
             <div class="thinking-photo-upload">
@@ -601,7 +595,7 @@
                 <span id="t-photo-name" class="thinking-photo-name">No file chosen</span>
               </div>
             </div>
-            <p id="t-char-count" class="thinking-char-count" aria-live="polite">0 / 2000</p>
+            <p id="t-char-count" class="thinking-char-count" aria-live="polite">0 / 300</p>
           </div>
           <p id="t-photo-warn" hidden></p>
           <img id="t-photo-preview" class="thinking-photo-preview" alt="" hidden />
@@ -1136,7 +1130,7 @@
       }
 
       (function () {
-        var THINKING_MAX = 2000;
+        var THINKING_SOFT_MAX = 300;
         var form = document.getElementById("thinking-form");
         var status = document.getElementById("t-status");
         var submit = document.getElementById("t-submit");
@@ -1151,9 +1145,8 @@
         function updateThinkingCharCount() {
           if (!charCount || !textInput) return;
           var n = textInput.value.length;
-          charCount.textContent = n + " / " + THINKING_MAX;
-          charCount.classList.toggle("at-limit", n >= THINKING_MAX);
-          charCount.classList.toggle("near-limit", n >= THINKING_MAX - 100 && n < THINKING_MAX);
+          charCount.textContent = n + " / " + THINKING_SOFT_MAX;
+          charCount.classList.toggle("over-limit", n > THINKING_SOFT_MAX);
         }
 
         if (textInput) {
