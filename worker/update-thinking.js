@@ -493,13 +493,13 @@ async function handleListThinking(db, cors) {
 
 function thinkingArchiveLabel(row) {
   const text = (row.text || "").trim();
-  if (text) return text.slice(0, 120);
+  if (text) return text;
   const plain = String(row.content_html || "")
     .replace(/<img[^>]*>/gi, "")
     .replace(/<[^>]+>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  return plain.slice(0, 120) || row.slug;
+  return plain || row.slug;
 }
 
 function formatServiceError(service, message) {
