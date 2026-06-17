@@ -80,6 +80,8 @@ Point `admin/index.html`’s `API_URL` at your dev Worker URL if needed.
 
 ## Cloudflare Pages
 
+**Hosting:** [rommy.blog](https://rommy.blog) is served by **Cloudflare Pages** only — not GitHub Pages. Custom domain and DNS live in Cloudflare; there is no root `CNAME` file in this repo (that file was a GitHub Pages leftover). If the repo still has `rommy.blog` under GitHub → **Settings** → **Pages**, remove it there to stop domain-verification emails from GitHub.
+
 **Build command:** `node build-pages.mjs`  
 **Output directory:** `dist`
 
