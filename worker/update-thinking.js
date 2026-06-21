@@ -1,6 +1,7 @@
 import { thinkingSlugFromDate } from "../scripts/lib/thinking-slug.mjs";
 import { escHtml } from "../scripts/lib/html.mjs";
 import { coalesceImageParagraphsHtml } from "../scripts/lib/coalesce-images.mjs";
+import { addHashtagFacets } from "../scripts/lib/linkify.mjs";
 import { renderThinkingContentHtml } from "../scripts/lib/thinking-html.mjs";
 
 /**
@@ -793,6 +794,8 @@ async function postToBluesky(handle, appPassword, content, image = null) {
       });
     }
   }
+
+  addHashtagFacets(text, facets, enc);
 
   let embed;
   if (image) {

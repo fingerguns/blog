@@ -9,6 +9,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { d1Configured, loadBlogDataFromD1 } from "./d1-client.mjs";
 import { escHtml, escXml } from "./lib/html.mjs";
+import { renderThinkingContentHtml } from "./lib/thinking-html.mjs";
 import { thinkingSlugFromIso } from "./lib/thinking-slug.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -167,23 +168,6 @@ const thinkingDeletePanelHtml = `      <div id="thinking-delete-panel" class="th
         </div>
       </div>`;
 
-function autoLink(html) {
-  return html.replace(/https?:\/\/[^\s<>"]+/g, (url) => {
-    // Strip trailing punctuation that's likely not part of the URL
-    const clean = url.replace(/[.,;:!?)"']+$/, "");
-    const trail = url.slice(clean.length);
-    return `<a href="${clean}" target="_blank" rel="noopener">${clean}</a>${trail}`;
-  });
-}
-
-// Renders plain text as microblog-style HTML: double newlines → <p> paragraphs,
-// single newlines → <br>, bare URLs → hyperlinks.
-function textToMicroblogHtml(text) {
-  const paras = String(text).split(/\n\n+/).filter(Boolean);
-  if (!paras.length) return "";
-  return `<div class="microblog-body">${paras.map((p) => `<p>${autoLink(escHtml(p).replace(/\n/g, "<br>"))}</p>`).join("")}</div>`;
-}
-
 function defaultOgImage() {
   return `${base}/favicon.png`;
 }
@@ -236,31 +220,20 @@ function thinkingOgFromItem(item) {
   return { description, image };
 }
 
-// Renders inner HTML (no wrapper div) from a D1 thinking_posts row — used as
-// fallback when content_html is absent (e.g. rows inserted before this field existed).
-function renderThinkingInnerHtml({ text, media_url, media_alt }) {
-  const t = (text || "").trim();
-  const parts = [];
-  if (t) {
-    for (const p of t.split(/\n\n+/).filter(Boolean)) {
-      parts.push(`<p>${autoLink(escHtml(p).replace(/\n/g, "<br>"))}</p>`);
-    }
-  }
-  if (media_url) {
-    parts.push(`<img class="thinking-photo" src="${escHtml(media_url)}" alt="${escHtml(media_alt || "Photo")}" loading="lazy" decoding="async" />`);
-  }
-  return parts.join("\n");
+function thinkingContentHtmlFromRow(p) {
+  const fromSource = renderThinkingContentHtml(p.text, p.media_url, p.media_alt);
+  if (fromSource) return fromSource;
+  return p.content_html || "";
 }
 
 function renderThinkingHtml(thinking) {
-  const text = (thinking?.text || "").trim();
-  const mediaUrl = thinking?.media_url || "";
-  const mediaAlt = thinking?.media_alt || "Photo";
-  if (!text && !mediaUrl) return "";
-  if (!mediaUrl) return textToMicroblogHtml(text);
-  const img = `<p><img class="thinking-photo" src="${escHtml(mediaUrl)}" alt="${escHtml(mediaAlt)}" loading="lazy" decoding="async" /></p>`;
-  if (!text) return `<div class="microblog-body">${img}</div>`;
-  return textToMicroblogHtml(text).replace("</div>", `${img}</div>`);
+  const inner = renderThinkingContentHtml(
+    thinking?.text,
+    thinking?.media_url,
+    thinking?.media_alt
+  );
+  if (!inner) return "";
+  return `<div class="microblog-body">${inner}</div>`;
 }
 
 function hasThinking(thinking) {
@@ -349,7 +322,7 @@ const MAX_PER_SECTION = 5;
 // Thinking posts from D1 (populated by the admin Worker on every post/delete)
 const microblogItems = thinkingPosts.map((p) => ({
   _slug: p.slug,
-  content_html: p.content_html || renderThinkingInnerHtml(p),
+  content_html: thinkingContentHtmlFromRow(p),
   date_published: p.datetime,
   url: p.microblog_url || "",
 }));
