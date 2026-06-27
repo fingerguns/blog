@@ -858,6 +858,29 @@ async function postToBluesky(handle, appPassword, content, image = null) {
   return created.uri || null;
 }
 
+async function syndicateText(env, content) {
+  let microblogWarning = null;
+  let blueskyWarning = null;
+
+  if (env.MICROBLOG_TOKEN) {
+    try {
+      await postToMicroblog(env.MICROBLOG_TOKEN, content);
+    } catch (mbErr) {
+      microblogWarning = formatServiceWarning("micro.blog", mbErr.message);
+    }
+  }
+
+  if (env.BLUESKY_HANDLE && env.BLUESKY_APP_PASSWORD) {
+    try {
+      await postToBluesky(env.BLUESKY_HANDLE, env.BLUESKY_APP_PASSWORD, content);
+    } catch (bsErr) {
+      blueskyWarning = formatServiceWarning("Bluesky", bsErr.message);
+    }
+  }
+
+  return { microblogWarning, blueskyWarning };
+}
+
 async function deleteFromMicroblog(token, url) {
   const res = await fetch("https://micro.blog/micropub", {
     method: "POST",
@@ -1035,9 +1058,15 @@ async function handlePost(body, db, cors, env) {
       await dbRun(db, "DELETE FROM drafts WHERE id = ?", body.draftId);
     }
 
+    const postUrl = `${SITE_URL}/posts/${slug}/`;
+    const { microblogWarning, blueskyWarning } = await syndicateText(
+      env,
+      `New post: ${postUrl}`
+    );
+
     await triggerRebuild(env);
 
-    return json({ ok: true, slug, url: `${SITE_URL}/posts/${slug}/` }, 200, cors);
+    return json({ ok: true, slug, url: postUrl, microblogWarning, blueskyWarning }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Post creation failed" }, 500, cors);
   }
@@ -1073,8 +1102,13 @@ async function handleReading(body, db, cors, env) {
       now.toISOString()
     );
 
+    const { microblogWarning, blueskyWarning } = await syndicateText(
+      env,
+      `Now reading: ${entry.url}`
+    );
+
     await triggerRebuild(env);
-    return json({ ok: true, entry }, 200, cors);
+    return json({ ok: true, entry, microblogWarning, blueskyWarning }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
   }
@@ -1113,8 +1147,13 @@ async function handleSharing(body, db, cors, env) {
       entry.datetime
     );
 
+    const { microblogWarning, blueskyWarning } = await syndicateText(
+      env,
+      `Sharing: ${entry.url}`
+    );
+
     await triggerRebuild(env);
-    return json({ ok: true, entry }, 200, cors);
+    return json({ ok: true, entry, microblogWarning, blueskyWarning }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
   }

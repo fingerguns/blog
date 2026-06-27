@@ -933,8 +933,8 @@
         return (n / (1024 * 1024)).toFixed(1) + " MB";
       }
 
-      function formatThinkingSaveStatus(result) {
-        var lines = ["rommy.blog: Saved. Site will rebuild shortly."];
+      function formatSyndicationStatus(result, baseLine) {
+        var lines = [baseLine];
         if (result.microblogWarning) lines.push(result.microblogWarning);
         if (result.blueskyWarning) {
           lines.push(result.blueskyWarning);
@@ -943,6 +943,10 @@
         }
         var warn = !!(result.microblogWarning || result.blueskyWarning);
         return { text: lines.join("\n"), warn: warn };
+      }
+
+      function formatThinkingSaveStatus(result) {
+        return formatSyndicationStatus(result, "rommy.blog: Saved. Site will rebuild shortly.");
       }
 
       function compressPhotoForBluesky(file) {
@@ -1572,7 +1576,12 @@
             var msg = isEdit
               ? "Updated! Live at: " + data.url + " — rebuilding now."
               : "Published! Live at: " + data.url + " — rebuilding now.";
-            showStatus(status, msg, false, true);
+            if (!isEdit && (data.microblogWarning || data.blueskyWarning)) {
+              var pubFmt = formatSyndicationStatus(data, msg);
+              showStatus(status, pubFmt.text, false, !pubFmt.warn, pubFmt.warn);
+            } else {
+              showStatus(status, msg, false, true);
+            }
             if (!isEdit) {
               document.getElementById("p-title").value = "";
               document.getElementById("p-summary").value = "";
@@ -1786,13 +1795,14 @@
           submit.disabled = true;
           showStatus(status, "Saving…", false);
           try {
-            await callAPI({
+            var data = await callAPI({
               action: "reading",
               title: document.getElementById("r-title").value,
               url: document.getElementById("r-url").value,
               ym: document.getElementById("r-ym").value,
             });
-            showStatus(status, "Added. Site will rebuild shortly.", false, true);
+            var rFmt = formatSyndicationStatus(data, "Added. Site will rebuild shortly.");
+            showStatus(status, rFmt.text, false, !rFmt.warn, rFmt.warn);
             document.getElementById("r-title").value = "";
             document.getElementById("r-url").value = "";
             document.getElementById("r-ym").value = "";
@@ -1852,12 +1862,13 @@
           submit.disabled = true;
           showStatus(status, "Saving…", false);
           try {
-            await callAPI({
+            var data = await callAPI({
               action: "sharing",
               url: urlInput.value,
               title: titleInput.value,
             });
-            showStatus(status, "Shared. Site will rebuild shortly.", false, true);
+            var sFmt = formatSyndicationStatus(data, "Shared. Site will rebuild shortly.");
+            showStatus(status, sFmt.text, false, !sFmt.warn, sFmt.warn);
             urlInput.value = "";
             titleInput.value = "";
             titleHint.textContent = "";
