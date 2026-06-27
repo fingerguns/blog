@@ -34,48 +34,23 @@ export function remark42EmbedHtml({ pageUrl, pageTitle }) {
       </section>
     <script>
       var remark_config = ${configJson};
-      (function(){
-        function siteTheme(){
-          var t=document.documentElement.getAttribute("data-theme");
-          if(t==="dark"||t==="light") return t;
-          try { return localStorage.getItem("theme")==="dark"?"dark":"light"; } catch(e) { return "light"; }
-        }
-        remark_config.theme=siteTheme();
-      }());
+      try {
+        remark_config.theme = localStorage.getItem("theme") === "dark" ? "dark" : "light";
+      } catch (e) {}
     </script>
     <script>!function(e,n){for(var o=0;o<e.length;o++){var r=n.createElement("script"),c=".js",d=n.head||n.body;"noModule"in r?(r.type="module",c=".mjs"):r.async=!0,r.defer=!0,r.src=remark_config.host+"/web/"+e[o]+c,d.appendChild(r)}}(remark_config.components||["embed"],document);</script>
     <script>(function(){
-      function siteTheme(){
-        var t=document.documentElement.getAttribute("data-theme");
-        if(t==="dark"||t==="light") return t;
-        try { return localStorage.getItem("theme")==="dark"?"dark":"light"; } catch(e) { return "light"; }
-      }
       function syncRemarkTheme(){
-        var t=siteTheme();
-        if(window.remark_config) window.remark_config.theme=t;
-        if(!window.REMARK42) return;
-        if(window.__remark42LoadedTheme===undefined){
-          window.__remark42LoadedTheme=t;
-          if(window.REMARK42.changeTheme) window.REMARK42.changeTheme(t);
-          return;
-        }
-        if(window.__remark42LoadedTheme!==t){
-          window.__remark42LoadedTheme=t;
-          if(window.REMARK42.destroy) window.REMARK42.destroy();
-          var root=document.getElementById("remark42");
-          if(root) root.textContent="Loading comments…";
-          if(window.REMARK42.createInstance) window.REMARK42.createInstance(window.remark_config);
-          return;
-        }
-        if(window.REMARK42.changeTheme) window.REMARK42.changeTheme(t);
+        if(!window.REMARK42||!window.REMARK42.changeTheme)return;
+        var t=document.documentElement.getAttribute("data-theme")==="dark"?"dark":"light";
+        window.REMARK42.changeTheme(t);
       }
-      if(window.MutationObserver){
-        new MutationObserver(syncRemarkTheme).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
-      }
+      var btn=document.getElementById("theme-toggle");
+      if(btn) btn.addEventListener("click",function(){ setTimeout(syncRemarkTheme,0); });
       var tries=0;
       var iv=setInterval(function(){
         syncRemarkTheme();
-        if(window.__remark42LoadedTheme!==undefined||++tries>40) clearInterval(iv);
+        if(window.REMARK42&&window.REMARK42.changeTheme||++tries>40) clearInterval(iv);
       },250);
     }());</script>`;
 }

@@ -2,12 +2,102 @@
 
 @import url("https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;1,400&display=swap");
 
-/* Shared */
+:root {
+  --primary-color: 26, 26, 26;
+  --primary-brighter-color: 68, 68, 68;
+  --primary-darker-color: 26, 26, 26;
+  --primary-text-color: 26, 26, 26;
+  --secondary-text-color: 118, 118, 118;
+  --secondary-darker-text-color: 118, 118, 118;
+  --primary-background-color: 245, 240, 232;
+
+  --color0: #1a1a1a;
+  --color3: #ebe6de;
+  --color4: #f5f0e8;
+  --color5: #f5f0e8;
+  --color7: #1a1a1a;
+  --color9: #1a1a1a;
+  --color10: #767676;
+  --color11: #767676;
+  --color13: #767676;
+  --color15: #444444;
+  --color16: #d5cfc4;
+  --color18: #d5cfc4;
+  --color19: #ebe6de;
+  --color20: #767676;
+  --color21: #ebe6de;
+  --color29: #1a1a1a;
+  --color31: #d5cfc4;
+  --color33: #444444;
+  --color35: #d5cfc4;
+  --color36: #767676;
+  --color41: #f5f0e8;
+  --color42: #d5cfc4;
+  --line-color: #d5cfc4;
+  --line-brighter-color: #d5cfc4;
+  --color47: rgba(26, 26, 26, 0.25);
+}
+
+html.dark,
+body.dark,
+.dark {
+  --primary-color: 232, 232, 232;
+  --primary-brighter-color: 170, 170, 170;
+  --primary-darker-color: 232, 232, 232;
+  --primary-text-color: 232, 232, 232;
+  --secondary-text-color: 136, 136, 136;
+  --secondary-darker-text-color: 136, 136, 136;
+  --primary-background-color: 13, 13, 13;
+  --white-color: 232, 232, 232;
+
+  --color0: #e8e8e8;
+  --color3: #2e2e2e;
+  --color4: #0d0d0d;
+  --color5: #0d0d0d;
+  --color6: #0d0d0d;
+  --color7: #e8e8e8;
+  --color9: #e8e8e8;
+  --color10: #888888;
+  --color11: #888888;
+  --color13: #888888;
+  --color15: #aaaaaa;
+  --color16: #2e2e2e;
+  --color18: #2e2e2e;
+  --color19: #0d0d0d;
+  --color20: #888888;
+  --color21: #0d0d0d;
+  --color22: #0d0d0d;
+  --color29: #e8e8e8;
+  --color31: #2e2e2e;
+  --color33: #aaaaaa;
+  --color35: #2e2e2e;
+  --color36: #888888;
+  --color41: #0d0d0d;
+  --color42: #2e2e2e;
+  --line-color: #2e2e2e;
+  --line-brighter-color: #2e2e2e;
+  --color47: rgba(232, 232, 232, 0.25);
+}
+
 html,
 body {
   font-family: "Inter", system-ui, -apple-system, sans-serif !important;
   font-size: 16px !important;
   line-height: 1.6 !important;
+  background: rgb(var(--primary-background-color)) !important;
+  color: rgb(var(--primary-text-color)) !important;
+}
+
+a {
+  color: rgb(var(--primary-text-color)) !important;
+  text-decoration: underline !important;
+  text-decoration-color: var(--color42) !important;
+  text-underline-offset: 0.2em !important;
+}
+
+a:hover {
+  color: rgb(var(--primary-brighter-color)) !important;
+  text-decoration-color: currentColor !important;
 }
 
 .F_A,
@@ -20,6 +110,50 @@ body {
   font-weight: 500 !important;
 }
 
+.a_A,
+textarea.a_A {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background-color: rgb(var(--primary-background-color)) !important;
+  border-color: var(--line-color) !important;
+  color: rgb(var(--primary-text-color)) !important;
+}
+
+.B_D,
+.B_L .B_D,
+.B_J .B_D,
+.Y_B {
+  background: rgb(var(--primary-background-color)) !important;
+  border-radius: 0 !important;
+}
+
+.G_F,
+.G_P {
+  border-color: var(--line-color) !important;
+}
+
+.O_A,
+.O_C,
+.B_G,
+.B_K,
+.G_K,
+.G_M {
+  color: rgb(var(--secondary-text-color)) !important;
+}
+
+.G_N,
+.G_Y,
+.H_C {
+  color: rgb(var(--primary-text-color)) !important;
+}
+
+.G_N:hover,
+.G_Y:hover,
+.H_C:hover {
+  color: rgb(var(--primary-brighter-color)) !important;
+}
+
+/* Comment form: single-line toolbar, taller textarea */
 [class*="controlPanel"] {
   display: flex !important;
   flex-wrap: nowrap !important;
@@ -28,6 +162,7 @@ body {
   height: auto !important;
   min-height: 2.25rem !important;
   overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
 }
 
 markdown-toolbar {
@@ -43,6 +178,8 @@ markdown-toolbar {
 markdown-toolbar > * {
   display: inline-flex !important;
   flex: 0 0 auto !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 markdown-toolbar md-header,
@@ -59,198 +196,20 @@ markdown-toolbar md-image {
 
 #remark42 textarea,
 textarea.input,
+textarea.a_A,
 [class*="field"] {
   display: block !important;
   box-sizing: border-box !important;
   width: 100% !important;
   min-height: 9rem !important;
+  height: auto !important;
   padding: 0.75rem !important;
   font-size: 1rem !important;
   line-height: 1.5 !important;
   resize: vertical !important;
-  border-radius: 0 !important;
+  overflow: auto !important;
 }
 
 [class*="fieldWrapper"] {
   width: 100% !important;
-}
-
-.remark42__footer,
-.remark42__last-comments-footer {
-  display: none !important;
-}
-
-/* ── Light (seamless cream) ── */
-body:not(.dark) {
-  color-scheme: light !important;
-  background: #f5f0e8 !important;
-  color: #1a1a1a !important;
-}
-
-body:not(.dark) #remark42,
-body:not(.dark) .B_A,
-body:not(.dark) .B_D,
-body:not(.dark) .B_L,
-body:not(.dark) .B_J,
-body:not(.dark) .Y_B,
-body:not(.dark) .Y_C,
-body:not(.dark) [class*="controlPanel"],
-body:not(.dark) markdown-toolbar {
-  background-color: #f5f0e8 !important;
-  color: #1a1a1a !important;
-}
-
-body:not(.dark) .a_A,
-body:not(.dark) textarea,
-body:not(.dark) textarea.a_A,
-body:not(.dark) textarea.input,
-body:not(.dark) [class*="field"],
-body:not(.dark) [contenteditable="true"] {
-  background-color: #f5f0e8 !important;
-  color: #1a1a1a !important;
-  border: 1px solid #d5cfc4 !important;
-  box-shadow: none !important;
-}
-
-body:not(.dark) a {
-  color: #1a1a1a !important;
-  text-decoration: underline !important;
-  text-decoration-color: #d5cfc4 !important;
-  text-underline-offset: 0.2em !important;
-}
-
-body:not(.dark) a:hover {
-  color: #444444 !important;
-}
-
-body:not(.dark) .F_A {
-  background-color: #1a1a1a !important;
-  color: #f5f0e8 !important;
-  border: 1px solid #1a1a1a !important;
-}
-
-body:not(.dark) .F_A:hover {
-  background-color: #444444 !important;
-  border-color: #444444 !important;
-}
-
-body:not(.dark) .B_G,
-body:not(.dark) .B_K,
-body:not(.dark) .O_A,
-body:not(.dark) .O_C {
-  color: #767676 !important;
-}
-
-/* ── Dark (seamless #0d0d0d — Remark42 sets body.dark from iframe ?theme=dark) ── */
-body.dark {
-  color-scheme: dark !important;
-  background: #0d0d0d !important;
-  color: #e8e8e8 !important;
-}
-
-body.dark #remark42,
-body.dark .B_A,
-body.dark .B_B,
-body.dark .B_C,
-body.dark .B_D,
-body.dark .B_L,
-body.dark .B_J,
-body.dark .B_H,
-body.dark .Y_A,
-body.dark .Y_B,
-body.dark .Y_C,
-body.dark [class*="controlPanel"],
-body.dark markdown-toolbar {
-  background-color: #0d0d0d !important;
-  color: #e8e8e8 !important;
-}
-
-body.dark .a_A,
-body.dark textarea,
-body.dark textarea.a_A,
-body.dark textarea.input,
-body.dark [class*="field"],
-body.dark [contenteditable="true"] {
-  background-color: #0d0d0d !important;
-  color: #e8e8e8 !important;
-  border: 1px solid #2e2e2e !important;
-  box-shadow: none !important;
-  caret-color: #e8e8e8 !important;
-  -webkit-text-fill-color: #e8e8e8 !important;
-}
-
-body.dark textarea::placeholder,
-body.dark .a_A::placeholder,
-body.dark [class*="field"]::placeholder {
-  color: #888888 !important;
-  -webkit-text-fill-color: #888888 !important;
-  opacity: 1 !important;
-}
-
-body.dark .F_A {
-  background-color: #171717 !important;
-  color: #e8e8e8 !important;
-  border: 1px solid #2e2e2e !important;
-}
-
-body.dark .F_A:hover {
-  background-color: #2e2e2e !important;
-  border-color: #2e2e2e !important;
-}
-
-body.dark markdown-toolbar button,
-body.dark markdown-toolbar md-header,
-body.dark markdown-toolbar md-bold,
-body.dark markdown-toolbar md-italic,
-body.dark markdown-toolbar md-quote,
-body.dark markdown-toolbar md-code,
-body.dark markdown-toolbar md-link,
-body.dark markdown-toolbar md-unordered-list,
-body.dark markdown-toolbar md-ordered-list,
-body.dark markdown-toolbar md-image {
-  color: #888888 !important;
-}
-
-body.dark markdown-toolbar button:hover,
-body.dark markdown-toolbar md-header:hover,
-body.dark markdown-toolbar md-bold:hover,
-body.dark markdown-toolbar md-italic:hover,
-body.dark markdown-toolbar md-quote:hover,
-body.dark markdown-toolbar md-code:hover,
-body.dark markdown-toolbar md-link:hover,
-body.dark markdown-toolbar md-unordered-list:hover,
-body.dark markdown-toolbar md-ordered-list:hover,
-body.dark markdown-toolbar md-image:hover {
-  color: #e8e8e8 !important;
-}
-
-body.dark .B_G,
-body.dark .B_K,
-body.dark .O_A,
-body.dark .O_C,
-body.dark .G_M,
-body.dark .G_K {
-  color: #888888 !important;
-}
-
-body.dark a {
-  color: #e8e8e8 !important;
-  text-decoration: underline !important;
-  text-decoration-color: #2e2e2e !important;
-  text-underline-offset: 0.2em !important;
-}
-
-body.dark a:hover {
-  color: #aaaaaa !important;
-}
-
-body.dark .G_F,
-body.dark .G_V,
-body.dark .G_U {
-  background: #0d0d0d !important;
-}
-
-body.dark .G_V.comment_highlighting,
-body.dark .G_U.comment_highlighting {
-  background: #171717 !important;
 }
