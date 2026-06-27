@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS thinking_posts (
   microblog_url TEXT,
   bluesky_uri TEXT,
   mastodon_uri TEXT,
+  farcaster_hash TEXT,
   created_at TEXT NOT NULL
 );
 

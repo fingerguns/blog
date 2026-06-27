@@ -17,6 +17,8 @@ import { renderThinkingContentHtml } from "../scripts/lib/thinking-html.mjs";
  *   BLUESKY_APP_PASSWORD  — Bluesky app password (optional)
  *   MASTODON_ACCESS_TOKEN — Mastodon access token (optional; see /settings/applications)
  *   MASTODON_INSTANCE     — Mastodon instance URL, default https://mas.to (optional)
+ *   NEYNAR_API_KEY        — Neynar API key for Farcaster (optional)
+ *   NEYNAR_SIGNER_UUID    — Neynar managed signer UUID for Farcaster (optional)
  *   GITHUB_TOKEN          — optional fallback to trigger GitHub workflow_dispatch
  *
  * R2 (photos on THINKING):
@@ -29,6 +31,7 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_BLUESKY_IMAGE_BYTES = 2_000_000;
 const MAX_MASTODON_CHARS = 500;
 const DEFAULT_MASTODON_INSTANCE = "https://mas.to";
+const MAX_FARCASTER_CHARS = 320;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const IMAGE_EXT = {
   "image/jpeg": "jpg",
@@ -450,11 +453,26 @@ async function handleThinking(payload, db, cors, env) {
       }
     }
 
+    let farcasterHash = null;
+    let farcasterWarning = null;
+    if (env.NEYNAR_API_KEY && env.NEYNAR_SIGNER_UUID) {
+      try {
+        farcasterHash = await postToFarcaster(
+          env.NEYNAR_API_KEY,
+          env.NEYNAR_SIGNER_UUID,
+          text,
+          mediaUrl
+        );
+      } catch (fcErr) {
+        farcasterWarning = formatServiceWarning("Farcaster", fcErr.message);
+      }
+    }
+
     const contentHtml = renderThinkingContentHtml(text, mediaUrl, mediaAlt);
     await dbRun(
       db,
-      `INSERT INTO thinking_posts (slug, text, media_url, media_alt, content_html, datetime, microblog_url, bluesky_uri, mastodon_uri, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO thinking_posts (slug, text, media_url, media_alt, content_html, datetime, microblog_url, bluesky_uri, mastodon_uri, farcaster_hash, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(slug) DO UPDATE SET
          text = excluded.text,
          media_url = excluded.media_url,
@@ -463,6 +481,7 @@ async function handleThinking(payload, db, cors, env) {
          microblog_url = COALESCE(excluded.microblog_url, thinking_posts.microblog_url),
          bluesky_uri = COALESCE(excluded.bluesky_uri, thinking_posts.bluesky_uri),
          mastodon_uri = COALESCE(excluded.mastodon_uri, thinking_posts.mastodon_uri),
+         farcaster_hash = COALESCE(excluded.farcaster_hash, thinking_posts.farcaster_hash),
          datetime = excluded.datetime`,
       slug,
       text,
@@ -473,6 +492,7 @@ async function handleThinking(payload, db, cors, env) {
       microblogUrl,
       blueskyUri,
       mastodonUrl,
+      farcasterHash,
       nowIso
     );
 
@@ -487,6 +507,7 @@ async function handleThinking(payload, db, cors, env) {
         blueskyWarning,
         blueskyCompressed,
         mastodonWarning,
+        farcasterWarning,
       },
       200,
       cors
@@ -909,7 +930,16 @@ async function syndicateText(env, content) {
     }
   }
 
-  return { microblogWarning, blueskyWarning, mastodonWarning };
+  let farcasterWarning = null;
+  if (env.NEYNAR_API_KEY && env.NEYNAR_SIGNER_UUID) {
+    try {
+      await postToFarcaster(env.NEYNAR_API_KEY, env.NEYNAR_SIGNER_UUID, content);
+    } catch (fcErr) {
+      farcasterWarning = formatServiceWarning("Farcaster", fcErr.message);
+    }
+  }
+
+  return { microblogWarning, blueskyWarning, mastodonWarning, farcasterWarning };
 }
 
 async function deleteFromMicroblog(token, url) {
@@ -951,6 +981,49 @@ async function deleteFromBluesky(handle, appPassword, uri) {
       detail
         ? `Bluesky delete failed (${res.status}: ${detail})`
         : `Bluesky delete failed (HTTP ${res.status}).`
+    );
+  }
+}
+
+async function postToFarcaster(apiKey, signerUuid, content, imageUrl = null) {
+  const chars = [...content];
+  let text = content;
+  if (chars.length > MAX_FARCASTER_CHARS) {
+    const suffix = `… ${SITE_URL}/thinking/`;
+    const maxContent = MAX_FARCASTER_CHARS - [...suffix].length;
+    text = chars.slice(0, maxContent).join("") + suffix;
+  }
+
+  const body = { signer_uuid: signerUuid, text };
+  if (imageUrl) body.embeds = [{ url: imageUrl }];
+
+  const res = await fetch("https://api.neynar.com/v2/farcaster/cast", {
+    method: "POST",
+    headers: { "x-api-key": apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    const detail = summarizeApiBody(err);
+    throw new Error(
+      detail ? `Post failed (${res.status}: ${detail})` : `Post failed (HTTP ${res.status}).`
+    );
+  }
+  const created = await res.json();
+  return created.cast?.hash || null;
+}
+
+async function deleteFromFarcaster(apiKey, signerUuid, hash) {
+  const res = await fetch("https://api.neynar.com/v2/farcaster/cast", {
+    method: "DELETE",
+    headers: { "x-api-key": apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ signer_uuid: signerUuid, target_hash: hash }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    const detail = summarizeApiBody(err);
+    throw new Error(
+      detail ? `Delete failed (${res.status}: ${detail})` : `Delete failed (HTTP ${res.status}).`
     );
   }
 }
@@ -1039,7 +1112,7 @@ async function handleDeleteThinking(payload, db, cors, env) {
   try {
     const row = await dbFirst(
       db,
-      "SELECT microblog_url, bluesky_uri, mastodon_uri FROM thinking_posts WHERE slug = ?",
+      "SELECT microblog_url, bluesky_uri, mastodon_uri, farcaster_hash FROM thinking_posts WHERE slug = ?",
       slug
     );
     if (!row) {
@@ -1048,6 +1121,7 @@ async function handleDeleteThinking(payload, db, cors, env) {
     const mbUrl = microblogUrl || row.microblog_url || null;
     const blueskyUri = row.bluesky_uri || null;
     const mastodonUri = row.mastodon_uri || null;
+    const farcasterHash = row.farcaster_hash || null;
 
     let microblogWarning = null;
     if (env.MICROBLOG_TOKEN && mbUrl) {
@@ -1093,6 +1167,17 @@ async function handleDeleteThinking(payload, db, cors, env) {
       }
     }
 
+    let farcasterWarning = null;
+    let farcasterDeleted = false;
+    if (env.NEYNAR_API_KEY && env.NEYNAR_SIGNER_UUID && farcasterHash) {
+      try {
+        await deleteFromFarcaster(env.NEYNAR_API_KEY, env.NEYNAR_SIGNER_UUID, farcasterHash);
+        farcasterDeleted = true;
+      } catch (fcErr) {
+        farcasterWarning = formatServiceWarning("Farcaster", fcErr.message);
+      }
+    }
+
     await dbRun(db, "DELETE FROM thinking_posts WHERE slug = ?", slug);
 
     await triggerRebuild(env);
@@ -1106,6 +1191,8 @@ async function handleDeleteThinking(payload, db, cors, env) {
         blueskySkipped,
         mastodonWarning,
         mastodonDeleted,
+        farcasterWarning,
+        farcasterDeleted,
       },
       200,
       cors
@@ -1175,14 +1262,14 @@ async function handlePost(body, db, cors, env) {
     }
 
     const postUrl = `${SITE_URL}/posts/${slug}/`;
-    const { microblogWarning, blueskyWarning, mastodonWarning } = await syndicateText(
+    const { microblogWarning, blueskyWarning, mastodonWarning, farcasterWarning } = await syndicateText(
       env,
       `New post: ${postUrl}`
     );
 
     await triggerRebuild(env);
 
-    return json({ ok: true, slug, url: postUrl, microblogWarning, blueskyWarning, mastodonWarning }, 200, cors);
+    return json({ ok: true, slug, url: postUrl, microblogWarning, blueskyWarning, mastodonWarning, farcasterWarning }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Post creation failed" }, 500, cors);
   }
@@ -1218,13 +1305,13 @@ async function handleReading(body, db, cors, env) {
       now.toISOString()
     );
 
-    const { microblogWarning, blueskyWarning, mastodonWarning } = await syndicateText(
+    const { microblogWarning, blueskyWarning, mastodonWarning, farcasterWarning } = await syndicateText(
       env,
       `Now reading: ${entry.url}`
     );
 
     await triggerRebuild(env);
-    return json({ ok: true, entry, microblogWarning, blueskyWarning, mastodonWarning }, 200, cors);
+    return json({ ok: true, entry, microblogWarning, blueskyWarning, mastodonWarning, farcasterWarning }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
   }
@@ -1263,13 +1350,13 @@ async function handleSharing(body, db, cors, env) {
       entry.datetime
     );
 
-    const { microblogWarning, blueskyWarning, mastodonWarning } = await syndicateText(
+    const { microblogWarning, blueskyWarning, mastodonWarning, farcasterWarning } = await syndicateText(
       env,
       `Sharing: ${entry.url}`
     );
 
     await triggerRebuild(env);
-    return json({ ok: true, entry, microblogWarning, blueskyWarning, mastodonWarning }, 200, cors);
+    return json({ ok: true, entry, microblogWarning, blueskyWarning, mastodonWarning, farcasterWarning }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
   }
