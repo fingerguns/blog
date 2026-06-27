@@ -51,8 +51,12 @@ export function remark42EmbedHtml({ pageUrl, pageTitle }) {
         try { return localStorage.getItem("theme")==="dark"?"dark":"light"; } catch(e) { return "light"; }
       }
       function syncRemarkTheme(){
-        if(!window.REMARK42||!window.REMARK42.changeTheme)return;
-        window.REMARK42.changeTheme(siteTheme());
+        var t=siteTheme();
+        if(window.remark_config) window.remark_config.theme=t;
+        if(!window.REMARK42||!window.REMARK42.changeTheme) return;
+        window.REMARK42.changeTheme(t);
+        var iframe=document.querySelector("#remark42 iframe");
+        if(iframe) iframe.style.colorScheme=t;
       }
       var root=document.documentElement;
       if(window.MutationObserver){

@@ -2,83 +2,30 @@
 
 @import url("https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;1,400&display=swap");
 
+/* ── Light (seamless cream, matches rommy.blog) ── */
 :root {
   --primary-color: 26, 26, 26;
   --primary-brighter-color: 68, 68, 68;
-  --primary-darker-color: 26, 26, 26;
   --primary-text-color: 26, 26, 26;
   --secondary-text-color: 118, 118, 118;
-  --secondary-darker-text-color: 118, 118, 118;
   --primary-background-color: 245, 240, 232;
+  --white-color: 255, 255, 255;
 
-  --color0: #1a1a1a;
-  --color3: #ebe6de;
   --color4: #f5f0e8;
-  --color5: #f5f0e8;
+  --color6: #f5f0e8;
   --color7: #1a1a1a;
   --color9: #1a1a1a;
-  --color10: #767676;
-  --color11: #767676;
-  --color13: #767676;
   --color15: #444444;
   --color16: #d5cfc4;
-  --color18: #d5cfc4;
-  --color19: #ebe6de;
+  --color19: #f5f0e8;
   --color20: #767676;
-  --color21: #ebe6de;
+  --color21: #f5f0e8;
+  --color22: #f5f0e8;
   --color29: #1a1a1a;
-  --color31: #d5cfc4;
   --color33: #444444;
-  --color35: #d5cfc4;
-  --color36: #767676;
-  --color41: #f5f0e8;
-  --color42: #d5cfc4;
   --line-color: #d5cfc4;
   --line-brighter-color: #d5cfc4;
   --color47: rgba(26, 26, 26, 0.25);
-}
-
-html.dark,
-body.dark,
-.dark {
-  --primary-color: 23, 23, 23;
-  --primary-brighter-color: 46, 46, 46;
-  --primary-darker-color: 23, 23, 23;
-  --primary-text-color: 232, 232, 232;
-  --secondary-text-color: 136, 136, 136;
-  --secondary-darker-text-color: 136, 136, 136;
-  --primary-background-color: 13, 13, 13;
-  --white-color: 232, 232, 232;
-  --black-color: 232, 232, 232;
-
-  --color0: #e8e8e8;
-  --color3: #2e2e2e;
-  --color4: #0d0d0d;
-  --color5: #0d0d0d;
-  --color6: #e8e8e8;
-  --color7: #e8e8e8;
-  --color8: #171717;
-  --color9: #e8e8e8;
-  --color10: #888888;
-  --color11: #888888;
-  --color13: #888888;
-  --color15: #aaaaaa;
-  --color16: #2e2e2e;
-  --color18: #2e2e2e;
-  --color19: #0d0d0d;
-  --color20: #888888;
-  --color21: #171717;
-  --color22: #171717;
-  --color29: #e8e8e8;
-  --color31: #2e2e2e;
-  --color33: #aaaaaa;
-  --color35: #2e2e2e;
-  --color36: #888888;
-  --color41: #0d0d0d;
-  --color42: #2e2e2e;
-  --line-color: #2e2e2e;
-  --line-brighter-color: #2e2e2e;
-  --color47: rgba(232, 232, 232, 0.2);
 }
 
 html,
@@ -86,20 +33,46 @@ body {
   font-family: "Inter", system-ui, -apple-system, sans-serif !important;
   font-size: 16px !important;
   line-height: 1.6 !important;
-  background: rgb(var(--primary-background-color)) !important;
-  color: rgb(var(--primary-text-color)) !important;
+  color-scheme: light !important;
+  background: #f5f0e8 !important;
+  color: #1a1a1a !important;
+}
+
+#remark42,
+.B_A,
+.B_D,
+.B_L .B_D,
+.B_J .B_D,
+.Y_B,
+.Y_C,
+[class*="controlPanel"],
+markdown-toolbar {
+  background-color: #f5f0e8 !important;
+  color: #1a1a1a !important;
+}
+
+.a_A,
+textarea.a_A,
+textarea.input,
+#remark42 textarea,
+[class*="field"],
+[contenteditable="true"] {
+  background-color: #f5f0e8 !important;
+  color: #1a1a1a !important;
+  border: 1px solid #d5cfc4 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
 }
 
 a {
-  color: rgb(var(--primary-text-color)) !important;
+  color: #1a1a1a !important;
   text-decoration: underline !important;
-  text-decoration-color: var(--color42) !important;
+  text-decoration-color: #d5cfc4 !important;
   text-underline-offset: 0.2em !important;
 }
 
 a:hover {
-  color: rgb(var(--primary-brighter-color)) !important;
-  text-decoration-color: currentColor !important;
+  color: #444444 !important;
 }
 
 .F_A,
@@ -112,50 +85,26 @@ a:hover {
   font-weight: 500 !important;
 }
 
-.a_A,
-textarea.a_A {
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  background-color: rgb(var(--primary-background-color)) !important;
-  border-color: var(--line-color) !important;
-  color: rgb(var(--primary-text-color)) !important;
+.F_A {
+  background-color: #1a1a1a !important;
+  color: #f5f0e8 !important;
+  border: 1px solid #1a1a1a !important;
 }
 
-.B_D,
-.B_L .B_D,
-.B_J .B_D,
-.Y_B {
-  background: rgb(var(--primary-background-color)) !important;
-  border-radius: 0 !important;
+.F_A:hover {
+  background-color: #444444 !important;
+  border-color: #444444 !important;
 }
 
-.G_F,
-.G_P {
-  border-color: var(--line-color) !important;
-}
-
-.O_A,
-.O_C,
 .B_G,
 .B_K,
-.G_K,
+.O_A,
+.O_C,
 .G_M {
-  color: rgb(var(--secondary-text-color)) !important;
+  color: #767676 !important;
 }
 
-.G_N,
-.G_Y,
-.H_C {
-  color: rgb(var(--primary-text-color)) !important;
-}
-
-.G_N:hover,
-.G_Y:hover,
-.H_C:hover {
-  color: rgb(var(--primary-brighter-color)) !important;
-}
-
-/* Comment form: single-line toolbar, taller textarea */
+/* Comment form layout */
 [class*="controlPanel"] {
   display: flex !important;
   flex-wrap: nowrap !important;
@@ -164,7 +113,6 @@ textarea.a_A {
   height: auto !important;
   min-height: 2.25rem !important;
   overflow-x: auto !important;
-  -webkit-overflow-scrolling: touch;
 }
 
 markdown-toolbar {
@@ -180,8 +128,6 @@ markdown-toolbar {
 markdown-toolbar > * {
   display: inline-flex !important;
   flex: 0 0 auto !important;
-  align-items: center !important;
-  justify-content: center !important;
 }
 
 markdown-toolbar md-header,
@@ -198,155 +144,164 @@ markdown-toolbar md-image {
 
 #remark42 textarea,
 textarea.input,
-textarea.a_A,
 [class*="field"] {
   display: block !important;
   box-sizing: border-box !important;
   width: 100% !important;
   min-height: 9rem !important;
-  height: auto !important;
   padding: 0.75rem !important;
   font-size: 1rem !important;
   line-height: 1.5 !important;
   resize: vertical !important;
-  overflow: auto !important;
 }
 
 [class*="fieldWrapper"] {
   width: 100% !important;
 }
 
-/* Dark mode — dark frame (#0d0d0d), white writing surface (matches user intent) */
-body.dark {
-  color-scheme: dark !important;
-  background: #0d0d0d !important;
-  color: #e8e8e8 !important;
+.remark42__footer,
+.remark42__last-comments-footer {
+  display: none !important;
 }
 
-body:not(.dark) {
-  color-scheme: light !important;
-}
+/* ── Dark (seamless #0d0d0d — driven by iframe color-scheme from embed) ── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary-color: 232, 232, 232;
+    --primary-brighter-color: 170, 170, 170;
+    --primary-text-color: 232, 232, 232;
+    --secondary-text-color: 136, 136, 136;
+    --primary-background-color: 13, 13, 13;
+    --white-color: 232, 232, 232;
 
-body.dark #remark42,
-body.dark .B_A,
-body.dark .B_B,
-body.dark .B_C,
-body.dark .B_D,
-body.dark .B_L,
-body.dark .B_J,
-body.dark .B_H,
-body.dark .Y_A,
-body.dark .Y_B,
-body.dark .Y_C,
-body.dark [class*="controlPanel"],
-body.dark markdown-toolbar {
-  background-color: #0d0d0d !important;
-  color: #e8e8e8 !important;
-}
+    --color4: #0d0d0d;
+    --color6: #0d0d0d;
+    --color7: #e8e8e8;
+    --color9: #e8e8e8;
+    --color15: #aaaaaa;
+    --color16: #2e2e2e;
+    --color19: #0d0d0d;
+    --color20: #888888;
+    --color21: #0d0d0d;
+    --color22: #0d0d0d;
+    --color29: #e8e8e8;
+    --color33: #aaaaaa;
+    --line-color: #2e2e2e;
+    --line-brighter-color: #2e2e2e;
+    --color47: rgba(232, 232, 232, 0.2);
+  }
 
-body.dark .B_G,
-body.dark .B_K,
-body.dark .O_A,
-body.dark .O_C {
-  color: #888888 !important;
-}
+  html,
+  body {
+    color-scheme: dark !important;
+    background: #0d0d0d !important;
+    color: #e8e8e8 !important;
+  }
 
-body.dark .F_A {
-  background-color: #171717 !important;
-  border: 1px solid #2e2e2e !important;
-  color: #e8e8e8 !important;
-}
+  #remark42,
+  .B_A,
+  .B_B,
+  .B_C,
+  .B_D,
+  .B_L,
+  .B_J,
+  .B_L .B_D,
+  .B_J .B_D,
+  .B_H,
+  .Y_A,
+  .Y_B,
+  .Y_C,
+  [class*="controlPanel"],
+  markdown-toolbar {
+    background-color: #0d0d0d !important;
+    color: #e8e8e8 !important;
+  }
 
-body.dark .F_A:hover {
-  background-color: #2e2e2e !important;
-}
+  .a_A,
+  textarea.a_A,
+  textarea.input,
+  #remark42 textarea,
+  [class*="field"],
+  [contenteditable="true"] {
+    background-color: #0d0d0d !important;
+    color: #e8e8e8 !important;
+    border: 1px solid #2e2e2e !important;
+    caret-color: #e8e8e8 !important;
+  }
 
-body.dark textarea,
-body.dark .a_A,
-body.dark textarea.a_A,
-body.dark textarea.input,
-body.dark #remark42 textarea,
-body.dark [class*="field"],
-body.dark [contenteditable="true"] {
-  background-color: #ffffff !important;
-  color: #1a1a1a !important;
-  caret-color: #1a1a1a !important;
-  border: 1px solid #2e2e2e !important;
-}
+  .a_A::placeholder,
+  textarea::placeholder,
+  [class*="field"]::placeholder {
+    color: #888888 !important;
+    -webkit-text-fill-color: #888888 !important;
+    opacity: 1 !important;
+  }
 
-body.dark textarea::placeholder,
-body.dark .a_A::placeholder,
-body.dark [class*="field"]::placeholder,
-body.dark [contenteditable="true"]:empty:before {
-  color: #767676 !important;
-  -webkit-text-fill-color: #767676 !important;
-  opacity: 1 !important;
-}
+  .F_A {
+    background-color: #171717 !important;
+    color: #e8e8e8 !important;
+    border: 1px solid #2e2e2e !important;
+  }
 
-body.dark markdown-toolbar button,
-body.dark markdown-toolbar md-header,
-body.dark markdown-toolbar md-bold,
-body.dark markdown-toolbar md-italic,
-body.dark markdown-toolbar md-quote,
-body.dark markdown-toolbar md-code,
-body.dark markdown-toolbar md-link,
-body.dark markdown-toolbar md-unordered-list,
-body.dark markdown-toolbar md-ordered-list,
-body.dark markdown-toolbar md-image {
-  color: #888888 !important;
-}
+  .F_A:hover {
+    background-color: #2e2e2e !important;
+    border-color: #2e2e2e !important;
+  }
 
-body.dark markdown-toolbar button:hover,
-body.dark markdown-toolbar md-header:hover,
-body.dark markdown-toolbar md-bold:hover,
-body.dark markdown-toolbar md-italic:hover,
-body.dark markdown-toolbar md-quote:hover,
-body.dark markdown-toolbar md-code:hover,
-body.dark markdown-toolbar md-link:hover,
-body.dark markdown-toolbar md-unordered-list:hover,
-body.dark markdown-toolbar md-ordered-list:hover,
-body.dark markdown-toolbar md-image:hover {
-  color: #e8e8e8 !important;
-}
+  markdown-toolbar button,
+  markdown-toolbar md-header,
+  markdown-toolbar md-bold,
+  markdown-toolbar md-italic,
+  markdown-toolbar md-quote,
+  markdown-toolbar md-code,
+  markdown-toolbar md-link,
+  markdown-toolbar md-unordered-list,
+  markdown-toolbar md-ordered-list,
+  markdown-toolbar md-image {
+    color: #888888 !important;
+  }
 
-body.dark .G_F,
-body.dark .G_V,
-body.dark .G_U {
-  background: #0d0d0d !important;
-}
+  markdown-toolbar button:hover,
+  markdown-toolbar md-header:hover,
+  markdown-toolbar md-bold:hover,
+  markdown-toolbar md-italic:hover,
+  markdown-toolbar md-quote:hover,
+  markdown-toolbar md-code:hover,
+  markdown-toolbar md-link:hover,
+  markdown-toolbar md-unordered-list:hover,
+  markdown-toolbar md-ordered-list:hover,
+  markdown-toolbar md-image:hover {
+    color: #e8e8e8 !important;
+  }
 
-body.dark .G_V.comment_highlighting,
-body.dark .G_U.comment_highlighting {
-  background: #171717 !important;
-}
+  .B_G,
+  .B_K,
+  .O_A,
+  .O_C,
+  .G_M,
+  .G_K {
+    color: #888888 !important;
+  }
 
-body.dark .V_D {
-  background: #171717 !important;
-  border: 1px solid #2e2e2e !important;
-  color: #e8e8e8 !important;
-}
+  .G_N,
+  .G_Y,
+  a {
+    color: #e8e8e8 !important;
+    text-decoration-color: #2e2e2e !important;
+  }
 
-body.dark a {
-  color: #e8e8e8 !important;
-  text-decoration-color: #2e2e2e !important;
-}
+  a:hover {
+    color: #aaaaaa !important;
+  }
 
-body.dark a:hover {
-  color: #aaaaaa !important;
-}
+  .G_F,
+  .G_V,
+  .G_U {
+    background: #0d0d0d !important;
+  }
 
-/* Fallback when compose uses .B_J before body.dark is set */
-.B_J .B_A,
-.B_J .B_D,
-.B_J .Y_B {
-  background-color: #0d0d0d !important;
-}
-
-.B_J textarea,
-.B_J .a_A,
-.B_J [class*="field"],
-.B_J [contenteditable="true"] {
-  background-color: #ffffff !important;
-  color: #1a1a1a !important;
-  border: 1px solid #2e2e2e !important;
+  .G_V.comment_highlighting,
+  .G_U.comment_highlighting {
+    background: #171717 !important;
+  }
 }
