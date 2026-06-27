@@ -213,3 +213,104 @@ textarea.a_A,
 [class*="fieldWrapper"] {
   width: 100% !important;
 }
+
+/*
+ * Dark mode — explicit body.dark overrides (light rules above unchanged).
+ * Frame and textarea both #0d0d0d; border defines the input area.
+ */
+body.dark {
+  color-scheme: dark !important;
+  background: #0d0d0d !important;
+  color: #e8e8e8 !important;
+}
+
+body.dark .Y_B,
+body.dark .B_A,
+body.dark .B_D,
+body.dark .B_L,
+body.dark .B_J,
+body.dark [class*="controlPanel"],
+body.dark markdown-toolbar {
+  background-color: #0d0d0d !important;
+  color: #e8e8e8 !important;
+}
+
+body.dark .a_A,
+body.dark textarea,
+body.dark textarea.a_A,
+body.dark textarea.input,
+body.dark [class*="field"],
+body.dark [contenteditable="true"] {
+  background-color: #0d0d0d !important;
+  color: #e8e8e8 !important;
+  border: 1px solid #2e2e2e !important;
+  box-shadow: none !important;
+  -webkit-text-fill-color: #e8e8e8 !important;
+  caret-color: #e8e8e8 !important;
+}
+
+body.dark textarea::placeholder,
+body.dark .a_A::placeholder,
+body.dark [class*="field"]::placeholder {
+  color: #888888 !important;
+  -webkit-text-fill-color: #888888 !important;
+}
+
+body.dark .F_A {
+  background-color: #171717 !important;
+  color: #e8e8e8 !important;
+  border: 1px solid #2e2e2e !important;
+}
+
+body.dark .F_A:hover {
+  background-color: #2e2e2e !important;
+}
+
+body.dark markdown-toolbar button,
+body.dark markdown-toolbar md-header,
+body.dark markdown-toolbar md-bold,
+body.dark markdown-toolbar md-italic,
+body.dark markdown-toolbar md-quote,
+body.dark markdown-toolbar md-code,
+body.dark markdown-toolbar md-link,
+body.dark markdown-toolbar md-unordered-list,
+body.dark markdown-toolbar md-ordered-list,
+body.dark markdown-toolbar md-image {
+  color: #888888 !important;
+}
+
+body.dark markdown-toolbar button:hover,
+body.dark markdown-toolbar md-header:hover,
+body.dark markdown-toolbar md-bold:hover,
+body.dark markdown-toolbar md-italic:hover,
+body.dark markdown-toolbar md-quote:hover,
+body.dark markdown-toolbar md-code:hover,
+body.dark markdown-toolbar md-link:hover,
+body.dark markdown-toolbar md-unordered-list:hover,
+body.dark markdown-toolbar md-ordered-list:hover,
+body.dark markdown-toolbar md-image:hover {
+  color: #e8e8e8 !important;
+}
+
+body.dark .B_G,
+body.dark .B_K,
+body.dark .O_A,
+body.dark .O_C {
+  color: #888888 !important;
+}
+
+body.dark a {
+  color: #e8e8e8 !important;
+  text-decoration-color: #2e2e2e !important;
+}
+
+body.dark a:hover {
+  color: #aaaaaa !important;
+}
+
+body.dark .G_F,
+body.dark .G_V,
+body.dark .G_U {
+  background: #0d0d0d !important;
+}
+
