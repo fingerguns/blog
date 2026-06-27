@@ -1,14 +1,24 @@
-/* Apply body.dark from iframe URL before Remark42 paints. */
 (function () {
   var theme = "light";
   try {
     theme = new URLSearchParams(window.location.search).get("theme") === "dark" ? "dark" : "light";
   } catch (e) {}
   if (theme !== "dark") return;
-  document.documentElement.classList.add("dark");
-  document.documentElement.style.colorScheme = "dark";
-  document.addEventListener("DOMContentLoaded", function () {
+  var root = document.documentElement;
+  root.classList.add("dark");
+  root.style.colorScheme = "dark";
+  function markBody() {
+    if (!document.body) return;
     document.body.classList.add("dark");
     document.body.style.colorScheme = "dark";
-  });
+  }
+  markBody();
+  if (!document.body) {
+    new MutationObserver(function () {
+      if (document.body) {
+        markBody();
+        this.disconnect();
+      }
+    }).observe(document.documentElement, { childList: true });
+  }
 })();

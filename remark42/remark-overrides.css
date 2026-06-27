@@ -314,3 +314,37 @@ body.dark .G_U {
   background: #0d0d0d !important;
 }
 
+/* Fallback when Remark42 marks compose .B_J but body.dark is late */
+.B_J,
+.B_J .Y_B,
+.B_J .B_A,
+.B_J .B_D,
+.B_J [class*="controlPanel"],
+.B_J markdown-toolbar,
+.B_J .a_A,
+.B_J textarea,
+.B_J [class*="field"],
+.B_J [contenteditable="true"] {
+  background-color: #0d0d0d !important;
+  color: #e8e8e8 !important;
+}
+
+.B_J .a_A,
+.B_J textarea,
+.B_J [class*="field"],
+.B_J [contenteditable="true"] {
+  border: 1px solid #2e2e2e !important;
+  box-shadow: none !important;
+}
+
+.B_J .F_A {
+  background-color: #171717 !important;
+  color: #e8e8e8 !important;
+  border: 1px solid #2e2e2e !important;
+}
+
+.B_J .B_G,
+.B_J .B_K {
+  color: #888888 !important;
+}
+
