@@ -51,7 +51,7 @@ body.dark,
   --primary-background-color: 13, 13, 13;
 
   --color0: #e8e8e8;
-  --color3: #2e2e2e;
+  --color3: #0d0d0d;
   --color4: #0d0d0d;
   --color5: #0d0d0d;
   --color7: #e8e8e8;
@@ -212,4 +212,45 @@ textarea.a_A,
 
 [class*="fieldWrapper"] {
   width: 100% !important;
+}
+
+/* ── Dark mode targeted fixes ──────────────────────────────────────────────── */
+
+/* Form container and toolbar — seamless with page background */
+body.dark [class*="controlPanel"],
+body.dark [class*="fieldWrapper"],
+body.dark [class*="editor"],
+body.dark form,
+html.dark [class*="controlPanel"],
+html.dark [class*="fieldWrapper"],
+html.dark [class*="editor"],
+html.dark form {
+  background-color: #0d0d0d !important;
+  border-color: #2e2e2e !important;
+}
+
+/* Textarea — slightly lighter than page for visual depth */
+body.dark .a_A,
+body.dark textarea,
+html.dark .a_A,
+html.dark textarea {
+  background-color: #1a1a1a !important;
+  border-color: #2e2e2e !important;
+  color: #e8e8e8 !important;
+}
+
+/* Sign In / primary action buttons — match site dark-mode palette */
+body.dark .F_A,
+body.dark .V_C,
+body.dark .V_D,
+body.dark .V_F,
+body.dark .V_B,
+html.dark .F_A,
+html.dark .V_C,
+html.dark .V_D,
+html.dark .V_F,
+html.dark .V_B {
+  background-color: #e8e8e8 !important;
+  color: #0d0d0d !important;
+  border-color: #e8e8e8 !important;
 }
