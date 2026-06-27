@@ -19,6 +19,10 @@ try {
   console.warn("Could not expand git history:", e.message);
 }
 
-execSync("node scripts/build.mjs", { stdio: "inherit" });
+// Remark42 embed off until dark-mode styling is fixed (remove to re-enable).
+execSync("node scripts/build.mjs", {
+  stdio: "inherit",
+  env: { ...process.env, REMARK42_DISABLED: "1" },
+});
 
 console.log("dist/ ready for Cloudflare Pages.");

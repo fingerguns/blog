@@ -35,21 +35,16 @@ export function remark42EmbedHtml({ pageUrl, pageTitle }) {
     <script>
       var remark_config = ${configJson};
       (function(){
-        function remarkColors(theme){
-          if(theme==="dark"){
-            return{"--primary-background-color":"13, 13, 13","--primary-text-color":"232, 232, 232","--secondary-text-color":"136, 136, 136","--white-color":"13, 13, 13","--color4":"#0d0d0d","--color5":"#0d0d0d","--color6":"#0d0d0d","--color19":"#0d0d0d","--color21":"#0d0d0d","--color22":"#0d0d0d","--line-color":"#2e2e2e"};
-          }
-          return{"--primary-background-color":"245, 240, 232","--primary-text-color":"26, 26, 26","--secondary-text-color":"118, 118, 118","--white-color":"245, 240, 232","--color4":"#f5f0e8","--color5":"#f5f0e8","--color6":"#f5f0e8","--color19":"#f5f0e8","--color21":"#f5f0e8","--color22":"#f5f0e8","--line-color":"#d5cfc4"};
-        }
         function siteTheme(){
           var t=document.documentElement.getAttribute("data-theme");
           if(t==="dark"||t==="light") return t;
           try{return localStorage.getItem("theme")==="dark"?"dark":"light";}catch(e){return "light";}
         }
-        window.__remarkColors=remarkColors;
-        var t=siteTheme();
-        remark_config.theme=t;
-        remark_config.__colors__=remarkColors(t);
+        function applyRemarkConfig(){
+          remark_config.theme=siteTheme();
+          remark_config.styles={colorScheme:"light"};
+        }
+        applyRemarkConfig();
       }());
     </script>
     <script>!function(e,n){for(var o=0;o<e.length;o++){var r=n.createElement("script"),c=".js",d=n.head||n.body;"noModule"in r?(r.type="module",c=".mjs"):r.async=!0,r.defer=!0,r.src=remark_config.host+"/web/"+e[o]+c,d.appendChild(r)}}(remark_config.components||["embed"],document);</script>
@@ -59,34 +54,46 @@ export function remark42EmbedHtml({ pageUrl, pageTitle }) {
         if(t==="dark"||t==="light") return t;
         try{return localStorage.getItem("theme")==="dark"?"dark":"light";}catch(e){return "light";}
       }
-      function applyRemarkTheme(){
-        var t=siteTheme();
-        if(window.remark_config){
-          window.remark_config.theme=t;
-          if(window.__remarkColors) window.remark_config.__colors__=window.__remarkColors(t);
+      function applyRemarkConfig(){
+        if(!window.remark_config) return;
+        window.remark_config.theme=siteTheme();
+        window.remark_config.styles={colorScheme:"light"};
+      }
+      function bootRemark42(recreate){
+        applyRemarkConfig();
+        if(!window.REMARK42||!window.REMARK42.createInstance) return false;
+        if(recreate&&window.REMARK42.destroy){
+          window.REMARK42.destroy();
+          var root=document.getElementById("remark42");
+          if(root) root.textContent="Loading comments…";
         }
+        window.REMARK42.createInstance(window.remark_config);
+        window.__r42Theme=window.remark_config.theme;
+        return true;
+      }
+      function onThemeChange(){
         if(!window.REMARK42) return;
-        if(window.__r42Theme===undefined){
-          window.__r42Theme=t;
-          if(window.REMARK42.changeTheme) window.REMARK42.changeTheme(t);
-          return;
-        }
+        var t=siteTheme();
         if(window.__r42Theme===t) return;
-        window.__r42Theme=t;
-        if(window.REMARK42.destroy) window.REMARK42.destroy();
-        var root=document.getElementById("remark42");
-        if(root) root.textContent="Loading comments…";
-        if(window.REMARK42.createInstance) window.REMARK42.createInstance(window.remark_config);
+        bootRemark42(true);
       }
       var btn=document.getElementById("theme-toggle");
-      if(btn) btn.addEventListener("click",function(){ setTimeout(applyRemarkTheme,0); });
+      if(btn) btn.addEventListener("click",function(){ setTimeout(onThemeChange,0); });
       if(window.MutationObserver){
-        new MutationObserver(applyRemarkTheme).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+        new MutationObserver(onThemeChange).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
       }
       var tries=0;
       var iv=setInterval(function(){
-        applyRemarkTheme();
-        if(window.__r42Theme!==undefined||++tries>40) clearInterval(iv);
+        if(window.REMARK42&&window.REMARK42.createInstance){
+          if(!window.__r42Booted){
+            window.__r42Booted=true;
+            bootRemark42(true);
+          } else {
+            onThemeChange();
+          }
+          clearInterval(iv);
+        }
+        if(++tries>40) clearInterval(iv);
       },250);
     }());</script>`;
 }
