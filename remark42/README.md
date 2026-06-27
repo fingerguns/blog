@@ -38,7 +38,9 @@ Enable **Proxied** (orange cloud) if you want Cloudflare TLS in front of Fly.
 
 ### Cloudflare caching (important)
 
-When `comments.rommy.blog` is **proxied**, Cloudflare caches Remark42 static assets (including `/web/remark.css`) for up to **4 hours** (`cache-control: max-age=14400`). A hard refresh on rommy.blog does **not** bust that cache — the comment iframe loads CSS from `comments.rommy.blog`, not from the blog.
+When `comments.rommy.blog` is **proxied**, Cloudflare caches Remark42 static assets (including `/web/remark.css`) for up to **4 hours** (`cache-control: max-age=14400`). A hard refresh on rommy.blog does **not** bust that cache — the comment iframe loads CSS from `comments.rommy.blog`, not from the blog. Browsers also cache the iframe stylesheet independently of the blog page.
+
+The Docker build patches `iframe.html` to load `remark.css?v=<hash>` so CSS updates take effect without waiting on cache TTL.
 
 After deploying CSS changes:
 

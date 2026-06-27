@@ -226,26 +226,38 @@ body.dark {
   color: #e8e8e8 !important;
 }
 
+/* Remark42 also tags the compose shell .B_J when theme=dark */
+.B_J {
+  --color4: #0d0d0d;
+  --color19: #0d0d0d;
+  --color22: #171717;
+  --primary-background-color: 13, 13, 13;
+}
+
 .dark .B_D,
 .dark .B_J .B_D,
 .dark .B_L .B_D,
-.dark .Y_B {
+.dark .Y_B,
+.B_J .B_D {
   background: #0d0d0d !important;
 }
 
-.dark .F_A {
+.dark .F_A,
+.B_J .F_A {
   background-color: #171717 !important;
   border: 1px solid #2e2e2e !important;
   color: #e8e8e8 !important;
 }
 
-.dark .F_A:hover {
+.dark .F_A:hover,
+.B_J .F_A:hover {
   background-color: #2e2e2e !important;
   border-color: #2e2e2e !important;
   color: #e8e8e8 !important;
 }
 
-.dark .F_A:focus {
+.dark .F_A:focus,
+.B_J .F_A:focus {
   box-shadow: 0 0 0 2px rgba(232, 232, 232, 0.15) !important;
 }
 
@@ -254,7 +266,13 @@ body.dark {
 .dark #remark42 textarea,
 .dark textarea.input,
 .dark [class*="field"],
-.dark [contenteditable="true"] {
+.dark [contenteditable="true"],
+.B_J .a_A,
+.B_J textarea.a_A,
+.B_J #remark42 textarea,
+.B_J textarea.input,
+.B_J [class*="field"],
+.B_J [contenteditable="true"] {
   background-color: #171717 !important;
   border: 1px solid #2e2e2e !important;
   color: #e8e8e8 !important;
@@ -263,14 +281,22 @@ body.dark {
 .dark .a_A:hover,
 .dark textarea.a_A:hover,
 .dark #remark42 textarea:hover,
-.dark [class*="field"]:hover {
+.dark [class*="field"]:hover,
+.B_J .a_A:hover,
+.B_J textarea.a_A:hover,
+.B_J #remark42 textarea:hover,
+.B_J [class*="field"]:hover {
   border-color: #2e2e2e !important;
 }
 
 .dark .a_A:focus,
 .dark textarea.a_A:focus,
 .dark #remark42 textarea:focus,
-.dark [class*="field"]:focus {
+.dark [class*="field"]:focus,
+.B_J .a_A:focus,
+.B_J textarea.a_A:focus,
+.B_J #remark42 textarea:focus,
+.B_J [class*="field"]:focus {
   border-color: #888888 !important;
   box-shadow: none !important;
   outline: none !important;
@@ -279,14 +305,20 @@ body.dark {
 .dark .a_A::placeholder,
 .dark textarea.a_A::placeholder,
 .dark #remark42 textarea::placeholder,
-.dark [class*="field"]::placeholder {
+.dark [class*="field"]::placeholder,
+.B_J .a_A::placeholder,
+.B_J textarea.a_A::placeholder,
+.B_J #remark42 textarea::placeholder,
+.B_J [class*="field"]::placeholder {
   color: #888888 !important;
   -webkit-text-fill-color: #888888 !important;
   opacity: 1 !important;
 }
 
 .dark markdown-toolbar,
-.dark [class*="controlPanel"] {
+.dark [class*="controlPanel"],
+.B_J markdown-toolbar,
+.B_J [class*="controlPanel"] {
   color: #888888 !important;
 }
 
@@ -299,7 +331,17 @@ body.dark {
 .dark markdown-toolbar md-link,
 .dark markdown-toolbar md-unordered-list,
 .dark markdown-toolbar md-ordered-list,
-.dark markdown-toolbar md-image {
+.dark markdown-toolbar md-image,
+.B_J markdown-toolbar button,
+.B_J markdown-toolbar md-header,
+.B_J markdown-toolbar md-bold,
+.B_J markdown-toolbar md-italic,
+.B_J markdown-toolbar md-quote,
+.B_J markdown-toolbar md-code,
+.B_J markdown-toolbar md-link,
+.B_J markdown-toolbar md-unordered-list,
+.B_J markdown-toolbar md-ordered-list,
+.B_J markdown-toolbar md-image {
   color: #888888 !important;
 }
 
@@ -312,7 +354,17 @@ body.dark {
 .dark markdown-toolbar md-link:hover,
 .dark markdown-toolbar md-unordered-list:hover,
 .dark markdown-toolbar md-ordered-list:hover,
-.dark markdown-toolbar md-image:hover {
+.dark markdown-toolbar md-image:hover,
+.B_J markdown-toolbar button:hover,
+.B_J markdown-toolbar md-header:hover,
+.B_J markdown-toolbar md-bold:hover,
+.B_J markdown-toolbar md-italic:hover,
+.B_J markdown-toolbar md-quote:hover,
+.B_J markdown-toolbar md-code:hover,
+.B_J markdown-toolbar md-link:hover,
+.B_J markdown-toolbar md-unordered-list:hover,
+.B_J markdown-toolbar md-ordered-list:hover,
+.B_J markdown-toolbar md-image:hover {
   color: #e8e8e8 !important;
 }
 
