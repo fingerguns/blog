@@ -242,6 +242,28 @@ h2 {
   color: var(--link-hover);
 }
 
+/* Writing post comments (Remark42) */
+.post-comments {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--rule);
+}
+
+.post-comments h2 {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 1rem;
+}
+
+#remark42 iframe {
+  border: none;
+  width: 100%;
+  min-height: 12rem;
+}
+
 /* Post admin links (admin only, shown when session exists) */
 .post-admin-links {
   display: flex;

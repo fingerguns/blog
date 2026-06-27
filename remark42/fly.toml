@@ -1,0 +1,34 @@
+# fly.toml app configuration file generated for rommy-remark42 on 2026-06-26T20:17:08-04:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'rommy-remark42'
+primary_region = 'ewr'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  ADMIN_SHARED_ID = 'admin'
+  ADMIN_TYPE = 'shared'
+  AUTH_ANON = 'true'
+  AUTH_EMAIL_ENABLE = 'true'
+  REMARK_URL = 'https://comments.rommy.blog'
+  SITE = 'rommy.blog'
+
+[[mounts]]
+  source = 'remark42_data'
+  destination = '/srv/var'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'off'
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  memory = '256mb'
+  cpus = 1
+  memory_mb = 256

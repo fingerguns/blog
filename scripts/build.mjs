@@ -9,6 +9,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { d1Configured, loadBlogDataFromD1 } from "./d1-client.mjs";
 import { escHtml, escXml } from "./lib/html.mjs";
+import { remark42EmbedHtml } from "./lib/remark42.mjs";
 import { renderThinkingContentHtml } from "./lib/thinking-html.mjs";
 import { thinkingSlugFromIso } from "./lib/thinking-slug.mjs";
 
@@ -299,6 +300,7 @@ ${gaSnippet}
       <div class="body">
         ${bodyHtml}
       </div>
+${remark42EmbedHtml({ pageUrl: postUrl, pageTitle: p.title })}
       <a class="back-to-top" href="#">↑ Top</a>
       <footer class="site-footer">
         <p class="footer-row">&copy; 2026 ${escHtml(site.author)}<a href="#" class="theme-toggle" id="theme-toggle"></a></p>

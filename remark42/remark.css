@@ -1,0 +1,117 @@
+/* rommy.blog — Remark42 theme (light + dark) */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;1,400&display=swap");
+
+[data-theme="light"] {
+  --color31: #1a1a1a;
+  --color32: #444444;
+  --color33: #f5f0e8;
+  --color34: #1a1a1a;
+  --color35: #1a1a1a;
+  --color36: #1a1a1a;
+  --color37: #767676;
+  --color38: #f5f0e8;
+  --color39: #ebe6de;
+  --color40: #d5cfc4;
+  --color41: #f5f0e8;
+  --color42: #d5cfc4;
+}
+
+[data-theme="dark"] {
+  --color31: #e8e8e8;
+  --color32: #aaaaaa;
+  --color33: #171717;
+  --color34: #e8e8e8;
+  --color35: #e8e8e8;
+  --color36: #e8e8e8;
+  --color37: #888888;
+  --color38: #0d0d0d;
+  --color39: #171717;
+  --color40: #2e2e2e;
+  --color41: #0d0d0d;
+  --color42: #2e2e2e;
+}
+
+html,
+body,
+.remark42 {
+  font-family: "Inter", system-ui, -apple-system, sans-serif !important;
+  font-size: 16px !important;
+  line-height: 1.6 !important;
+  background-color: var(--color41) !important;
+  color: var(--color36) !important;
+}
+
+a {
+  color: var(--color36) !important;
+  text-decoration: underline !important;
+  text-decoration-color: var(--color42) !important;
+  text-underline-offset: 0.2em !important;
+}
+
+a:hover {
+  color: var(--color32) !important;
+  text-decoration-color: currentColor !important;
+}
+
+.button,
+.auth-provider,
+.moderation-panel .button {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  font-weight: 500 !important;
+}
+
+.input,
+textarea.input {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border-color: var(--color42) !important;
+  background: var(--color38) !important;
+  color: var(--color36) !important;
+}
+
+.comment {
+  border-color: var(--color42) !important;
+}
+
+.comment__username,
+.user-info__name {
+  font-weight: 500 !important;
+  color: var(--color36) !important;
+}
+
+.comment__time,
+.user-info__time,
+.comment__text p {
+  color: var(--color37) !important;
+}
+
+.comment__text {
+  color: var(--color36) !important;
+}
+
+.comment__actions .action,
+.sorting__select {
+  color: var(--color37) !important;
+}
+
+.avatar img,
+.comment-avatar img {
+  border-radius: 2px !important;
+}
+
+.remark42__footer,
+.remark42__last-comments-footer {
+  display: none !important;
+}
+
+.loader {
+  color: var(--color37) !important;
+}
+
+.auth-panel,
+.moderation-panel {
+  border-color: var(--color42) !important;
+  background: var(--color39) !important;
+}

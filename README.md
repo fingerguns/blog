@@ -11,6 +11,7 @@ Built with [Cursor](https://cursor.com). See the [colophon](https://rommy.blog/c
 - **Media in R2** — Photos for Thinking and Writing (public bucket)
 - **Admin** — Password-protected UI at `/admin/` (Thinking, Writing, Reading, Sharing, Login)
 - **Cross-posting** — Thinking can publish to [Micro.blog](https://micro.blog) (Micropub) and [Bluesky](https://bsky.app) when configured
+- **Comments** — [Remark42](https://remark42.com) on Writing posts (`comments.rommy.blog`)
 - **Writing editor** — [Quill](https://quilljs.com/) with image upload, text wrap (left / right / center / full), drafts, and post version history
 - **Social previews** — Open Graph / Twitter meta on Writing and Thinking permalinks (first in-post image when available)
 - **Plain links in Thinking** — URLs in notes are normal hyperlinks on the site (no on-site unfurl cards)
@@ -36,10 +37,11 @@ Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on the
 |------|---------|
 | `admin/` | Admin UI (static HTML + JS) |
 | `scripts/build.mjs` | Regenerates site into `dist/` |
-| `scripts/lib/` | Shared HTML, slug, and thinking helpers (build + Worker) |
+| `scripts/lib/` | Shared HTML, slug, thinking, and Remark42 helpers (build + Worker) |
 | `scripts/d1-client.mjs` | D1 queries for local/Pages builds |
 | `build-pages.mjs` | Cloudflare Pages entrypoint (git unshallow + build) |
 | `worker/` | Cloudflare Worker (`update-thinking.js`) — admin API |
+| `remark42/` | Remark42 server config, theme CSS, Docker / Fly deploy |
 | `data/posts.json` | Legacy fallback if D1 env vars are not set |
 | `styles.css` | Site styles (light/dark) |
 | `about/`, `admin/`, `colophon/`, `contact/` | Hand-authored static pages (copied into `dist/` at build) |
@@ -68,6 +70,8 @@ Reads from D1 when these env vars are set:
 | `CF_D1_DATABASE_ID` | D1 database ID |
 
 Without them, the build falls back to `data/posts.json`.
+
+**Remark42** (Writing comments): see [`remark42/README.md`](remark42/README.md). Embed is on by default (`REMARK42_HOST=https://comments.rommy.blog`); set `REMARK42_DISABLED=1` to omit.
 
 To preview the admin UI locally against the Worker:
 

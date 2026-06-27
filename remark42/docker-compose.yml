@@ -1,0 +1,21 @@
+services:
+  remark42:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      REMARK_URL: ${REMARK_URL:-https://comments.rommy.blog}
+      SITE: rommy.blog
+      SECRET: ${SECRET:?Set SECRET in remark42/.env}
+      AUTH_ANON: "true"
+      AUTH_EMAIL_ENABLE: "true"
+      AUTH_GITHUB_CID: ${AUTH_GITHUB_CID:-}
+      AUTH_GITHUB_CSEC: ${AUTH_GITHUB_CSEC:-}
+      ADMIN_TYPE: shared
+      ADMIN_SHARED_ID: ${REMARK42_ADMIN_ID:-admin}
+      ADMIN_SHARED_SECRET: ${ADMIN_SHARED_SECRET:?Set ADMIN_SHARED_SECRET in remark42/.env}
+    volumes:
+      - remark42_data:/srv/var
+
+volumes:
+  remark42_data:
