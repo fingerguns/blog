@@ -41,6 +41,7 @@
 html.dark,
 body.dark,
 .dark {
+  color-scheme: dark !important;
   --primary-color: 232, 232, 232;
   --primary-brighter-color: 170, 170, 170;
   --primary-darker-color: 232, 232, 232;

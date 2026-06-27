@@ -40,11 +40,7 @@ export function remark42EmbedHtml({ pageUrl, pageTitle }) {
           if(t==="dark"||t==="light") return t;
           try{return localStorage.getItem("theme")==="dark"?"dark":"light";}catch(e){return "light";}
         }
-        function applyRemarkConfig(){
-          remark_config.theme=siteTheme();
-          remark_config.styles={colorScheme:"light"};
-        }
-        applyRemarkConfig();
+        remark_config.theme=siteTheme();
       }());
     </script>
     <script>!function(e,n){for(var o=0;o<e.length;o++){var r=n.createElement("script"),c=".js",d=n.head||n.body;"noModule"in r?(r.type="module",c=".mjs"):r.async=!0,r.defer=!0,r.src=remark_config.host+"/web/"+e[o]+c,d.appendChild(r)}}(remark_config.components||["embed"],document);</script>
@@ -54,13 +50,9 @@ export function remark42EmbedHtml({ pageUrl, pageTitle }) {
         if(t==="dark"||t==="light") return t;
         try{return localStorage.getItem("theme")==="dark"?"dark":"light";}catch(e){return "light";}
       }
-      function applyRemarkConfig(){
-        if(!window.remark_config) return;
-        window.remark_config.theme=siteTheme();
-        window.remark_config.styles={colorScheme:"light"};
-      }
       function bootRemark42(recreate){
-        applyRemarkConfig();
+        if(!window.remark_config) return false;
+        window.remark_config.theme=siteTheme();
         if(!window.REMARK42||!window.REMARK42.createInstance) return false;
         if(recreate&&window.REMARK42.destroy){
           window.REMARK42.destroy();
