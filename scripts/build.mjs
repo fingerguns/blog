@@ -289,6 +289,7 @@ ${ogMetaTags({
       title="${escHtml(site.title)}"
       href="../../feed.xml"
     />
+    <link rel="webmention" href="https://webmention.io/rommy.blog/webmention" />
 ${gaSnippet}
   </head>
   <body>
@@ -299,6 +300,46 @@ ${gaSnippet}
       <div class="body">
         ${bodyHtml}
       </div>
+      <section class="webmentions" id="webmentions" hidden aria-labelledby="wm-heading"></section>
+      <script>(function(){
+        var url=${JSON.stringify(postUrl)};
+        fetch('https://webmention.io/api/mentions.jf2?target='+encodeURIComponent(url)+'&per-page=100&sort-by=published')
+          .then(function(r){return r.json();})
+          .then(function(d){
+            var all=d.children||[];
+            if(!all.length)return;
+            var reactions=all.filter(function(m){return m['wm-property']==='like-of'||m['wm-property']==='bookmark-of'||m['wm-property']==='repost-of';});
+            var comments=all.filter(function(m){return m['wm-property']==='in-reply-to'||m['wm-property']==='mention-of';});
+            var s=document.getElementById('webmentions');
+            var h=document.createElement('h2');h.id='wm-heading';h.textContent='Webmentions';s.appendChild(h);
+            if(reactions.length){
+              var rx=document.createElement('div');rx.className='wm-reactions';
+              reactions.forEach(function(m){
+                var a=document.createElement('a');
+                a.href=(m.author&&m.author.url)||m.url;a.target='_blank';a.rel='noopener';
+                var name=(m.author&&m.author.name)||'?';a.title=name;
+                if(m.author&&m.author.photo){var img=document.createElement('img');img.src=m.author.photo;img.alt=name;img.loading='lazy';a.appendChild(img);}
+                else{a.textContent=name.charAt(0).toUpperCase();}
+                rx.appendChild(a);
+              });
+              s.appendChild(rx);
+            }
+            if(comments.length){
+              var cl=document.createElement('div');cl.className='wm-comments';
+              comments.forEach(function(m){
+                var item=document.createElement('div');item.className='wm-comment';
+                var meta=document.createElement('div');meta.className='wm-comment-meta';
+                var a=document.createElement('a');a.href=(m.author&&m.author.url)||m.url;a.target='_blank';a.rel='noopener';a.textContent=(m.author&&m.author.name)||'Anonymous';meta.appendChild(a);
+                if(m.published){var t=document.createElement('time');t.dateTime=m.published;t.textContent=' · '+m.published.slice(0,10);meta.appendChild(t);}
+                item.appendChild(meta);
+                if(m.content&&m.content.text){var p=document.createElement('p');p.className='wm-comment-text';p.textContent=m.content.text.slice(0,500);item.appendChild(p);}
+                cl.appendChild(item);
+              });
+              s.appendChild(cl);
+            }
+            s.removeAttribute('hidden');
+          }).catch(function(){});
+      }());</script>
       <a class="back-to-top" href="#">↑ Top</a>
       <footer class="site-footer">
         <p class="footer-row">&copy; 2026 ${escHtml(site.author)}<a href="#" class="theme-toggle" id="theme-toggle"></a></p>
@@ -458,6 +499,7 @@ ${descriptionText ? `    <meta property="og:description" content="${escHtml(desc
       title="${escHtml(site.title)} (Atom)"
       href="feed.xml"
     />
+    <link rel="webmention" href="https://webmention.io/rommy.blog/webmention" />
 ${gaSnippet}
   </head>
   <body>
