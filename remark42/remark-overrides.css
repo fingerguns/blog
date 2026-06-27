@@ -216,184 +216,137 @@ textarea.a_A,
   width: 100% !important;
 }
 
-/* Dark mode — match rommy.blog (#0d0d0d page, #171717 input lift) */
-.dark html,
-.dark body,
-html.dark,
-html.dark body,
+/* Dark mode — dark frame (#0d0d0d), white writing surface (matches user intent) */
 body.dark {
+  color-scheme: dark !important;
   background: #0d0d0d !important;
   color: #e8e8e8 !important;
 }
 
-/* Remark42 also tags the compose shell .B_J when theme=dark */
-.B_J {
-  --color4: #0d0d0d;
-  --color19: #0d0d0d;
-  --color22: #171717;
-  --primary-background-color: 13, 13, 13;
+body:not(.dark) {
+  color-scheme: light !important;
 }
 
-.dark .B_D,
-.dark .B_J .B_D,
-.dark .B_L .B_D,
-.dark .Y_B,
-.B_J .B_D {
-  background: #0d0d0d !important;
-}
-
-.dark .F_A,
-.B_J .F_A {
-  background-color: #171717 !important;
-  border: 1px solid #2e2e2e !important;
+body.dark #remark42,
+body.dark .B_A,
+body.dark .B_B,
+body.dark .B_C,
+body.dark .B_D,
+body.dark .B_L,
+body.dark .B_J,
+body.dark .B_H,
+body.dark .Y_A,
+body.dark .Y_B,
+body.dark .Y_C,
+body.dark [class*="controlPanel"],
+body.dark markdown-toolbar {
+  background-color: #0d0d0d !important;
   color: #e8e8e8 !important;
 }
 
-.dark .F_A:hover,
-.B_J .F_A:hover {
-  background-color: #2e2e2e !important;
-  border-color: #2e2e2e !important;
-  color: #e8e8e8 !important;
-}
-
-.dark .F_A:focus,
-.B_J .F_A:focus {
-  box-shadow: 0 0 0 2px rgba(232, 232, 232, 0.15) !important;
-}
-
-.dark .a_A,
-.dark textarea.a_A,
-.dark #remark42 textarea,
-.dark textarea.input,
-.dark [class*="field"],
-.dark [contenteditable="true"],
-.B_J .a_A,
-.B_J textarea.a_A,
-.B_J #remark42 textarea,
-.B_J textarea.input,
-.B_J [class*="field"],
-.B_J [contenteditable="true"] {
-  background-color: #171717 !important;
-  border: 1px solid #2e2e2e !important;
-  color: #e8e8e8 !important;
-}
-
-.dark .a_A:hover,
-.dark textarea.a_A:hover,
-.dark #remark42 textarea:hover,
-.dark [class*="field"]:hover,
-.B_J .a_A:hover,
-.B_J textarea.a_A:hover,
-.B_J #remark42 textarea:hover,
-.B_J [class*="field"]:hover {
-  border-color: #2e2e2e !important;
-}
-
-.dark .a_A:focus,
-.dark textarea.a_A:focus,
-.dark #remark42 textarea:focus,
-.dark [class*="field"]:focus,
-.B_J .a_A:focus,
-.B_J textarea.a_A:focus,
-.B_J #remark42 textarea:focus,
-.B_J [class*="field"]:focus {
-  border-color: #888888 !important;
-  box-shadow: none !important;
-  outline: none !important;
-}
-
-.dark .a_A::placeholder,
-.dark textarea.a_A::placeholder,
-.dark #remark42 textarea::placeholder,
-.dark [class*="field"]::placeholder,
-.B_J .a_A::placeholder,
-.B_J textarea.a_A::placeholder,
-.B_J #remark42 textarea::placeholder,
-.B_J [class*="field"]::placeholder {
+body.dark .B_G,
+body.dark .B_K,
+body.dark .O_A,
+body.dark .O_C {
   color: #888888 !important;
-  -webkit-text-fill-color: #888888 !important;
+}
+
+body.dark .F_A {
+  background-color: #171717 !important;
+  border: 1px solid #2e2e2e !important;
+  color: #e8e8e8 !important;
+}
+
+body.dark .F_A:hover {
+  background-color: #2e2e2e !important;
+}
+
+body.dark textarea,
+body.dark .a_A,
+body.dark textarea.a_A,
+body.dark textarea.input,
+body.dark #remark42 textarea,
+body.dark [class*="field"],
+body.dark [contenteditable="true"] {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+  caret-color: #1a1a1a !important;
+  border: 1px solid #2e2e2e !important;
+}
+
+body.dark textarea::placeholder,
+body.dark .a_A::placeholder,
+body.dark [class*="field"]::placeholder,
+body.dark [contenteditable="true"]:empty:before {
+  color: #767676 !important;
+  -webkit-text-fill-color: #767676 !important;
   opacity: 1 !important;
 }
 
-.dark markdown-toolbar,
-.dark [class*="controlPanel"],
-.B_J markdown-toolbar,
-.B_J [class*="controlPanel"] {
+body.dark markdown-toolbar button,
+body.dark markdown-toolbar md-header,
+body.dark markdown-toolbar md-bold,
+body.dark markdown-toolbar md-italic,
+body.dark markdown-toolbar md-quote,
+body.dark markdown-toolbar md-code,
+body.dark markdown-toolbar md-link,
+body.dark markdown-toolbar md-unordered-list,
+body.dark markdown-toolbar md-ordered-list,
+body.dark markdown-toolbar md-image {
   color: #888888 !important;
 }
 
-.dark markdown-toolbar button,
-.dark markdown-toolbar md-header,
-.dark markdown-toolbar md-bold,
-.dark markdown-toolbar md-italic,
-.dark markdown-toolbar md-quote,
-.dark markdown-toolbar md-code,
-.dark markdown-toolbar md-link,
-.dark markdown-toolbar md-unordered-list,
-.dark markdown-toolbar md-ordered-list,
-.dark markdown-toolbar md-image,
-.B_J markdown-toolbar button,
-.B_J markdown-toolbar md-header,
-.B_J markdown-toolbar md-bold,
-.B_J markdown-toolbar md-italic,
-.B_J markdown-toolbar md-quote,
-.B_J markdown-toolbar md-code,
-.B_J markdown-toolbar md-link,
-.B_J markdown-toolbar md-unordered-list,
-.B_J markdown-toolbar md-ordered-list,
-.B_J markdown-toolbar md-image {
-  color: #888888 !important;
-}
-
-.dark markdown-toolbar button:hover,
-.dark markdown-toolbar md-header:hover,
-.dark markdown-toolbar md-bold:hover,
-.dark markdown-toolbar md-italic:hover,
-.dark markdown-toolbar md-quote:hover,
-.dark markdown-toolbar md-code:hover,
-.dark markdown-toolbar md-link:hover,
-.dark markdown-toolbar md-unordered-list:hover,
-.dark markdown-toolbar md-ordered-list:hover,
-.dark markdown-toolbar md-image:hover,
-.B_J markdown-toolbar button:hover,
-.B_J markdown-toolbar md-header:hover,
-.B_J markdown-toolbar md-bold:hover,
-.B_J markdown-toolbar md-italic:hover,
-.B_J markdown-toolbar md-quote:hover,
-.B_J markdown-toolbar md-code:hover,
-.B_J markdown-toolbar md-link:hover,
-.B_J markdown-toolbar md-unordered-list:hover,
-.B_J markdown-toolbar md-ordered-list:hover,
-.B_J markdown-toolbar md-image:hover {
+body.dark markdown-toolbar button:hover,
+body.dark markdown-toolbar md-header:hover,
+body.dark markdown-toolbar md-bold:hover,
+body.dark markdown-toolbar md-italic:hover,
+body.dark markdown-toolbar md-quote:hover,
+body.dark markdown-toolbar md-code:hover,
+body.dark markdown-toolbar md-link:hover,
+body.dark markdown-toolbar md-unordered-list:hover,
+body.dark markdown-toolbar md-ordered-list:hover,
+body.dark markdown-toolbar md-image:hover {
   color: #e8e8e8 !important;
 }
 
-.dark .G_F,
-.dark .G_V,
-.dark .G_U {
+body.dark .G_F,
+body.dark .G_V,
+body.dark .G_U {
   background: #0d0d0d !important;
 }
 
-.dark .G_V.comment_highlighting,
-.dark .G_U.comment_highlighting {
+body.dark .G_V.comment_highlighting,
+body.dark .G_U.comment_highlighting {
   background: #171717 !important;
 }
 
-.dark .V_D {
+body.dark .V_D {
   background: #171717 !important;
   border: 1px solid #2e2e2e !important;
   color: #e8e8e8 !important;
 }
 
-.dark .V_D:hover {
-  box-shadow: inset 0 0 0 1px #888888 !important;
-}
-
-.dark a {
+body.dark a {
   color: #e8e8e8 !important;
   text-decoration-color: #2e2e2e !important;
 }
 
-.dark a:hover {
+body.dark a:hover {
   color: #aaaaaa !important;
+}
+
+/* Fallback when compose uses .B_J before body.dark is set */
+.B_J .B_A,
+.B_J .B_D,
+.B_J .Y_B {
+  background-color: #0d0d0d !important;
+}
+
+.B_J textarea,
+.B_J .a_A,
+.B_J [class*="field"],
+.B_J [contenteditable="true"] {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+  border: 1px solid #2e2e2e !important;
 }

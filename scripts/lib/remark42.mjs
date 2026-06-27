@@ -34,19 +34,30 @@ export function remark42EmbedHtml({ pageUrl, pageTitle }) {
       </section>
     <script>
       var remark_config = ${configJson};
-      try {
-        remark_config.theme = localStorage.getItem("theme") === "dark" ? "dark" : "light";
-      } catch (e) {}
+      (function(){
+        function siteTheme(){
+          var t=document.documentElement.getAttribute("data-theme");
+          if(t==="dark"||t==="light") return t;
+          try { return localStorage.getItem("theme")==="dark"?"dark":"light"; } catch(e) { return "light"; }
+        }
+        remark_config.theme=siteTheme();
+      }());
     </script>
     <script>!function(e,n){for(var o=0;o<e.length;o++){var r=n.createElement("script"),c=".js",d=n.head||n.body;"noModule"in r?(r.type="module",c=".mjs"):r.async=!0,r.defer=!0,r.src=remark_config.host+"/web/"+e[o]+c,d.appendChild(r)}}(remark_config.components||["embed"],document);</script>
     <script>(function(){
+      function siteTheme(){
+        var t=document.documentElement.getAttribute("data-theme");
+        if(t==="dark"||t==="light") return t;
+        try { return localStorage.getItem("theme")==="dark"?"dark":"light"; } catch(e) { return "light"; }
+      }
       function syncRemarkTheme(){
         if(!window.REMARK42||!window.REMARK42.changeTheme)return;
-        var t=document.documentElement.getAttribute("data-theme")==="dark"?"dark":"light";
-        window.REMARK42.changeTheme(t);
+        window.REMARK42.changeTheme(siteTheme());
       }
-      var btn=document.getElementById("theme-toggle");
-      if(btn) btn.addEventListener("click",function(){ setTimeout(syncRemarkTheme,0); });
+      var root=document.documentElement;
+      if(window.MutationObserver){
+        new MutationObserver(syncRemarkTheme).observe(root,{attributes:true,attributeFilter:["data-theme"]});
+      }
       var tries=0;
       var iv=setInterval(function(){
         syncRemarkTheme();
