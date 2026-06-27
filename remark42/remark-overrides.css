@@ -1,4 +1,4 @@
-/* rommy.blog — Remark42 theme (light + dark) */
+/* rommy.blog — Remark42 theme overrides (imported after remark-base.css) */
 
 @import url("https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;1,400&display=swap");
 
@@ -114,4 +114,64 @@ textarea.input {
 .moderation-panel {
   border-color: var(--color42) !important;
   background: var(--color39) !important;
+}
+
+/* Comment form: single-line toolbar, taller textarea */
+[class*="controlPanel"] {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 2.25rem !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+markdown-toolbar {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  width: 100% !important;
+  gap: 0 !important;
+  overflow-x: auto !important;
+}
+
+markdown-toolbar > * {
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+markdown-toolbar md-header,
+markdown-toolbar md-bold,
+markdown-toolbar md-italic,
+markdown-toolbar md-quote,
+markdown-toolbar md-code,
+markdown-toolbar md-link,
+markdown-toolbar md-unordered-list,
+markdown-toolbar md-ordered-list,
+markdown-toolbar md-image {
+  display: inline-flex !important;
+}
+
+#remark42 textarea,
+textarea.input,
+[class*="field"] {
+  display: block !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  min-height: 9rem !important;
+  height: auto !important;
+  padding: 0.75rem !important;
+  font-size: 1rem !important;
+  line-height: 1.5 !important;
+  resize: vertical !important;
+  overflow: auto !important;
+}
+
+[class*="fieldWrapper"] {
+  width: 100% !important;
 }

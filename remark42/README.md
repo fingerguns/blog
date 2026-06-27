@@ -36,6 +36,26 @@ Remark42 expects **`REMARK_URL`**, **`SECRET`**, and **`SITE`** — not `REMARK4
 
 Enable **Proxied** (orange cloud) if you want Cloudflare TLS in front of Fly.
 
+### Cloudflare caching (important)
+
+When `comments.rommy.blog` is **proxied**, Cloudflare caches Remark42 static assets (including `/web/remark.css`) for up to **4 hours** (`cache-control: max-age=14400`). A hard refresh on rommy.blog does **not** bust that cache — the comment iframe loads CSS from `comments.rommy.blog`, not from the blog.
+
+After deploying CSS changes:
+
+1. **Purge now:** Cloudflare dashboard → your zone → **Caching** → **Purge Cache** → **Custom Purge** → URL: `https://comments.rommy.blog/web/remark.css`
+2. **Avoid repeat:** **Caching** → **Cache Rules** → create a rule for `comments.rommy.blog/web/*` with **Bypass cache**.
+
+Or set the `comments` CNAME to **DNS only** (grey cloud) — Fly’s certificate covers HTTPS and Cloudflare will not cache origin responses.
+
+Verify the live file includes the overrides header:
+
+```bash
+curl -sL https://comments.rommy.blog/web/remark.css | head -2
+# Expected after deploy + purge:
+# @import url("remark-base.css");
+# /* rommy.blog — Remark42 theme overrides ...
+```
+
 ## Auth
 
 Defaults in `docker-compose.yml`:
@@ -47,7 +67,7 @@ Admin moderation uses `ADMIN_SHARED_ID` / `ADMIN_SHARED_SECRET` from `.env`.
 
 ## Theme
 
-`remark.css` matches rommy.blog (Inter, warm off-white / near-black, subtle link underlines). It is mounted into the container at `/var/www/remark42/web/remark.css`. The site footer theme toggle syncs via `window.REMARK42.changeTheme()`.
+`remark.css` matches rommy.blog (Inter, warm off-white / near-black, subtle link underlines). Built as `remark-overrides.css` layered on Remark42’s default stylesheet. The site footer theme toggle keeps the comment iframe in sync with light/dark mode.
 
 ## Build / Pages env
 
