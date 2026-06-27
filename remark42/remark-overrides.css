@@ -41,19 +41,23 @@
 html.dark,
 body.dark,
 .dark {
-  --primary-color: 232, 232, 232;
-  --primary-brighter-color: 170, 170, 170;
-  --primary-darker-color: 232, 232, 232;
+  --primary-color: 23, 23, 23;
+  --primary-brighter-color: 46, 46, 46;
+  --primary-darker-color: 23, 23, 23;
   --primary-text-color: 232, 232, 232;
   --secondary-text-color: 136, 136, 136;
   --secondary-darker-text-color: 136, 136, 136;
   --primary-background-color: 13, 13, 13;
+  --white-color: 232, 232, 232;
+  --black-color: 232, 232, 232;
 
   --color0: #e8e8e8;
   --color3: #2e2e2e;
-  --color4: #171717;
-  --color5: #171717;
+  --color4: #0d0d0d;
+  --color5: #0d0d0d;
+  --color6: #e8e8e8;
   --color7: #e8e8e8;
+  --color8: #171717;
   --color9: #e8e8e8;
   --color10: #888888;
   --color11: #888888;
@@ -61,9 +65,10 @@ body.dark,
   --color15: #aaaaaa;
   --color16: #2e2e2e;
   --color18: #2e2e2e;
-  --color19: #171717;
+  --color19: #0d0d0d;
   --color20: #888888;
   --color21: #171717;
+  --color22: #171717;
   --color29: #e8e8e8;
   --color31: #2e2e2e;
   --color33: #aaaaaa;
@@ -73,7 +78,7 @@ body.dark,
   --color42: #2e2e2e;
   --line-color: #2e2e2e;
   --line-brighter-color: #2e2e2e;
-  --color47: rgba(232, 232, 232, 0.25);
+  --color47: rgba(232, 232, 232, 0.2);
 }
 
 html,
@@ -209,4 +214,134 @@ textarea.a_A,
 
 [class*="fieldWrapper"] {
   width: 100% !important;
+}
+
+/* Dark mode — match rommy.blog (#0d0d0d page, #171717 input lift) */
+.dark html,
+.dark body,
+html.dark,
+html.dark body,
+body.dark {
+  background: #0d0d0d !important;
+  color: #e8e8e8 !important;
+}
+
+.dark .B_D,
+.dark .B_J .B_D,
+.dark .B_L .B_D,
+.dark .Y_B {
+  background: #0d0d0d !important;
+}
+
+.dark .F_A {
+  background-color: #171717 !important;
+  border: 1px solid #2e2e2e !important;
+  color: #e8e8e8 !important;
+}
+
+.dark .F_A:hover {
+  background-color: #2e2e2e !important;
+  border-color: #2e2e2e !important;
+  color: #e8e8e8 !important;
+}
+
+.dark .F_A:focus {
+  box-shadow: 0 0 0 2px rgba(232, 232, 232, 0.15) !important;
+}
+
+.dark .a_A,
+.dark textarea.a_A,
+.dark #remark42 textarea,
+.dark textarea.input,
+.dark [class*="field"],
+.dark [contenteditable="true"] {
+  background-color: #171717 !important;
+  border: 1px solid #2e2e2e !important;
+  color: #e8e8e8 !important;
+}
+
+.dark .a_A:hover,
+.dark textarea.a_A:hover,
+.dark #remark42 textarea:hover,
+.dark [class*="field"]:hover {
+  border-color: #2e2e2e !important;
+}
+
+.dark .a_A:focus,
+.dark textarea.a_A:focus,
+.dark #remark42 textarea:focus,
+.dark [class*="field"]:focus {
+  border-color: #888888 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.dark .a_A::placeholder,
+.dark textarea.a_A::placeholder,
+.dark #remark42 textarea::placeholder,
+.dark [class*="field"]::placeholder {
+  color: #888888 !important;
+  -webkit-text-fill-color: #888888 !important;
+  opacity: 1 !important;
+}
+
+.dark markdown-toolbar,
+.dark [class*="controlPanel"] {
+  color: #888888 !important;
+}
+
+.dark markdown-toolbar button,
+.dark markdown-toolbar md-header,
+.dark markdown-toolbar md-bold,
+.dark markdown-toolbar md-italic,
+.dark markdown-toolbar md-quote,
+.dark markdown-toolbar md-code,
+.dark markdown-toolbar md-link,
+.dark markdown-toolbar md-unordered-list,
+.dark markdown-toolbar md-ordered-list,
+.dark markdown-toolbar md-image {
+  color: #888888 !important;
+}
+
+.dark markdown-toolbar button:hover,
+.dark markdown-toolbar md-header:hover,
+.dark markdown-toolbar md-bold:hover,
+.dark markdown-toolbar md-italic:hover,
+.dark markdown-toolbar md-quote:hover,
+.dark markdown-toolbar md-code:hover,
+.dark markdown-toolbar md-link:hover,
+.dark markdown-toolbar md-unordered-list:hover,
+.dark markdown-toolbar md-ordered-list:hover,
+.dark markdown-toolbar md-image:hover {
+  color: #e8e8e8 !important;
+}
+
+.dark .G_F,
+.dark .G_V,
+.dark .G_U {
+  background: #0d0d0d !important;
+}
+
+.dark .G_V.comment_highlighting,
+.dark .G_U.comment_highlighting {
+  background: #171717 !important;
+}
+
+.dark .V_D {
+  background: #171717 !important;
+  border: 1px solid #2e2e2e !important;
+  color: #e8e8e8 !important;
+}
+
+.dark .V_D:hover {
+  box-shadow: inset 0 0 0 1px #888888 !important;
+}
+
+.dark a {
+  color: #e8e8e8 !important;
+  text-decoration-color: #2e2e2e !important;
+}
+
+.dark a:hover {
+  color: #aaaaaa !important;
 }
