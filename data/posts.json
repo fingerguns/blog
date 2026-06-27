@@ -189,8 +189,12 @@
       "url": "https://linkedin.com/in/rommyghaly"
     },
     {
+      "label": "Mastodon",
+      "url": "https://mas.to/@rommy"
+    },
+    {
       "label": "GitHub",
-      "url": "http://github.com/fingerguns"
+      "url": "https://github.com/fingerguns"
     }
   ]
 }
