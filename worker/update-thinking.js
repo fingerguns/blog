@@ -10,12 +10,14 @@ import { renderThinkingContentHtml } from "../scripts/lib/thinking-html.mjs";
  * Content is stored in Cloudflare D1. Static site is rebuilt via Pages deploy hook.
  *
  * Secrets (wrangler secret put):
- *   ADMIN_PASSWORD       — shared password for /admin/
- *   PAGES_DEPLOY_HOOK    — Cloudflare Pages deploy hook URL
- *   MICROBLOG_TOKEN      — Micropub token (optional)
- *   BLUESKY_HANDLE       — Bluesky handle (optional)
- *   BLUESKY_APP_PASSWORD — Bluesky app password (optional)
- *   GITHUB_TOKEN         — optional fallback to trigger GitHub workflow_dispatch
+ *   ADMIN_PASSWORD        — shared password for /admin/
+ *   PAGES_DEPLOY_HOOK     — Cloudflare Pages deploy hook URL
+ *   MICROBLOG_TOKEN       — Micropub token (optional)
+ *   BLUESKY_HANDLE        — Bluesky handle (optional)
+ *   BLUESKY_APP_PASSWORD  — Bluesky app password (optional)
+ *   MASTODON_ACCESS_TOKEN — Mastodon access token (optional; see /settings/applications)
+ *   MASTODON_INSTANCE     — Mastodon instance URL, default https://mas.to (optional)
+ *   GITHUB_TOKEN          — optional fallback to trigger GitHub workflow_dispatch
  *
  * R2 (photos on THINKING):
  *   Enable R2 in Cloudflare dashboard, then: wrangler r2 bucket create rommy-blog-media
@@ -25,6 +27,8 @@ import { renderThinkingContentHtml } from "../scripts/lib/thinking-html.mjs";
 const SITE_URL = "https://rommy.blog";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_BLUESKY_IMAGE_BYTES = 2_000_000;
+const MAX_MASTODON_CHARS = 500;
+const DEFAULT_MASTODON_INSTANCE = "https://mas.to";
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const IMAGE_EXT = {
   "image/jpeg": "jpg",
@@ -432,11 +436,25 @@ async function handleThinking(payload, db, cors, env) {
       }
     }
 
+    let mastodonUrl = null;
+    let mastodonWarning = null;
+    if (env.MASTODON_ACCESS_TOKEN) {
+      const mastodonInstance = (env.MASTODON_INSTANCE || DEFAULT_MASTODON_INSTANCE).replace(/\/$/, "");
+      try {
+        const mastodonImage = uploadedForBluesky
+          ? { bytes: uploadedForBluesky.bytes, mimeType: uploadedForBluesky.mimeType, alt: uploadedForBluesky.alt }
+          : null;
+        mastodonUrl = await postToMastodon(mastodonInstance, env.MASTODON_ACCESS_TOKEN, text, mastodonImage);
+      } catch (msErr) {
+        mastodonWarning = formatServiceWarning("Mastodon", msErr.message);
+      }
+    }
+
     const contentHtml = renderThinkingContentHtml(text, mediaUrl, mediaAlt);
     await dbRun(
       db,
-      `INSERT INTO thinking_posts (slug, text, media_url, media_alt, content_html, datetime, microblog_url, bluesky_uri, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO thinking_posts (slug, text, media_url, media_alt, content_html, datetime, microblog_url, bluesky_uri, mastodon_uri, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(slug) DO UPDATE SET
          text = excluded.text,
          media_url = excluded.media_url,
@@ -444,6 +462,7 @@ async function handleThinking(payload, db, cors, env) {
          content_html = excluded.content_html,
          microblog_url = COALESCE(excluded.microblog_url, thinking_posts.microblog_url),
          bluesky_uri = COALESCE(excluded.bluesky_uri, thinking_posts.bluesky_uri),
+         mastodon_uri = COALESCE(excluded.mastodon_uri, thinking_posts.mastodon_uri),
          datetime = excluded.datetime`,
       slug,
       text,
@@ -453,6 +472,7 @@ async function handleThinking(payload, db, cors, env) {
       nowIso,
       microblogUrl,
       blueskyUri,
+      mastodonUrl,
       nowIso
     );
 
@@ -466,6 +486,7 @@ async function handleThinking(payload, db, cors, env) {
         microblogWarning,
         blueskyWarning,
         blueskyCompressed,
+        mastodonWarning,
       },
       200,
       cors
@@ -861,6 +882,7 @@ async function postToBluesky(handle, appPassword, content, image = null) {
 async function syndicateText(env, content) {
   let microblogWarning = null;
   let blueskyWarning = null;
+  let mastodonWarning = null;
 
   if (env.MICROBLOG_TOKEN) {
     try {
@@ -878,7 +900,16 @@ async function syndicateText(env, content) {
     }
   }
 
-  return { microblogWarning, blueskyWarning };
+  if (env.MASTODON_ACCESS_TOKEN) {
+    const mastodonInstance = (env.MASTODON_INSTANCE || DEFAULT_MASTODON_INSTANCE).replace(/\/$/, "");
+    try {
+      await postToMastodon(mastodonInstance, env.MASTODON_ACCESS_TOKEN, content);
+    } catch (msErr) {
+      mastodonWarning = formatServiceWarning("Mastodon", msErr.message);
+    }
+  }
+
+  return { microblogWarning, blueskyWarning, mastodonWarning };
 }
 
 async function deleteFromMicroblog(token, url) {
@@ -924,6 +955,74 @@ async function deleteFromBluesky(handle, appPassword, uri) {
   }
 }
 
+async function postToMastodon(instanceUrl, accessToken, content, image = null) {
+  let mediaId = null;
+  if (image) {
+    const fd = new FormData();
+    fd.append(
+      "file",
+      new Blob([image.bytes], { type: image.mimeType }),
+      `photo.${IMAGE_EXT[image.mimeType] || "jpg"}`
+    );
+    if (image.alt) fd.append("description", image.alt.slice(0, 1500));
+    const mediaRes = await fetch(`${instanceUrl}/api/v1/media`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: fd,
+    });
+    if (!mediaRes.ok) {
+      const err = await mediaRes.text();
+      throw new Error(
+        `Media upload failed (${mediaRes.status})${summarizeApiBody(err) ? ": " + summarizeApiBody(err) : ""}`
+      );
+    }
+    const mediaData = await mediaRes.json();
+    mediaId = mediaData.id;
+  }
+
+  const chars = [...content];
+  let status = content;
+  if (chars.length > MAX_MASTODON_CHARS) {
+    const suffix = `… ${SITE_URL}/thinking/`;
+    const maxContent = MAX_MASTODON_CHARS - [...suffix].length;
+    status = chars.slice(0, maxContent).join("") + suffix;
+  }
+
+  const body = { status };
+  if (mediaId) body.media_ids = [mediaId];
+
+  const res = await fetch(`${instanceUrl}/api/v1/statuses`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    const detail = summarizeApiBody(err);
+    throw new Error(
+      detail ? `Post failed (${res.status}: ${detail})` : `Post failed (HTTP ${res.status}).`
+    );
+  }
+  const created = await res.json();
+  return created.url || null;
+}
+
+async function deleteFromMastodon(instanceUrl, accessToken, statusUrl) {
+  // Extract the numeric status ID from the URL (last path segment)
+  const statusId = statusUrl.split("/").filter(Boolean).pop();
+  const res = await fetch(`${instanceUrl}/api/v1/statuses/${encodeURIComponent(statusId)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    const detail = summarizeApiBody(err);
+    throw new Error(
+      detail ? `Delete failed (${res.status}: ${detail})` : `Delete failed (HTTP ${res.status}).`
+    );
+  }
+}
+
 async function handleDeleteThinking(payload, db, cors, env) {
   const rawSlug = payload.slug;
   if (typeof rawSlug !== "string" || !rawSlug.trim()) {
@@ -940,7 +1039,7 @@ async function handleDeleteThinking(payload, db, cors, env) {
   try {
     const row = await dbFirst(
       db,
-      "SELECT microblog_url, bluesky_uri FROM thinking_posts WHERE slug = ?",
+      "SELECT microblog_url, bluesky_uri, mastodon_uri FROM thinking_posts WHERE slug = ?",
       slug
     );
     if (!row) {
@@ -948,6 +1047,7 @@ async function handleDeleteThinking(payload, db, cors, env) {
     }
     const mbUrl = microblogUrl || row.microblog_url || null;
     const blueskyUri = row.bluesky_uri || null;
+    const mastodonUri = row.mastodon_uri || null;
 
     let microblogWarning = null;
     if (env.MICROBLOG_TOKEN && mbUrl) {
@@ -979,6 +1079,20 @@ async function handleDeleteThinking(payload, db, cors, env) {
       }
     }
 
+    let mastodonWarning = null;
+    let mastodonDeleted = false;
+    if (env.MASTODON_ACCESS_TOKEN) {
+      const mastodonInstance = (env.MASTODON_INSTANCE || DEFAULT_MASTODON_INSTANCE).replace(/\/$/, "");
+      if (mastodonUri) {
+        try {
+          await deleteFromMastodon(mastodonInstance, env.MASTODON_ACCESS_TOKEN, mastodonUri);
+          mastodonDeleted = true;
+        } catch (msErr) {
+          mastodonWarning = formatServiceWarning("Mastodon", msErr.message);
+        }
+      }
+    }
+
     await dbRun(db, "DELETE FROM thinking_posts WHERE slug = ?", slug);
 
     await triggerRebuild(env);
@@ -990,6 +1104,8 @@ async function handleDeleteThinking(payload, db, cors, env) {
         blueskyWarning,
         blueskyDeleted,
         blueskySkipped,
+        mastodonWarning,
+        mastodonDeleted,
       },
       200,
       cors
@@ -1059,14 +1175,14 @@ async function handlePost(body, db, cors, env) {
     }
 
     const postUrl = `${SITE_URL}/posts/${slug}/`;
-    const { microblogWarning, blueskyWarning } = await syndicateText(
+    const { microblogWarning, blueskyWarning, mastodonWarning } = await syndicateText(
       env,
       `New post: ${postUrl}`
     );
 
     await triggerRebuild(env);
 
-    return json({ ok: true, slug, url: postUrl, microblogWarning, blueskyWarning }, 200, cors);
+    return json({ ok: true, slug, url: postUrl, microblogWarning, blueskyWarning, mastodonWarning }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Post creation failed" }, 500, cors);
   }
@@ -1102,13 +1218,13 @@ async function handleReading(body, db, cors, env) {
       now.toISOString()
     );
 
-    const { microblogWarning, blueskyWarning } = await syndicateText(
+    const { microblogWarning, blueskyWarning, mastodonWarning } = await syndicateText(
       env,
       `Now reading: ${entry.url}`
     );
 
     await triggerRebuild(env);
-    return json({ ok: true, entry, microblogWarning, blueskyWarning }, 200, cors);
+    return json({ ok: true, entry, microblogWarning, blueskyWarning, mastodonWarning }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
   }
@@ -1147,13 +1263,13 @@ async function handleSharing(body, db, cors, env) {
       entry.datetime
     );
 
-    const { microblogWarning, blueskyWarning } = await syndicateText(
+    const { microblogWarning, blueskyWarning, mastodonWarning } = await syndicateText(
       env,
       `Sharing: ${entry.url}`
     );
 
     await triggerRebuild(env);
-    return json({ ok: true, entry, microblogWarning, blueskyWarning }, 200, cors);
+    return json({ ok: true, entry, microblogWarning, blueskyWarning, mastodonWarning }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
   }
