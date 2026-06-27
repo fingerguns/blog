@@ -7,3 +7,5 @@ RUN printf '@import url("remark-base.css");\n' > /srv/web/remark.css \
   && cat /srv/web/remark-overrides.css >> /srv/web/remark.css \
   && CSS_VER=$(md5sum /srv/web/remark-overrides.css | cut -c1-8) \
   && sed -i "s|href=\"remark.css\"|href=\"remark.css?v=${CSS_VER}\"|" /srv/web/iframe.html
+COPY iframe-theme.js /srv/web/iframe-theme.js
+RUN sed -i 's|<head>|<head>\n    <script src="iframe-theme.js"></script>|' /srv/web/iframe.html
