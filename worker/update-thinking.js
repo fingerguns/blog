@@ -775,7 +775,52 @@ async function blueskySession(handle, appPassword) {
   return sessionRes.json();
 }
 
-async function postToBluesky(handle, appPassword, content, image = null) {
+async function fetchLinkCard(url) {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        Accept: "text/html",
+      },
+      redirect: "follow",
+    });
+    if (!res.ok) return null;
+    const reader = res.body.getReader();
+    let html = "";
+    let bytes = 0;
+    const decoder = new TextDecoder();
+    while (bytes < 50000) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      html += decoder.decode(value, { stream: true });
+      bytes += value.length;
+      if (html.includes("</head>")) break;
+    }
+    reader.cancel();
+
+    const ogProp = (prop) => {
+      const m =
+        html.match(new RegExp(`<meta[^>]+property=["']og:${prop}["'][^>]+content=["']([^"']+)["']`, "i")) ||
+        html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:${prop}["']`, "i"));
+      return m ? m[1] : "";
+    };
+    const title =
+      ogProp("title") || (html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] ?? "");
+    const description = ogProp("description");
+    const thumb = ogProp("image");
+
+    const decode = (s) =>
+      s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+       .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").trim();
+
+    return { uri: url, title: decode(title), description: decode(description), thumb };
+  } catch {
+    return null;
+  }
+}
+
+async function postToBluesky(handle, appPassword, content, image = null, linkCard = null) {
   const { accessJwt, did } = await blueskySession(handle, appPassword);
 
   const LINK_URL = `${SITE_URL}/thinking/`;
@@ -845,6 +890,32 @@ async function postToBluesky(handle, appPassword, content, image = null) {
         },
       ],
     };
+  } else if (linkCard) {
+    let thumb = null;
+    if (linkCard.thumb) {
+      try {
+        const thumbRes = await fetch(linkCard.thumb);
+        if (thumbRes.ok) {
+          const thumbBytes = await thumbRes.arrayBuffer();
+          const thumbMime = (thumbRes.headers.get("content-type") || "image/jpeg").split(";")[0];
+          const blobRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${accessJwt}`, "Content-Type": thumbMime },
+            body: thumbBytes,
+          });
+          if (blobRes.ok) ({ blob: thumb } = await blobRes.json());
+        }
+      } catch {}
+    }
+    embed = {
+      $type: "app.bsky.embed.external",
+      external: {
+        uri: linkCard.uri,
+        title: linkCard.title,
+        description: linkCard.description,
+        ...(thumb ? { thumb } : {}),
+      },
+    };
   }
 
   const record = {
@@ -879,10 +950,12 @@ async function postToBluesky(handle, appPassword, content, image = null) {
   return created.uri || null;
 }
 
-async function syndicateText(env, content) {
+async function syndicateText(env, content, linkUrl = null) {
   let microblogWarning = null;
   let blueskyWarning = null;
   let mastodonWarning = null;
+
+  const linkCard = linkUrl ? await fetchLinkCard(linkUrl) : null;
 
   if (env.MICROBLOG_TOKEN) {
     try {
@@ -894,7 +967,7 @@ async function syndicateText(env, content) {
 
   if (env.BLUESKY_HANDLE && env.BLUESKY_APP_PASSWORD) {
     try {
-      await postToBluesky(env.BLUESKY_HANDLE, env.BLUESKY_APP_PASSWORD, content);
+      await postToBluesky(env.BLUESKY_HANDLE, env.BLUESKY_APP_PASSWORD, content, null, linkCard);
     } catch (bsErr) {
       blueskyWarning = formatServiceWarning("Bluesky", bsErr.message);
     }
@@ -1177,7 +1250,8 @@ async function handlePost(body, db, cors, env) {
     const postUrl = `${SITE_URL}/posts/${slug}/`;
     const { microblogWarning, blueskyWarning, mastodonWarning } = await syndicateText(
       env,
-      `New post: ${postUrl}`
+      `New post: ${postUrl}`,
+      postUrl
     );
 
     await triggerRebuild(env);
@@ -1220,7 +1294,8 @@ async function handleReading(body, db, cors, env) {
 
     const { microblogWarning, blueskyWarning, mastodonWarning } = await syndicateText(
       env,
-      `Now reading: ${entry.url}`
+      `Now reading: ${entry.url}`,
+      entry.url
     );
 
     await triggerRebuild(env);
@@ -1265,7 +1340,8 @@ async function handleSharing(body, db, cors, env) {
 
     const { microblogWarning, blueskyWarning, mastodonWarning } = await syndicateText(
       env,
-      `Sharing: ${entry.url}`
+      `Sharing: ${entry.url}`,
+      entry.url
     );
 
     await triggerRebuild(env);

@@ -17,3 +17,4 @@ dist/
 /reading/
 /sharing/
 remark42/.env
+.env
