@@ -425,11 +425,28 @@ async function handleThinking(payload, db, cors, env) {
           blueskyImage = prepared.image;
           blueskyCompressed = prepared.compressed;
         }
+        let blueskyLinkCard = null;
+        if (!blueskyImage) {
+          const urlMatch = text.match(/https?:\/\/[^\s]+/);
+          if (urlMatch) {
+            const extractedUrl = urlMatch[0].replace(/[.,;:!?)"']+$/, "");
+            blueskyLinkCard = await fetchLinkCard(extractedUrl);
+          }
+          if (!blueskyLinkCard) {
+            blueskyLinkCard = {
+              uri: `${SITE_URL}/thinking/${slug}/`,
+              title: text.slice(0, 100).trim(),
+              description: text.length > 100 ? text.slice(100, 280).trim() : "",
+              thumb: null,
+            };
+          }
+        }
         blueskyUri = await postToBluesky(
           env.BLUESKY_HANDLE,
           env.BLUESKY_APP_PASSWORD,
           text,
-          blueskyImage
+          blueskyImage,
+          blueskyLinkCard
         );
       } catch (bsErr) {
         blueskyWarning = formatServiceWarning("Bluesky", bsErr.message);
