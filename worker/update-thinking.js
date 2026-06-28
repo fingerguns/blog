@@ -1340,7 +1340,7 @@ async function handleSharing(body, db, cors, env) {
 
     const { microblogWarning, blueskyWarning, mastodonWarning } = await syndicateText(
       env,
-      `Sharing: ${entry.url}`,
+      `${entry.title}\n\n${entry.url}`,
       entry.url
     );
 
