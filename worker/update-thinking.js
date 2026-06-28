@@ -426,7 +426,7 @@ async function handleThinking(payload, db, cors, env) {
           blueskyCompressed = prepared.compressed;
         }
         let blueskyLinkCard = null;
-        if (!blueskyImage) {
+        if (!blueskyImage && [...text].length > 300) {
           const urlMatch = text.match(/https?:\/\/[^\s]+/);
           if (urlMatch) {
             const extractedUrl = urlMatch[0].replace(/[.,;:!?)"']+$/, "");
