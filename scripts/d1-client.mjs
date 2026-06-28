@@ -140,7 +140,6 @@ export async function loadBlogDataFromD1() {
       { label: "Now", url: "/now/", internal: true },
       { label: "About", url: "/about/", internal: true },
       { label: "LinkedIn", url: "https://linkedin.com/in/rommyghaly" },
-      { label: "Mastodon", url: "https://mas.to/@rommy" },
       { label: "GitHub", url: "https://github.com/fingerguns" },
     ],
     optionalColophon: site.optionalColophon || "",
