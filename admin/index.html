@@ -679,6 +679,12 @@
           <button type="submit" id="r-submit">Add Book</button>
           <p class="admin-status" id="r-status" hidden></p>
         </form>
+
+        <div id="reading-archive-admin" hidden>
+          <h3 class="thinking-archive-heading">All entries</h3>
+          <ul class="drafts-list" id="reading-archive-list"></ul>
+          <p class="admin-status" id="reading-archive-status" hidden></p>
+        </div>
       </div>
 
       <!-- ── SHARING ──────────────────────────────── -->
@@ -795,10 +801,14 @@
             ? "<strong>Signed in.</strong> Remembered on this device for up to 30 days, or until you sign out."
             : "<strong>Signed in.</strong> Until you sign out or close this tab.";
         }
-        if (signedIn) loadThinkingArchive();
-        else {
+        if (signedIn) {
+          loadThinkingArchive();
+          loadReadingArchive();
+        } else {
           var archiveWrap = document.getElementById("thinking-archive-admin");
           if (archiveWrap) archiveWrap.hidden = true;
+          var readingWrap = document.getElementById("reading-archive-admin");
+          if (readingWrap) readingWrap.hidden = true;
         }
       }
 
@@ -866,6 +876,7 @@
             tab.classList.add("active");
             document.getElementById("tab-" + target).classList.add("active");
             if (target === "thinking") loadThinkingArchive();
+            if (target === "reading") loadReadingArchive();
           });
         });
       })();
@@ -1806,6 +1817,7 @@
             document.getElementById("r-title").value = "";
             document.getElementById("r-url").value = "";
             document.getElementById("r-ym").value = "";
+            loadReadingArchive();
           } catch (err) {
             showStatus(status, err.message, true);
           } finally {
@@ -1813,6 +1825,75 @@
           }
         });
       })();
+
+      // ── Reading archive ────────────────────────────────────────────────────
+
+      async function loadReadingArchive() {
+        var wrap = document.getElementById("reading-archive-admin");
+        var list = document.getElementById("reading-archive-list");
+        var status = document.getElementById("reading-archive-status");
+        if (!wrap || !list) return;
+        if (!loadSession()) { wrap.hidden = true; return; }
+        wrap.hidden = false;
+        list.innerHTML = '<li><span class="admin-hint">Loading…</span></li>';
+        if (status) status.hidden = true;
+        try {
+          var data = await callAPI({ action: "list-reading" });
+          var items = data.items || [];
+          list.innerHTML = "";
+          if (!items.length) {
+            list.innerHTML = '<li><span class="admin-hint">No entries yet.</span></li>';
+            return;
+          }
+          items.forEach(function (item) {
+            var li = document.createElement("li");
+
+            var main = document.createElement("div");
+            main.className = "draft-item-main";
+
+            var titleEl = document.createElement("div");
+            titleEl.className = "draft-item-title";
+            titleEl.textContent = item.title;
+
+            var dateEl = document.createElement("div");
+            dateEl.className = "draft-item-date";
+            dateEl.textContent = item.ym + (item.added_at ? " · added " + item.added_at.slice(0, 10) : "");
+
+            main.appendChild(titleEl);
+            main.appendChild(dateEl);
+
+            var del = document.createElement("button");
+            del.type = "button";
+            del.className = "draft-item-delete";
+            del.textContent = "Delete";
+            del.addEventListener("click", async function () {
+              if (!confirm('Delete "' + item.title + '"?')) return;
+              del.disabled = true;
+              try {
+                await callAPI({ action: "delete-reading", id: item.id });
+                li.remove();
+                if (!list.children.length) {
+                  list.innerHTML = '<li><span class="admin-hint">No entries yet.</span></li>';
+                }
+              } catch (err) {
+                del.disabled = false;
+                if (status) {
+                  showStatus(status, err.message || "Delete failed", true);
+                } else {
+                  alert(err.message || "Delete failed");
+                }
+              }
+            });
+
+            li.appendChild(main);
+            li.appendChild(del);
+            list.appendChild(li);
+          });
+        } catch (err) {
+          list.innerHTML = "";
+          if (status) showStatus(status, err.message || "Could not load entries", true);
+        }
+      }
 
       // ── Sharing form ───────────────────────────────────────────────────────
 

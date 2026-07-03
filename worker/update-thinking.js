@@ -129,6 +129,14 @@ export default {
       return handleReading(payload, db, cors, env);
     }
 
+    if (action === "list-reading") {
+      return handleListReading(db, cors);
+    }
+
+    if (action === "delete-reading") {
+      return handleDeleteReading(payload, db, cors, env);
+    }
+
     if (action === "sharing") {
       return handleSharing(payload, db, cors, env);
     }
@@ -1319,6 +1327,40 @@ async function handleReading(body, db, cors, env) {
     return json({ ok: true, entry, microblogWarning, blueskyWarning, mastodonWarning }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
+  }
+}
+
+async function handleListReading(db, cors) {
+  try {
+    const { results: rows } = await dbAll(
+      db,
+      "SELECT id, ym, title, url, added_at FROM reading ORDER BY added_at DESC"
+    );
+    return json({ ok: true, items: rows || [] }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Could not list reading entries" }, 500, cors);
+  }
+}
+
+async function handleDeleteReading(payload, db, cors, env) {
+  const id = payload.id;
+  if (!id || typeof id !== "number") {
+    return json({ error: "Missing or invalid id" }, 400, cors);
+  }
+
+  try {
+    const existing = await dbFirst(db, "SELECT id FROM reading WHERE id = ?", id);
+    if (!existing) {
+      return json({ error: "Reading entry not found" }, 404, cors);
+    }
+
+    await dbRun(db, "DELETE FROM reading WHERE id = ?", id);
+
+    await triggerRebuild(env);
+
+    return json({ ok: true }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Delete failed" }, 500, cors);
   }
 }
 
