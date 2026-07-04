@@ -9,6 +9,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { d1Configured, loadBlogDataFromD1 } from "./d1-client.mjs";
 import { escHtml, escXml } from "./lib/html.mjs";
+import { mergeSectionHints } from "./lib/section-hints.mjs";
 import { renderThinkingContentHtml } from "./lib/thinking-html.mjs";
 import { thinkingSlugFromIso } from "./lib/thinking-slug.mjs";
 
@@ -26,7 +27,9 @@ if (d1Configured()) {
   data = JSON.parse(readFileSync(join(root, "data/posts.json"), "utf8"));
 }
 
-const { site, thinking, thinkingPosts = [], posts, reading, linklog, links, optionalColophon } = data;
+const { site, thinking, thinkingPosts = [], posts, reading, linklog, links, optionalColophon, sectionHints } = data;
+
+const SECTION_HINTS = mergeSectionHints(sectionHints);
 
 const base = site.url.replace(/\/$/, "");
 const toSortableMs = (p) => {
@@ -417,6 +420,12 @@ const renderLinklogItem = (l) =>
             <a href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer">${escHtml(stripHashtags(l.title))}</a>
           </li>`;
 
+const sectionHeading = (label, tag, id) => {
+  const hint = SECTION_HINTS[label];
+  const idAttr = id ? ` id="${id}"` : "";
+  return `<${tag}${idAttr}><span class="section-hint" tabindex="0" aria-label="About ${escHtml(label)}">${escHtml(label)}<span class="section-hint-tip" role="tooltip">${escHtml(hint)}</span></span></${tag}>`;
+};
+
 // Homepage lists (capped at MAX_PER_SECTION)
 const postListHtml = ordered.slice(0, MAX_PER_SECTION).map((p) => renderPostItem(p)).join("\n");
 const hasMorePosts = ordered.length > MAX_PER_SECTION;
@@ -455,7 +464,7 @@ const subtitleHtml = descriptionText ? `      <p class="lead">${escHtml(descript
 
 const thinkingSection = hasThinking(thinking)
   ? `      <section aria-labelledby="now-heading">
-        <h2 id="now-heading">Thinking</h2>
+        ${sectionHeading("Thinking", "h2", "now-heading")}
         <ol class="post-list">
           <li>
             ${renderThinkingHtml(thinking)}
@@ -511,7 +520,7 @@ ${subtitleHtml}
 ${thinkingSection}
 
       <section aria-labelledby="posts-heading">
-        <h2 id="posts-heading">Writing</h2>
+        ${sectionHeading("Writing", "h2", "posts-heading")}
         <ol class="post-list" reversed>
 ${postListHtml}
         </ol>
@@ -519,7 +528,7 @@ ${postListHtml}
       </section>
 
       <section aria-labelledby="reading-heading">
-        <h2 id="reading-heading">Reading</h2>
+        ${sectionHeading("Reading", "h2", "reading-heading")}
         <ol class="post-list" reversed>
 ${readingHtml}
         </ol>
@@ -527,7 +536,7 @@ ${readingHtml}
       </section>
 
       <section aria-labelledby="linklog-heading">
-        <h2 id="linklog-heading">Sharing</h2>
+        ${sectionHeading("Sharing", "h2", "linklog-heading")}
         <ol class="post-list" reversed>
 ${linklogHtml}
         </ol>
@@ -591,7 +600,7 @@ Sitemap: ${base}/sitemap.xml
 `;
 
 // Archive pages
-const archiveHead = (title) => `<!DOCTYPE html>
+const archiveHead = (title, headingHtml) => `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -619,7 +628,7 @@ ${gaSnippet}
   <body>
     <article class="post">
       <a class="post-back" href="/">←</a>
-      <h1>${escHtml(title)}</h1>`;
+      ${headingHtml ?? `<h1>${escHtml(title)}</h1>`}`;
 
 const archiveFoot = `      <footer class="site-footer">
         <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><a href="#" class="theme-toggle" id="theme-toggle"></a></p>
@@ -645,19 +654,19 @@ ${thinkingDeleteLinkScript}
 </html>
 `;
 
-const writingPageHtml = `${archiveHead("Writing")}
+const writingPageHtml = `${archiveHead("Writing", sectionHeading("Writing", "h1"))}
       <ol class="post-list" reversed>
 ${postListAllHtml}
       </ol>
 ${archiveFoot}`;
 
-const readingPageHtml = `${archiveHead("Reading")}
+const readingPageHtml = `${archiveHead("Reading", sectionHeading("Reading", "h1"))}
       <ol class="post-list" reversed>
 ${readingAllHtml}
       </ol>
 ${archiveFoot}`;
 
-const sharingPageHtml = `${archiveHead("Sharing")}
+const sharingPageHtml = `${archiveHead("Sharing", sectionHeading("Sharing", "h1"))}
       <ol class="post-list" reversed>
 ${linklogAllHtml}
       </ol>
@@ -761,7 +770,7 @@ const microblogEntriesHtml = microblogItems.length > 0
     }).join("\n")
   : `        <p style="color:var(--muted)">No posts yet.</p>`;
 
-const microblogPageHtml = `${archiveHead("Thinking")}
+const microblogPageHtml = `${archiveHead("Thinking", sectionHeading("Thinking", "h1"))}
       <div class="microblog-feed">
 ${microblogEntriesHtml}
       </div>

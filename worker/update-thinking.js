@@ -3,6 +3,7 @@ import { escHtml } from "../scripts/lib/html.mjs";
 import { coalesceImageParagraphsHtml } from "../scripts/lib/coalesce-images.mjs";
 import { addHashtagFacets } from "../scripts/lib/linkify.mjs";
 import { renderThinkingContentHtml } from "../scripts/lib/thinking-html.mjs";
+import { scheduleSectionHintRefresh } from "./section-hints.mjs";
 
 /**
  * Cloudflare Worker: admin API for rommy.blog
@@ -18,6 +19,9 @@ import { renderThinkingContentHtml } from "../scripts/lib/thinking-html.mjs";
  *   MASTODON_ACCESS_TOKEN — Mastodon access token (optional; see /settings/applications)
  *   MASTODON_INSTANCE     — Mastodon instance URL, default https://mas.to (optional)
  *   GITHUB_TOKEN          — optional fallback to trigger GitHub workflow_dispatch
+ *
+ * Workers AI (section hover tooltips — auto-regenerated on content changes):
+ *   Enable Workers AI in Cloudflare dashboard; [ai] binding in wrangler.toml
  *
  * R2 (photos on THINKING):
  *   Enable R2 in Cloudflare dashboard, then: wrangler r2 bucket create rommy-blog-media
@@ -114,7 +118,7 @@ export default {
     }
 
     if (action === "thinking") {
-      return handleThinking(payload, db, cors, env);
+      return handleThinking(payload, db, cors, env, ctx);
     }
 
     if (action === "list-thinking") {
@@ -122,11 +126,11 @@ export default {
     }
 
     if (action === "post") {
-      return handlePost(payload, db, cors, env);
+      return handlePost(payload, db, cors, env, ctx);
     }
 
     if (action === "reading") {
-      return handleReading(payload, db, cors, env);
+      return handleReading(payload, db, cors, env, ctx);
     }
 
     if (action === "list-reading") {
@@ -134,11 +138,11 @@ export default {
     }
 
     if (action === "delete-reading") {
-      return handleDeleteReading(payload, db, cors, env);
+      return handleDeleteReading(payload, db, cors, env, ctx);
     }
 
     if (action === "sharing") {
-      return handleSharing(payload, db, cors, env);
+      return handleSharing(payload, db, cors, env, ctx);
     }
 
     if (action === "upload-media") {
@@ -170,15 +174,15 @@ export default {
     }
 
     if (action === "edit-post") {
-      return handleEditPost(payload, db, cors, env);
+      return handleEditPost(payload, db, cors, env, ctx);
     }
 
     if (action === "delete-post") {
-      return handleDeletePost(payload, db, cors, env);
+      return handleDeletePost(payload, db, cors, env, ctx);
     }
 
     if (action === "delete-thinking") {
-      return handleDeleteThinking(payload, db, cors, env);
+      return handleDeleteThinking(payload, db, cors, env, ctx);
     }
 
     return json({ error: "Unknown action" }, 400, cors);
@@ -376,7 +380,7 @@ async function parseRequest(request) {
 
 // ─── Thinking ────────────────────────────────────────────────────────────────
 
-async function handleThinking(payload, db, cors, env) {
+async function handleThinking(payload, db, cors, env, ctx) {
   const text = typeof payload.text === "string" ? payload.text.trim() : "";
   const photo = payload.photo || null;
 
@@ -502,6 +506,7 @@ async function handleThinking(payload, db, cors, env) {
     );
 
     await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Thinking", triggerRebuild);
 
     return json(
       {
@@ -1121,7 +1126,7 @@ async function deleteFromMastodon(instanceUrl, accessToken, statusUrl) {
   }
 }
 
-async function handleDeleteThinking(payload, db, cors, env) {
+async function handleDeleteThinking(payload, db, cors, env, ctx) {
   const rawSlug = payload.slug;
   if (typeof rawSlug !== "string" || !rawSlug.trim()) {
     return json({ error: "Missing slug" }, 400, cors);
@@ -1194,6 +1199,7 @@ async function handleDeleteThinking(payload, db, cors, env) {
     await dbRun(db, "DELETE FROM thinking_posts WHERE slug = ?", slug);
 
     await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Thinking", triggerRebuild);
 
     return json(
       {
@@ -1215,7 +1221,7 @@ async function handleDeleteThinking(payload, db, cors, env) {
 
 // ─── New Post ─────────────────────────────────────────────────────────────────
 
-async function handlePost(body, db, cors, env) {
+async function handlePost(body, db, cors, env, ctx) {
   const { title, summary } = body;
   const rawBody = typeof body.body === "string" ? body.body.trim() : null;
   const paragraphs = Array.isArray(body.paragraphs) ? body.paragraphs : null;
@@ -1280,6 +1286,7 @@ async function handlePost(body, db, cors, env) {
     );
 
     await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Writing", triggerRebuild);
 
     return json({ ok: true, slug, url: postUrl, microblogWarning, blueskyWarning, mastodonWarning }, 200, cors);
   } catch (err) {
@@ -1289,7 +1296,7 @@ async function handlePost(body, db, cors, env) {
 
 // ─── Reading ──────────────────────────────────────────────────────────────────
 
-async function handleReading(body, db, cors, env) {
+async function handleReading(body, db, cors, env, ctx) {
   const { title, url, ym } = body;
 
   if (typeof title !== "string" || !title.trim()) {
@@ -1324,6 +1331,7 @@ async function handleReading(body, db, cors, env) {
     );
 
     await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Reading", triggerRebuild);
     return json({ ok: true, entry, microblogWarning, blueskyWarning, mastodonWarning }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
@@ -1342,7 +1350,7 @@ async function handleListReading(db, cors) {
   }
 }
 
-async function handleDeleteReading(payload, db, cors, env) {
+async function handleDeleteReading(payload, db, cors, env, ctx) {
   const id = payload.id;
   if (!id || typeof id !== "number") {
     return json({ error: "Missing or invalid id" }, 400, cors);
@@ -1357,6 +1365,7 @@ async function handleDeleteReading(payload, db, cors, env) {
     await dbRun(db, "DELETE FROM reading WHERE id = ?", id);
 
     await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Reading", triggerRebuild);
 
     return json({ ok: true }, 200, cors);
   } catch (err) {
@@ -1366,7 +1375,7 @@ async function handleDeleteReading(payload, db, cors, env) {
 
 // ─── Sharing ──────────────────────────────────────────────────────────────────
 
-async function handleSharing(body, db, cors, env) {
+async function handleSharing(body, db, cors, env, ctx) {
   const { title, url } = body;
 
   if (typeof title !== "string" || !title.trim()) {
@@ -1404,6 +1413,7 @@ async function handleSharing(body, db, cors, env) {
     );
 
     await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Sharing", triggerRebuild);
     return json({ ok: true, entry, microblogWarning, blueskyWarning, mastodonWarning }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
@@ -1447,7 +1457,7 @@ async function handleFetchPost(body, db, cors) {
 
 // ─── Edit Post ────────────────────────────────────────────────────────────────
 
-async function handleEditPost(body, db, cors, env) {
+async function handleEditPost(body, db, cors, env, ctx) {
   const { slug, title, summary } = body;
   const rawBody = typeof body.body === "string" ? body.body.trim() : null;
 
@@ -1494,6 +1504,7 @@ async function handleEditPost(body, db, cors, env) {
     );
 
     await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Writing", triggerRebuild);
 
     return json({ ok: true, url: `${SITE_URL}/posts/${cleanSlug}/` }, 200, cors);
   } catch (err) {
@@ -1503,7 +1514,7 @@ async function handleEditPost(body, db, cors, env) {
 
 // ─── Delete Post ──────────────────────────────────────────────────────────────
 
-async function handleDeletePost(body, db, cors, env) {
+async function handleDeletePost(body, db, cors, env, ctx) {
   const { slug } = body;
   if (typeof slug !== "string" || !slug.trim()) {
     return json({ error: "Missing slug" }, 400, cors);
@@ -1521,6 +1532,7 @@ async function handleDeletePost(body, db, cors, env) {
     await dbRun(db, "DELETE FROM posts WHERE slug = ?", cleanSlug);
 
     await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Writing", triggerRebuild);
 
     return json({ ok: true }, 200, cors);
   } catch (err) {

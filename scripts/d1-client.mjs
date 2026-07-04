@@ -143,5 +143,6 @@ export async function loadBlogDataFromD1() {
       { label: "GitHub", url: "https://github.com/fingerguns" },
     ],
     optionalColophon: site.optionalColophon || "",
+    sectionHints: site.section_hints || null,
   };
 }

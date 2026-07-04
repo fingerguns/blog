@@ -11,6 +11,9 @@ ALLOWED_ORIGINS = "https://rommy.blog,https://rommy-blog.pages.dev,http://localh
 # Public R2 URL base after enabling public access on rommy-blog-media (e.g. https://pub-xxxx.r2.dev)
 MEDIA_PUBLIC_URL = "https://pub-d918c1f2d7fd45cd8a120234983c1079.r2.dev"
 
+[ai]
+binding = "AI"
+
 [[r2_buckets]]
 binding = "MEDIA"
 bucket_name = "rommy-blog-media"

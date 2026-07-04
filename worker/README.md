@@ -1,6 +1,8 @@
 # Cloudflare Worker: admin API for rommy.blog
 
-Content is stored in **Cloudflare D1**. The static site is rebuilt via a **Pages deploy hook**.
+Content is stored in **Cloudflare D1**. Section hover tooltips (`section_hints` in `site_config`) are regenerated via **Workers AI** after Thinking, Writing, Reading, or Sharing changes, then the site rebuilds again with the updated copy.
+
+The static site is rebuilt via a **Pages deploy hook**.
 
 **Security:** See [SECURITY.md](./SECURITY.md) for Cloudflare Access on `/admin/`, rate limiting, and session hardening.
 
@@ -21,6 +23,12 @@ If upgrading from an older install with `thinking` / `thinking_syndication` tabl
 
 ```bash
 wrangler d1 execute rommy-blog-db --file=migrate-thinking-consolidate.sql --remote
+```
+
+Seed section hover tooltips (optional — build falls back to defaults until Worker regenerates):
+
+```bash
+wrangler d1 execute rommy-blog-db --file=migrate-section-hints.sql --remote
 ```
 
 Migrate existing content from `data/posts.json`:
@@ -72,6 +80,7 @@ Output directory: `dist`
 | `delete-thinking` | Delete a Thinking post (Micro.blog, Bluesky if saved, rebuild) |
 | `fetch-post` | Load post for editing |
 | `reading` | Add reading entry |
+| `delete-reading` | Delete reading entry |
 | `sharing` | Add linklog entry |
 | `list-drafts` | List all writing drafts |
 | `save-draft` | Create/update draft |

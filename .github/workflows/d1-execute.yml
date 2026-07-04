@@ -1,0 +1,31 @@
+name: D1 execute SQL
+
+on:
+  workflow_dispatch:
+    inputs:
+      sql_file:
+        description: SQL file path relative to worker/
+        required: true
+        default: delete-duplicate-murderess.sql
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run D1 SQL
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+          command: d1 execute rommy-blog-db --file=${{ inputs.sql_file }} --remote
+
+      - name: Trigger site rebuild
+        env:
+          DEPLOY_HOOK: ${{ secrets.PAGES_DEPLOY_HOOK }}
+        run: |
+          if [ -n "$DEPLOY_HOOK" ]; then
+            curl -sf -X POST "$DEPLOY_HOOK"
+          fi

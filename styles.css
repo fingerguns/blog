@@ -107,6 +107,41 @@ h2 {
   margin: 0 0 0.85rem;
 }
 
+.section-hint {
+  position: relative;
+  display: inline;
+}
+
+.section-hint-tip {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 0.45rem);
+  z-index: 10;
+  width: min(22rem, calc(100vw - 2.5rem));
+  padding: 0.65rem 0.75rem;
+  background: var(--bg);
+  border: 1px solid color-mix(in srgb, var(--muted) 35%, transparent);
+  border-radius: 4px;
+  font-size: 0.82rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.55;
+  color: var(--text);
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--text) 8%, transparent);
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.15s ease, visibility 0.15s;
+  pointer-events: none;
+}
+
+.section-hint:hover .section-hint-tip,
+.section-hint:focus .section-hint-tip,
+.section-hint:focus-within .section-hint-tip {
+  visibility: visible;
+  opacity: 1;
+}
+
 .post-list,
 .link-list {
   list-style: none;
