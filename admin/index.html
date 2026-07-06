@@ -938,6 +938,7 @@
 
       var MAX_PHOTO_SITE = 5 * 1024 * 1024;
       var MAX_PHOTO_BLUESKY = 2 * 1024 * 1024;
+      var MAX_PHOTO_INPUT = 25 * 1024 * 1024;
 
       function formatBytes(n) {
         if (n < 1024 * 1024) return Math.round(n / 1024) + " KB";
@@ -1018,6 +1019,73 @@
           img.onerror = function () {
             URL.revokeObjectURL(objectUrl);
             reject(new Error("Could not read this photo for Bluesky compression."));
+          };
+          img.src = objectUrl;
+        });
+      }
+
+      function compressPhotoForSite(file) {
+        return new Promise(function (resolve, reject) {
+          if (file.size <= MAX_PHOTO_SITE) {
+            resolve(file);
+            return;
+          }
+          if (file.size > MAX_PHOTO_INPUT) {
+            reject(
+              new Error("Photo must be 25 MB or smaller (yours is " + formatBytes(file.size) + ").")
+            );
+            return;
+          }
+          if (file.type === "image/gif") {
+            reject(
+              new Error("GIF must be 5 MB or smaller (yours is " + formatBytes(file.size) + ").")
+            );
+            return;
+          }
+          var objectUrl = URL.createObjectURL(file);
+          var img = new Image();
+          img.onload = function () {
+            URL.revokeObjectURL(objectUrl);
+            var w = img.naturalWidth;
+            var h = img.naturalHeight;
+            var canvas = document.createElement("canvas");
+            var qualities = [0.92, 0.85, 0.78, 0.72, 0.65, 0.58, 0.5, 0.42];
+
+            function tryEncode(wi, hi, qi) {
+              canvas.width = wi;
+              canvas.height = hi;
+              var ctx = canvas.getContext("2d");
+              ctx.drawImage(img, 0, 0, wi, hi);
+              if (qi >= qualities.length) {
+                if (wi <= 1 && hi <= 1) {
+                  reject(new Error("Could not compress this photo under 5 MB."));
+                  return;
+                }
+                tryEncode(Math.max(1, Math.round(wi * 0.9)), Math.max(1, Math.round(hi * 0.9)), 0);
+                return;
+              }
+              canvas.toBlob(
+                function (blob) {
+                  if (!blob) {
+                    tryEncode(wi, hi, qi + 1);
+                    return;
+                  }
+                  if (blob.size <= MAX_PHOTO_SITE) {
+                    resolve(new File([blob], "photo.jpg", { type: "image/jpeg" }));
+                    return;
+                  }
+                  tryEncode(wi, hi, qi + 1);
+                },
+                "image/jpeg",
+                qualities[qi]
+              );
+            }
+
+            tryEncode(w, h, 0);
+          };
+          img.onerror = function () {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error("Could not read this photo."));
           };
           img.src = objectUrl;
         });
@@ -1194,11 +1262,15 @@
           preview.hidden = false;
           photoRemove.hidden = false;
           if (photoName) photoName.textContent = file.name;
-          if (file.size > MAX_PHOTO_SITE) {
+          if (file.size > MAX_PHOTO_INPUT) {
             photoWarn.textContent =
-              "rommy.blog: This file is " +
+              "This file is " + formatBytes(file.size) + " (max 25 MB).";
+            photoWarn.hidden = false;
+          } else if (file.size > MAX_PHOTO_SITE) {
+            photoWarn.textContent =
+              "Over 5 MB — will be compressed on upload (up to " +
               formatBytes(file.size) +
-              " (max 5 MB). Choose a smaller photo.";
+              ").";
             photoWarn.hidden = false;
           } else if (file.size > MAX_PHOTO_BLUESKY) {
             photoWarn.textContent =
@@ -1220,10 +1292,10 @@
             showStatus(status, "Add text or a photo.", true);
             return;
           }
-          if (file && file.size > MAX_PHOTO_SITE) {
+          if (file && file.size > MAX_PHOTO_INPUT) {
             showStatus(
               status,
-              "rommy.blog: Photo must be 5 MB or smaller (yours is " + formatBytes(file.size) + ").",
+              "Photo must be 25 MB or smaller (yours is " + formatBytes(file.size) + ").",
               true
             );
             return;
@@ -1234,6 +1306,7 @@
             var blueskyFile = null;
             if (file) {
               showStatus(status, "Preparing photo…", false);
+              file = await compressPhotoForSite(file);
               blueskyFile = await compressPhotoForBluesky(file);
             }
             var result = await callThinkingAPI(
@@ -1319,9 +1392,10 @@
       async function uploadMediaFile(file, folder) {
         var pw = loadSession();
         if (!pw) throw new Error("You need to be signed in. Go to the Login tab.");
-        if (file.size > MAX_PHOTO_SITE) {
-          throw new Error("Photo must be 5 MB or smaller (yours is " + formatBytes(file.size) + ").");
+        if (file.size > MAX_PHOTO_INPUT) {
+          throw new Error("Photo must be 25 MB or smaller (yours is " + formatBytes(file.size) + ").");
         }
+        file = await compressPhotoForSite(file);
         var fd = new FormData();
         fd.append("password", pw);
         fd.append("action", "upload-media");
