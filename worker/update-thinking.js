@@ -703,7 +703,12 @@ async function processThinkingPhoto(bytes, mimeType) {
   }
 
   const blob = new Blob([bytes], { type: mimeType });
-  const bitmap = await createImageBitmap(blob);
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(blob);
+  } catch {
+    throw new Error("Could not process this photo. Try exporting as JPEG and uploading again.");
+  }
   try {
     const { width: w, height: h } = bitmap;
     const { width: cw, height: ch } = fitDimensionsUnderMegapixels(w, h, MAX_THINKING_IMAGE_MP);
