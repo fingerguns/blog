@@ -30,6 +30,8 @@ import { scheduleSectionHintRefresh } from "./section-hints.mjs";
 
 const SITE_URL = "https://rommy.blog";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_THINKING_INPUT_BYTES = 20 * 1024 * 1024;
+const MAX_THINKING_IMAGE_MP = 5_000_000;
 const MAX_BLUESKY_IMAGE_BYTES = 2_000_000;
 const MAX_MASTODON_CHARS = 500;
 const DEFAULT_MASTODON_INSTANCE = "https://mas.to";
@@ -397,11 +399,13 @@ async function handleThinking(payload, db, cors, env, ctx) {
     let mediaAlt = text.slice(0, 1000) || "";
     let uploadedForBluesky = null;
     let blueskyCompressed = false;
+    let syndicationPhoto = photo;
 
     if (photo) {
       const uploaded = await uploadPhotoToR2(env, photo, "thinking");
       mediaUrl = uploaded.url;
       mediaAlt = text.slice(0, 1000) || "Photo";
+      syndicationPhoto = syndicationPhotoFromUpload(uploaded);
       uploadedForBluesky = {
         bytes: uploaded.bytes,
         mimeType: uploaded.mimeType,
@@ -418,7 +422,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
     let microblogWarning = null;
     if (env.MICROBLOG_TOKEN) {
       try {
-        microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, text, photo);
+        microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, text, syndicationPhoto);
       } catch (mbErr) {
         microblogWarning = formatServiceWarning("micro.blog", mbErr.message);
       }
@@ -644,6 +648,88 @@ async function encodeJpegFromBitmap(bitmap, width, height, quality) {
   return outBlob.arrayBuffer();
 }
 
+function fitDimensionsUnderMegapixels(width, height, maxMp) {
+  const mp = width * height;
+  if (mp <= maxMp) return { width, height };
+  const scale = Math.sqrt(maxMp / mp);
+  let w = Math.max(1, Math.round(width * scale));
+  let h = Math.max(1, Math.round(height * scale));
+  while (w * h > maxMp) {
+    if (w >= h && w > 1) w--;
+    else if (h > 1) h--;
+    else break;
+  }
+  return { width: w, height: h };
+}
+
+async function encodeJpegUnderByteLimit(bitmap, width, height, maxBytes) {
+  const qualities = [0.92, 0.85, 0.78, 0.72, 0.65, 0.58, 0.5, 0.42];
+  let w = width;
+  let h = height;
+
+  while (w >= 1 && h >= 1) {
+    for (const quality of qualities) {
+      const out = await encodeJpegFromBitmap(bitmap, w, h, quality);
+      if (out.byteLength <= maxBytes) {
+        return { bytes: out, width: w, height: h };
+      }
+    }
+    if (w === 1 && h === 1) break;
+    w = Math.max(1, Math.round(w * 0.9));
+    h = Math.max(1, Math.round(h * 0.9));
+  }
+
+  throw new Error("Could not compress photo under 5 MB.");
+}
+
+async function processThinkingPhoto(bytes, mimeType) {
+  if (bytes.byteLength > MAX_THINKING_INPUT_BYTES) {
+    throw new Error("Photo must be 20 MB or smaller.");
+  }
+
+  if (mimeType === "image/gif") {
+    if (bytes.byteLength > MAX_IMAGE_BYTES) {
+      throw new Error("GIF must be 5 MB or smaller.");
+    }
+    const aspectRatio = await imageAspectRatio(bytes, mimeType);
+    if (aspectRatio.width * aspectRatio.height > MAX_THINKING_IMAGE_MP) {
+      throw new Error("GIF must be 5 megapixels or smaller.");
+    }
+    return { bytes, mimeType, aspectRatio };
+  }
+
+  if (typeof OffscreenCanvas === "undefined") {
+    throw new Error("Photo processing is unavailable in this environment.");
+  }
+
+  const blob = new Blob([bytes], { type: mimeType });
+  const bitmap = await createImageBitmap(blob);
+  try {
+    const { width: w, height: h } = bitmap;
+    const { width: cw, height: ch } = fitDimensionsUnderMegapixels(w, h, MAX_THINKING_IMAGE_MP);
+    const needsResize = cw !== w || ch !== h;
+    const needsByteLimit = bytes.byteLength > MAX_IMAGE_BYTES;
+
+    if (!needsResize && !needsByteLimit) {
+      return { bytes, mimeType, aspectRatio: { width: w, height: h } };
+    }
+
+    const encoded = await encodeJpegUnderByteLimit(bitmap, cw, ch, MAX_IMAGE_BYTES);
+    return {
+      bytes: encoded.bytes,
+      mimeType: "image/jpeg",
+      aspectRatio: { width: encoded.width, height: encoded.height },
+    };
+  } finally {
+    bitmap.close();
+  }
+}
+
+function syndicationPhotoFromUpload(uploaded) {
+  const ext = IMAGE_EXT[uploaded.mimeType] || "jpg";
+  return new File([uploaded.bytes], `photo.${ext}`, { type: uploaded.mimeType });
+}
+
 function blueskyImageError(byteLength, status, body) {
   if (byteLength > MAX_BLUESKY_IMAGE_BYTES) {
     return "Photo is still over the 2 MB limit after compression. rommy.blog and micro.blog were still updated.";
@@ -700,25 +786,35 @@ async function uploadPhotoToR2(env, file, folder = "writing") {
   if (!ALLOWED_IMAGE_TYPES.has(mimeType)) {
     throw new Error("Photo must be JPEG, PNG, WebP, or GIF.");
   }
-  if (file.size > MAX_IMAGE_BYTES) {
-    throw new Error("Photo must be 5 MB or smaller for rommy.blog.");
+
+  let bytes = await file.arrayBuffer();
+  let outMime = mimeType;
+  let aspectRatio;
+
+  if (folder === "thinking") {
+    const processed = await processThinkingPhoto(bytes, mimeType);
+    bytes = processed.bytes;
+    outMime = processed.mimeType;
+    aspectRatio = processed.aspectRatio;
+  } else {
+    if (file.size > MAX_IMAGE_BYTES) {
+      throw new Error("Photo must be 5 MB or smaller for rommy.blog.");
+    }
+    aspectRatio = await imageAspectRatio(bytes, mimeType);
   }
 
-  const bytes = await file.arrayBuffer();
-  const ext = IMAGE_EXT[mimeType] || "jpg";
+  const ext = IMAGE_EXT[outMime] || "jpg";
   const prefix = folder === "thinking" ? "thinking" : "writing";
   const key = `${prefix}/${toDateStr(new Date())}/${crypto.randomUUID()}.${ext}`;
 
   await env.MEDIA.put(key, bytes, {
-    httpMetadata: { contentType: mimeType },
+    httpMetadata: { contentType: outMime },
   });
-
-  const aspectRatio = await imageAspectRatio(bytes, mimeType);
 
   return {
     url: `${publicBase}/${key}`,
     bytes,
-    mimeType,
+    mimeType: outMime,
     aspectRatio,
   };
 }
