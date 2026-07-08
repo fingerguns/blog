@@ -8,8 +8,8 @@ GITHUB_OWNER = "fingerguns"
 GITHUB_REPO = "blog"
 GITHUB_BRANCH = "main"
 ALLOWED_ORIGINS = "https://rommy.blog,https://rommy-blog.pages.dev,http://localhost:8799,http://127.0.0.1:8799"
-# Public R2 URL base after enabling public access on rommy-blog-media (e.g. https://pub-xxxx.r2.dev)
-MEDIA_PUBLIC_URL = "https://pub-d918c1f2d7fd45cd8a120234983c1079.r2.dev"
+# Public media served same-origin via Worker at /media/* (iOS audio compatibility).
+MEDIA_PUBLIC_URL = "https://rommy.blog/media"
 
 [ai]
 binding = "AI"
@@ -25,6 +25,10 @@ database_id = "2cb5dcd1-ff1b-4152-b081-58f56c9e5a55"
 
 [[routes]]
 pattern = "rommy.blog/api/admin*"
+zone_name = "rommy.blog"
+
+[[routes]]
+pattern = "rommy.blog/media/*"
 zone_name = "rommy.blog"
 
 # Set via: wrangler secret put ADMIN_PASSWORD

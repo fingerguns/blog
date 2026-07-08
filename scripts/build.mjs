@@ -228,7 +228,8 @@ function thinkingContentHtmlFromRow(p) {
     p.text,
     p.media_url,
     p.media_alt,
-    p.media_type
+    p.media_type,
+    base
   );
   if (fromSource) return fromSource;
   return p.content_html || "";
@@ -239,7 +240,8 @@ function renderThinkingHtml(thinking) {
     thinking?.text,
     thinking?.media_url,
     thinking?.media_alt,
-    thinking?.media_type
+    thinking?.media_type,
+    base
   );
   if (!inner) return "";
   return `<div class="microblog-body">${inner}</div>`;

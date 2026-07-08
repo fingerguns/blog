@@ -4,6 +4,7 @@ import { coalesceImageParagraphsHtml } from "../scripts/lib/coalesce-images.mjs"
 import { addHashtagFacets } from "../scripts/lib/linkify.mjs";
 import { renderThinkingContentHtml } from "../scripts/lib/thinking-html.mjs";
 import { scheduleSectionHintRefresh } from "./section-hints.mjs";
+import { serveMedia } from "./media.mjs";
 
 /**
  * Cloudflare Worker: admin API for rommy.blog
@@ -61,6 +62,11 @@ const AUTH_LOCKOUT_SEC = 15 * 60;
 
 export default {
   async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    if (url.pathname.startsWith("/media/")) {
+      return serveMedia(request, env);
+    }
+
     const allowedOrigins = (env.ALLOWED_ORIGINS || "https://rommy.blog")
       .split(",")
       .map((s) => s.trim())
@@ -528,7 +534,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
       }
     }
 
-    const contentHtml = renderThinkingContentHtml(text, mediaUrl, mediaAlt, mediaType);
+    const contentHtml = renderThinkingContentHtml(text, mediaUrl, mediaAlt, mediaType, SITE_URL);
     await dbRun(
       db,
       `INSERT INTO thinking_posts (slug, text, media_url, media_alt, media_type, content_html, datetime, microblog_url, bluesky_uri, mastodon_uri, created_at)
