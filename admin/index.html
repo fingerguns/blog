@@ -171,6 +171,12 @@
         margin: 0 0 1.25rem;
         border-radius: 4px;
       }
+      .thinking-audio-preview {
+        display: block;
+        width: 100%;
+        max-width: 28rem;
+        margin: 0 0 1.25rem;
+      }
       .thinking-meta-row {
         display: flex;
         align-items: center;
@@ -577,7 +583,7 @@
 
         <form class="admin-form" id="thinking-form">
           <label for="t-text">Thought</label>
-          <textarea id="t-text" placeholder="What's on your mind? (optional if you add a photo)"></textarea>
+          <textarea id="t-text" placeholder="What's on your mind? (optional if you add a photo or audio)"></textarea>
 
           <div class="thinking-meta-row">
             <div class="thinking-photo-upload">
@@ -595,14 +601,33 @@
                     <path fill="currentColor" d="M6 18h12l-4.5-6-2.5 3-2-2.5L6 18z"></path>
                   </svg>
                 </label>
-                <span id="t-photo-name" class="thinking-photo-name">No file chosen</span>
+                <span id="t-photo-name" class="thinking-photo-name">No photo</span>
+              </div>
+            </div>
+            <div class="thinking-photo-upload">
+              <input
+                id="t-audio"
+                class="thinking-photo-input"
+                type="file"
+                accept="audio/mp4,audio/x-m4a,audio/m4a,audio/mpeg,.m4a,.mp3"
+              />
+              <div class="thinking-photo-picker">
+                <label for="t-audio" class="thinking-photo-icon-btn" title="Add audio (Voice Memos)" aria-label="Add audio">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="2"></rect>
+                    <path fill="none" stroke="currentColor" stroke-width="2" d="M5 11a7 7 0 0 0 14 0"></path>
+                    <path fill="none" stroke="currentColor" stroke-width="2" d="M12 18v3"></path>
+                  </svg>
+                </label>
+                <span id="t-audio-name" class="thinking-photo-name">No audio</span>
               </div>
             </div>
             <p id="t-char-count" class="thinking-char-count" aria-live="polite">0 / 300</p>
           </div>
           <p id="t-photo-warn" hidden></p>
           <img id="t-photo-preview" class="thinking-photo-preview" alt="" hidden />
-          <button type="button" class="admin-secondary-btn" id="t-photo-remove" hidden>Remove photo</button>
+          <audio id="t-audio-preview" class="thinking-audio-preview" controls hidden></audio>
+          <button type="button" class="admin-secondary-btn" id="t-media-remove" hidden>Remove media</button>
 
           <button type="submit" id="t-submit">Save</button>
           <p class="admin-status" id="t-status" hidden></p>
@@ -1191,16 +1216,17 @@
         }
       }
 
-      async function callThinkingAPI(text, photoFile, blueskyPhotoFile) {
+      async function callThinkingAPI(text, photoFile, blueskyPhotoFile, audioFile) {
         var pw = loadSession();
         if (!pw) throw new Error("You need to be signed in. Go to the Login tab.");
         var res;
-        if (photoFile) {
+        if (photoFile || audioFile) {
           var fd = new FormData();
           fd.append("password", pw);
           fd.append("action", "thinking");
           fd.append("text", text);
-          fd.append("photo", photoFile);
+          if (photoFile) fd.append("photo", photoFile);
+          if (audioFile) fd.append("audio", audioFile);
           if (blueskyPhotoFile) fd.append("photo_bluesky", blueskyPhotoFile);
           res = await fetch(API_URL, { method: "POST", body: fd });
         } else {
@@ -1223,10 +1249,13 @@
         var textInput = document.getElementById("t-text");
         var charCount = document.getElementById("t-char-count");
         var photoInput = document.getElementById("t-photo");
+        var audioInput = document.getElementById("t-audio");
         var preview = document.getElementById("t-photo-preview");
+        var audioPreview = document.getElementById("t-audio-preview");
         var photoWarn = document.getElementById("t-photo-warn");
-        var photoRemove = document.getElementById("t-photo-remove");
+        var mediaRemove = document.getElementById("t-media-remove");
         var photoName = document.getElementById("t-photo-name");
+        var audioName = document.getElementById("t-audio-name");
 
         function updateThinkingCharCount() {
           if (!charCount || !textInput) return;
@@ -1240,28 +1269,58 @@
           updateThinkingCharCount();
         }
 
-        function clearThinkingPhoto() {
+        function clearThinkingMedia() {
+          photoInput.value = "";
+          audioInput.value = "";
+          preview.hidden = true;
+          preview.removeAttribute("src");
+          audioPreview.hidden = true;
+          audioPreview.removeAttribute("src");
+          if (audioPreview._objectUrl) {
+            URL.revokeObjectURL(audioPreview._objectUrl);
+            audioPreview._objectUrl = null;
+          }
+          mediaRemove.hidden = true;
+          photoWarn.hidden = true;
+          photoWarn.textContent = "";
+          if (photoName) photoName.textContent = "No photo";
+          if (audioName) audioName.textContent = "No audio";
+        }
+
+        function clearPhotoSelection() {
           photoInput.value = "";
           preview.hidden = true;
           preview.removeAttribute("src");
-          photoRemove.hidden = true;
-          photoWarn.hidden = true;
-          photoWarn.textContent = "";
-          if (photoName) photoName.textContent = "No file chosen";
+          if (photoName) photoName.textContent = "No photo";
         }
 
-        photoRemove.addEventListener("click", clearThinkingPhoto);
+        function clearAudioSelection() {
+          audioInput.value = "";
+          audioPreview.hidden = true;
+          audioPreview.removeAttribute("src");
+          if (audioPreview._objectUrl) {
+            URL.revokeObjectURL(audioPreview._objectUrl);
+            audioPreview._objectUrl = null;
+          }
+          if (audioName) audioName.textContent = "No audio";
+        }
+
+        mediaRemove.addEventListener("click", clearThinkingMedia);
 
         photoInput.addEventListener("change", function () {
           var file = photoInput.files && photoInput.files[0];
           if (!file) {
-            clearThinkingPhoto();
+            clearPhotoSelection();
+            if (!(audioInput.files && audioInput.files[0])) mediaRemove.hidden = true;
             return;
           }
+          clearAudioSelection();
           preview.src = URL.createObjectURL(file);
           preview.hidden = false;
-          photoRemove.hidden = false;
+          audioPreview.hidden = true;
+          mediaRemove.hidden = false;
           if (photoName) photoName.textContent = file.name;
+          if (audioName) audioName.textContent = "No audio";
           if (file.size > MAX_PHOTO_INPUT) {
             photoWarn.textContent =
               "This file is " + formatBytes(file.size) + " (max 25 MB).";
@@ -1284,18 +1343,58 @@
           }
         });
 
+        audioInput.addEventListener("change", function () {
+          var file = audioInput.files && audioInput.files[0];
+          if (!file) {
+            clearAudioSelection();
+            if (!(photoInput.files && photoInput.files[0])) mediaRemove.hidden = true;
+            return;
+          }
+          clearPhotoSelection();
+          preview.hidden = true;
+          if (audioPreview._objectUrl) URL.revokeObjectURL(audioPreview._objectUrl);
+          audioPreview._objectUrl = URL.createObjectURL(file);
+          audioPreview.src = audioPreview._objectUrl;
+          audioPreview.hidden = false;
+          mediaRemove.hidden = false;
+          if (audioName) audioName.textContent = file.name;
+          if (photoName) photoName.textContent = "No photo";
+          if (file.size > MAX_PHOTO_INPUT) {
+            photoWarn.textContent =
+              "This file is " + formatBytes(file.size) + " (max 25 MB).";
+            photoWarn.hidden = false;
+          } else {
+            photoWarn.textContent =
+              "Audio posts play on rommy.blog; Bluesky and Micro.blog get a link only.";
+            photoWarn.hidden = false;
+          }
+        });
+
         form.addEventListener("submit", async function (e) {
           e.preventDefault();
           var text = textInput.value.trim();
-          var file = photoInput.files && photoInput.files[0];
-          if (!text && !file) {
-            showStatus(status, "Add text or a photo.", true);
+          var photoFile = photoInput.files && photoInput.files[0];
+          var audioFile = audioInput.files && audioInput.files[0];
+          if (!text && !photoFile && !audioFile) {
+            showStatus(status, "Add text, a photo, or audio.", true);
             return;
           }
-          if (file && file.size > MAX_PHOTO_INPUT) {
+          if (photoFile && audioFile) {
+            showStatus(status, "Add a photo or audio, not both.", true);
+            return;
+          }
+          if (photoFile && photoFile.size > MAX_PHOTO_INPUT) {
             showStatus(
               status,
-              "Photo must be 25 MB or smaller (yours is " + formatBytes(file.size) + ").",
+              "Photo must be 25 MB or smaller (yours is " + formatBytes(photoFile.size) + ").",
+              true
+            );
+            return;
+          }
+          if (audioFile && audioFile.size > MAX_PHOTO_INPUT) {
+            showStatus(
+              status,
+              "Audio must be 25 MB or smaller (yours is " + formatBytes(audioFile.size) + ").",
               true
             );
             return;
@@ -1304,21 +1403,22 @@
           showStatus(status, "Saving to rommy.blog…", false);
           try {
             var blueskyFile = null;
-            if (file) {
+            if (photoFile) {
               showStatus(status, "Preparing photo…", false);
-              file = await compressPhotoForSite(file);
-              blueskyFile = await compressPhotoForBluesky(file);
+              photoFile = await compressPhotoForSite(photoFile);
+              blueskyFile = await compressPhotoForBluesky(photoFile);
             }
             var result = await callThinkingAPI(
               textInput.value,
-              file || null,
-              blueskyFile
+              photoFile || null,
+              blueskyFile,
+              audioFile || null
             );
             var out = formatThinkingSaveStatus(result);
             showStatus(status, out.text, false, !out.warn, out.warn);
             textInput.value = "";
             updateThinkingCharCount();
-            clearThinkingPhoto();
+            clearThinkingMedia();
             loadThinkingArchive();
           } catch (err) {
             var errMsg = err.message || "Request failed";

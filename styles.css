@@ -571,6 +571,13 @@ h2 {
   cursor: zoom-in;
   transition: width 0.2s ease, max-width 0.2s ease;
 }
+.microblog-body audio.thinking-audio,
+.post .body audio.thinking-audio {
+  display: block;
+  width: 100%;
+  max-width: 28rem;
+  margin: 0.75rem 0 0;
+}
 .post-list .microblog-body a,
 .microblog-body a {
   color: var(--link);

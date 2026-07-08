@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS thinking_posts (
   text TEXT NOT NULL DEFAULT '',
   media_url TEXT,
   media_alt TEXT,
+  media_type TEXT,
   content_html TEXT,
   datetime TEXT NOT NULL,
   microblog_url TEXT,

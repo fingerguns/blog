@@ -224,7 +224,12 @@ function thinkingOgFromItem(item) {
 }
 
 function thinkingContentHtmlFromRow(p) {
-  const fromSource = renderThinkingContentHtml(p.text, p.media_url, p.media_alt);
+  const fromSource = renderThinkingContentHtml(
+    p.text,
+    p.media_url,
+    p.media_alt,
+    p.media_type
+  );
   if (fromSource) return fromSource;
   return p.content_html || "";
 }
@@ -233,7 +238,8 @@ function renderThinkingHtml(thinking) {
   const inner = renderThinkingContentHtml(
     thinking?.text,
     thinking?.media_url,
-    thinking?.media_alt
+    thinking?.media_alt,
+    thinking?.media_type
   );
   if (!inner) return "";
   return `<div class="microblog-body">${inner}</div>`;
@@ -369,6 +375,7 @@ const microblogItems = thinkingPosts.map((p) => ({
   content_html: thinkingContentHtmlFromRow(p),
   date_published: p.datetime,
   url: p.microblog_url || "",
+  media_type: p.media_type || "",
 }));
 
 // Changelog from git log

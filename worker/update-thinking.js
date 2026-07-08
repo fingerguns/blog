@@ -31,15 +31,24 @@ import { scheduleSectionHintRefresh } from "./section-hints.mjs";
 const SITE_URL = "https://rommy.blog";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_PHOTO_INPUT_BYTES = 25 * 1024 * 1024;
+const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 const MAX_BLUESKY_IMAGE_BYTES = 2_000_000;
 const MAX_MASTODON_CHARS = 500;
 const DEFAULT_MASTODON_INSTANCE = "https://mas.to";
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const ALLOWED_AUDIO_TYPES = new Set(["audio/mp4", "audio/x-m4a", "audio/m4a", "audio/mpeg", "audio/mp3"]);
 const IMAGE_EXT = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
   "image/gif": "gif",
+};
+const AUDIO_EXT = {
+  "audio/mp4": "m4a",
+  "audio/x-m4a": "m4a",
+  "audio/m4a": "m4a",
+  "audio/mpeg": "mp3",
+  "audio/mp3": "mp3",
 };
 const SITE_TITLE = "rommy.blog";
 const SITE_AUTHOR = "Rommy Ghaly";
@@ -358,6 +367,7 @@ async function parseRequest(request) {
     const fd = await request.formData();
     const photo = fd.get("photo");
     const photoBluesky = fd.get("photo_bluesky");
+    const audio = fd.get("audio");
     return {
       password: fd.get("password"),
       action: fd.get("action"),
@@ -374,6 +384,10 @@ async function parseRequest(request) {
         photoBluesky.size > 0
           ? photoBluesky
           : null,
+      audio:
+        audio && typeof audio === "object" && "arrayBuffer" in audio && audio.size > 0
+          ? audio
+          : null,
     };
   }
   return request.json();
@@ -384,9 +398,13 @@ async function parseRequest(request) {
 async function handleThinking(payload, db, cors, env, ctx) {
   const text = typeof payload.text === "string" ? payload.text.trim() : "";
   const photo = payload.photo || null;
+  const audio = payload.audio || null;
 
-  if (!text && !photo) {
-    return json({ error: "Add text or a photo" }, 400, cors);
+  if (!text && !photo && !audio) {
+    return json({ error: "Add text, a photo, or audio" }, 400, cors);
+  }
+  if (photo && audio) {
+    return json({ error: "Add a photo or audio, not both" }, 400, cors);
   }
   if (text.length > 2000) {
     return json({ error: "Text must be 2000 characters or fewer" }, 400, cors);
@@ -394,8 +412,14 @@ async function handleThinking(payload, db, cors, env, ctx) {
   // Bluesky cross-post truncates at 300; admin shows a soft 300-char guide.
 
   try {
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const slug = thinkingSlugFromDate(now);
+    const postUrl = `${SITE_URL}/thinking/${slug}/`;
+
     let mediaUrl = null;
     let mediaAlt = text.slice(0, 1000) || "";
+    let mediaType = "";
     let uploadedForBluesky = null;
     let blueskyCompressed = false;
     let syndicationPhoto = photo;
@@ -404,6 +428,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
       const uploaded = await uploadPhotoToR2(env, photo, "thinking");
       mediaUrl = uploaded.url;
       mediaAlt = text.slice(0, 1000) || "Photo";
+      mediaType = "image";
       syndicationPhoto = syndicationPhotoFromUpload(uploaded);
       uploadedForBluesky = {
         bytes: uploaded.bytes,
@@ -411,17 +436,24 @@ async function handleThinking(payload, db, cors, env, ctx) {
         alt: mediaAlt,
         aspectRatio: uploaded.aspectRatio,
       };
+    } else if (audio) {
+      const uploaded = await uploadAudioToR2(env, audio);
+      mediaUrl = uploaded.url;
+      mediaAlt = text.slice(0, 1000) || "Audio";
+      mediaType = "audio";
+      syndicationPhoto = null;
     }
-
-    const now = new Date();
-    const nowIso = now.toISOString();
-    const slug = thinkingSlugFromDate(now);
 
     let microblogUrl = null;
     let microblogWarning = null;
     if (env.MICROBLOG_TOKEN) {
       try {
-        microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, text, syndicationPhoto);
+        if (mediaType === "audio") {
+          const mbText = text || `Audio note: ${postUrl}`;
+          microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, mbText, null);
+        } else {
+          microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, text, syndicationPhoto);
+        }
       } catch (mbErr) {
         microblogWarning = formatServiceWarning("micro.blog", mbErr.message);
       }
@@ -441,25 +473,36 @@ async function handleThinking(payload, db, cors, env, ctx) {
           blueskyCompressed = prepared.compressed;
         }
         let blueskyLinkCard = null;
-        if (!blueskyImage && [...text].length > 300) {
-          const urlMatch = text.match(/https?:\/\/[^\s]+/);
-          if (urlMatch) {
-            const extractedUrl = urlMatch[0].replace(/[.,;:!?)"']+$/, "");
-            blueskyLinkCard = await fetchLinkCard(extractedUrl);
-          }
-          if (!blueskyLinkCard) {
+        if (!blueskyImage && (mediaType === "audio" || [...text].length > 300)) {
+          if (mediaType === "audio") {
             blueskyLinkCard = {
-              uri: `${SITE_URL}/thinking/${slug}/`,
-              title: text.slice(0, 100).trim(),
-              description: text.length > 100 ? text.slice(100, 280).trim() : "",
+              uri: postUrl,
+              title: text.slice(0, 100).trim() || "Audio note",
+              description: "Audio on rommy.blog",
               thumb: null,
             };
+          } else {
+            const urlMatch = text.match(/https?:\/\/[^\s]+/);
+            if (urlMatch) {
+              const extractedUrl = urlMatch[0].replace(/[.,;:!?)"']+$/, "");
+              blueskyLinkCard = await fetchLinkCard(extractedUrl);
+            }
+            if (!blueskyLinkCard) {
+              blueskyLinkCard = {
+                uri: postUrl,
+                title: text.slice(0, 100).trim(),
+                description: text.length > 100 ? text.slice(100, 280).trim() : "",
+                thumb: null,
+              };
+            }
           }
         }
+        const blueskyText =
+          mediaType === "audio" && !text ? `Audio note: ${postUrl}` : text;
         blueskyUri = await postToBluesky(
           env.BLUESKY_HANDLE,
           env.BLUESKY_APP_PASSWORD,
-          text,
+          blueskyText,
           blueskyImage,
           blueskyLinkCard
         );
@@ -473,24 +516,28 @@ async function handleThinking(payload, db, cors, env, ctx) {
     if (env.MASTODON_ACCESS_TOKEN) {
       const mastodonInstance = (env.MASTODON_INSTANCE || DEFAULT_MASTODON_INSTANCE).replace(/\/$/, "");
       try {
-        const mastodonImage = uploadedForBluesky
-          ? { bytes: uploadedForBluesky.bytes, mimeType: uploadedForBluesky.mimeType, alt: uploadedForBluesky.alt }
-          : null;
-        mastodonUrl = await postToMastodon(mastodonInstance, env.MASTODON_ACCESS_TOKEN, text, mastodonImage);
+        const mastodonImage =
+          mediaType === "image" && uploadedForBluesky
+            ? { bytes: uploadedForBluesky.bytes, mimeType: uploadedForBluesky.mimeType, alt: uploadedForBluesky.alt }
+            : null;
+        const mastodonText =
+          mediaType === "audio" && !text ? `Audio note: ${postUrl}` : text;
+        mastodonUrl = await postToMastodon(mastodonInstance, env.MASTODON_ACCESS_TOKEN, mastodonText, mastodonImage);
       } catch (msErr) {
         mastodonWarning = formatServiceWarning("Mastodon", msErr.message);
       }
     }
 
-    const contentHtml = renderThinkingContentHtml(text, mediaUrl, mediaAlt);
+    const contentHtml = renderThinkingContentHtml(text, mediaUrl, mediaAlt, mediaType);
     await dbRun(
       db,
-      `INSERT INTO thinking_posts (slug, text, media_url, media_alt, content_html, datetime, microblog_url, bluesky_uri, mastodon_uri, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO thinking_posts (slug, text, media_url, media_alt, media_type, content_html, datetime, microblog_url, bluesky_uri, mastodon_uri, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(slug) DO UPDATE SET
          text = excluded.text,
          media_url = excluded.media_url,
          media_alt = excluded.media_alt,
+         media_type = excluded.media_type,
          content_html = excluded.content_html,
          microblog_url = COALESCE(excluded.microblog_url, thinking_posts.microblog_url),
          bluesky_uri = COALESCE(excluded.bluesky_uri, thinking_posts.bluesky_uri),
@@ -500,6 +547,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
       text,
       mediaUrl,
       mediaAlt,
+      mediaType || null,
       contentHtml,
       nowIso,
       microblogUrl,
@@ -532,7 +580,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
 async function handleListThinking(db, cors) {
   const { results: rows } = await dbAll(
     db,
-    `SELECT slug, text, content_html, datetime, microblog_url
+    `SELECT slug, text, content_html, media_type, datetime, microblog_url
      FROM thinking_posts
      ORDER BY datetime DESC
      LIMIT 50`
@@ -549,6 +597,7 @@ async function handleListThinking(db, cors) {
 function thinkingArchiveLabel(row) {
   const text = (row.text || "").trim();
   if (text) return text;
+  if (row.media_type === "audio") return "Audio note";
   const plain = String(row.content_html || "")
     .replace(/<img[^>]*>/gi, "")
     .replace(/<[^>]+>/g, " ")
@@ -785,6 +834,48 @@ async function uploadPhotoToR2(env, file, folder = "writing") {
     bytes,
     mimeType: outMime,
     aspectRatio,
+  };
+}
+
+function resolveAudioMime(file) {
+  const type = (file.type || "").toLowerCase().split(";")[0].trim();
+  if (type && ALLOWED_AUDIO_TYPES.has(type)) return type;
+  const name = String(file.name || "").toLowerCase();
+  if (name.endsWith(".m4a")) return "audio/mp4";
+  if (name.endsWith(".mp3")) return "audio/mpeg";
+  if (name.endsWith(".aac")) return "audio/mp4";
+  return type || "";
+}
+
+async function uploadAudioToR2(env, file) {
+  if (!env.MEDIA) {
+    throw new Error("Audio storage is not configured (R2).");
+  }
+  const publicBase = (env.MEDIA_PUBLIC_URL || "").replace(/\/$/, "");
+  if (!publicBase) {
+    throw new Error("Audio storage is missing a public URL (MEDIA_PUBLIC_URL).");
+  }
+
+  const mimeType = resolveAudioMime(file);
+  if (!mimeType || !ALLOWED_AUDIO_TYPES.has(mimeType)) {
+    throw new Error("Audio must be M4A (Voice Memos) or MP3.");
+  }
+  if (file.size > MAX_AUDIO_BYTES) {
+    throw new Error("Audio must be 25 MB or smaller.");
+  }
+
+  const bytes = await file.arrayBuffer();
+  const ext = AUDIO_EXT[mimeType] || "m4a";
+  const key = `thinking/audio/${toDateStr(new Date())}/${crypto.randomUUID()}.${ext}`;
+
+  await env.MEDIA.put(key, bytes, {
+    httpMetadata: { contentType: mimeType },
+  });
+
+  return {
+    url: `${publicBase}/${key}`,
+    bytes,
+    mimeType,
   };
 }
 

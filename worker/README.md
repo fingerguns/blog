@@ -31,6 +31,12 @@ Seed section hover tooltips (optional — build falls back to defaults until Wor
 wrangler d1 execute rommy-blog-db --file=migrate-section-hints.sql --remote
 ```
 
+Add Thinking audio posts (`media_type` column — image or audio):
+
+```bash
+wrangler d1 execute rommy-blog-db --file=migrate-thinking-audio.sql --remote
+```
+
 Migrate existing content from `data/posts.json`:
 
 ```bash

@@ -1,8 +1,18 @@
 import { escHtml } from "./html.mjs";
 import { linkifyThinkingEscapedHtml } from "./linkify.mjs";
 
-export function renderThinkingContentHtml(text, mediaUrl, mediaAlt) {
+export function inferMediaType(mediaUrl, mediaType) {
+  if (mediaType === "audio" || mediaType === "image") return mediaType;
+  if (!mediaUrl) return "";
+  const lower = mediaUrl.toLowerCase();
+  if (/\.(m4a|mp3|aac)(\?|$)/.test(lower)) return "audio";
+  if (mediaUrl) return "image";
+  return "";
+}
+
+export function renderThinkingContentHtml(text, mediaUrl, mediaAlt, mediaType = "") {
   const t = (text || "").trim();
+  const type = inferMediaType(mediaUrl, mediaType);
   const parts = [];
   if (t) {
     for (const para of t.split(/\n\n+/).filter(Boolean)) {
@@ -10,7 +20,11 @@ export function renderThinkingContentHtml(text, mediaUrl, mediaAlt) {
       parts.push(`<p>${inner}</p>`);
     }
   }
-  if (mediaUrl) {
+  if (mediaUrl && type === "audio") {
+    parts.push(
+      `<audio class="thinking-audio" controls preload="metadata" src="${escHtml(mediaUrl)}">${escHtml(mediaAlt || "Audio")}</audio>`
+    );
+  } else if (mediaUrl) {
     parts.push(
       `<img class="thinking-photo" src="${escHtml(mediaUrl)}" alt="${escHtml(mediaAlt || "Photo")}" loading="lazy" decoding="async" />`
     );
