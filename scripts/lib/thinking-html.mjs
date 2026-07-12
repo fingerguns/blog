@@ -7,7 +7,7 @@ export function inferMediaType(mediaUrl, mediaType) {
   if (!mediaUrl) return "";
   const lower = mediaUrl.toLowerCase();
   if (/\.(m4a|mp3|aac)(\?|$)/.test(lower)) return "audio";
-  if (/\.(mp4|webm|mov)(\?|$)/.test(lower)) return "video";
+  if (/\.(mp4|webm|mov|m4v)(\?|$)/.test(lower)) return "video";
   if (mediaUrl) return "image";
   return "";
 }

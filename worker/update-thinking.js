@@ -33,13 +33,13 @@ const SITE_URL = "https://rommy.blog";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_PHOTO_INPUT_BYTES = 25 * 1024 * 1024;
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
-const MAX_VIDEO_BYTES = 75 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 const MAX_BLUESKY_IMAGE_BYTES = 2_000_000;
 const MAX_MASTODON_CHARS = 500;
 const DEFAULT_MASTODON_INSTANCE = "https://mas.to";
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const ALLOWED_AUDIO_TYPES = new Set(["audio/mp4", "audio/x-m4a", "audio/m4a", "audio/mpeg", "audio/mp3"]);
-const ALLOWED_VIDEO_TYPES = new Set(["video/mp4"]);
+const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/x-m4v"]);
 const IMAGE_EXT = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -55,6 +55,8 @@ const AUDIO_EXT = {
 };
 const VIDEO_EXT = {
   "video/mp4": "mp4",
+  "video/quicktime": "mov",
+  "video/x-m4v": "m4v",
 };
 const SITE_TITLE = "rommy.blog";
 const SITE_AUTHOR = "Rommy Ghaly";
@@ -938,6 +940,8 @@ function resolveVideoMime(file) {
   if (type && ALLOWED_VIDEO_TYPES.has(type)) return type;
   const name = String(file.name || "").toLowerCase();
   if (name.endsWith(".mp4")) return "video/mp4";
+  if (name.endsWith(".mov")) return "video/quicktime";
+  if (name.endsWith(".m4v")) return "video/x-m4v";
   return type || "";
 }
 
@@ -952,10 +956,10 @@ async function uploadVideoToR2(env, file) {
 
   const mimeType = resolveVideoMime(file);
   if (!mimeType || !ALLOWED_VIDEO_TYPES.has(mimeType)) {
-    throw new Error("Video must be MP4 (H.264).");
+    throw new Error("Video must be MP4 or MOV (iPhone).");
   }
   if (file.size > MAX_VIDEO_BYTES) {
-    throw new Error("Video must be 75 MB or smaller.");
+    throw new Error("Video must be 100 MB or smaller.");
   }
 
   const bytes = await file.arrayBuffer();
