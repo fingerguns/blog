@@ -654,41 +654,39 @@ article.post {
   margin: 0;
   line-height: 1.5;
   white-space: nowrap;
-  font-family: inherit;
+}
+
+.thinking-crumb-heading {
+  display: inline;
+  margin: 0;
+}
+
+.thinking-crumb-heading a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.thinking-crumb-heading a:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+}
+
+.thinking-crumb-sep {
   font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: normal;
   color: var(--muted);
 }
 
-.thinking-crumb-section,
-.thinking-crumb-sep,
-.thinking-crumb-date {
-  font: inherit;
-  letter-spacing: normal;
-  color: inherit;
-}
-
-.thinking-crumb-section {
-  text-transform: uppercase;
-  text-decoration: none;
-}
-
-.thinking-crumb-section:hover {
-  color: var(--link-hover);
-  text-decoration: underline;
-  text-decoration-color: currentColor;
-}
-
-.thinking-crumb-date {
+.thinking-crumb .thinking-crumb-date {
   display: inline;
   margin: 0;
-  text-transform: none;
-}
-
-.microblog-entry .thinking-crumb time {
-  display: inline;
-  margin-top: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: normal;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .thinking-crumb + .microblog-body {
