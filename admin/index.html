@@ -185,6 +185,25 @@
         border-radius: 4px;
         background: var(--bg);
       }
+      .thinking-upload-progress {
+        margin: 0 0 1.25rem;
+      }
+      .thinking-upload-progress progress {
+        display: block;
+        width: 100%;
+        max-width: 28rem;
+        height: 0.45rem;
+        border: none;
+        border-radius: 2px;
+        overflow: hidden;
+        accent-color: var(--text);
+      }
+      .thinking-upload-progress-label {
+        font-size: 0.75rem;
+        color: var(--muted);
+        margin: 0.4rem 0 0;
+        line-height: 1.45;
+      }
       .thinking-meta-row {
         display: flex;
         align-items: center;
@@ -667,6 +686,10 @@
           <button type="button" class="admin-secondary-btn" id="t-media-remove" hidden>Remove media</button>
 
           <button type="submit" id="t-submit">Save</button>
+          <div id="t-upload-progress" class="thinking-upload-progress" hidden>
+            <progress id="t-upload-progress-bar" max="100" value="0"></progress>
+            <p id="t-upload-progress-label" class="thinking-upload-progress-label"></p>
+          </div>
           <p class="admin-status" id="t-status" hidden></p>
         </form>
 
@@ -998,6 +1021,68 @@
           "admin-status" + (isErr ? " err" : isWarn ? " warn" : isOk ? " ok" : "");
       }
 
+      function thinkingUploadShowsProgress(videoFile, audioFile, photoFile) {
+        if (videoFile) return true;
+        if (audioFile && audioFile.size > 500 * 1024) return true;
+        if (photoFile && photoFile.size > 500 * 1024) return true;
+        return false;
+      }
+
+      function setThinkingUploadProgress(visible, pct, label) {
+        var wrap = document.getElementById("t-upload-progress");
+        var bar = document.getElementById("t-upload-progress-bar");
+        var lab = document.getElementById("t-upload-progress-label");
+        if (!wrap) return;
+        wrap.hidden = !visible;
+        if (bar) {
+          if (pct == null) bar.removeAttribute("value");
+          else bar.value = pct;
+        }
+        if (lab) lab.textContent = label || "";
+      }
+
+      function hideThinkingUploadProgress() {
+        setThinkingUploadProgress(false, 0, "");
+      }
+
+      function postThinkingMultipart(fd, onProgress) {
+        return new Promise(function (resolve, reject) {
+          var xhr = new XMLHttpRequest();
+          xhr.open("POST", API_URL);
+          xhr.upload.onprogress = function (e) {
+            if (!onProgress) return;
+            if (e.lengthComputable && e.total > 0) {
+              var pct = Math.min(100, Math.round((e.loaded / e.total) * 100));
+              onProgress(pct, "upload", e.loaded, e.total);
+            } else {
+              onProgress(null, "upload", e.loaded, 0);
+            }
+          };
+          xhr.onload = function () {
+            if (onProgress) onProgress(100, "processing");
+            var data;
+            try {
+              data = JSON.parse(xhr.responseText || "{}");
+            } catch (parseErr) {
+              reject(new Error("Could not parse API response."));
+              return;
+            }
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(data);
+              return;
+            }
+            reject(new Error(data.error || "Request failed"));
+          };
+          xhr.onerror = function () {
+            reject(new Error("Upload failed — check your connection and try again."));
+          };
+          xhr.onabort = function () {
+            reject(new Error("Upload cancelled."));
+          };
+          xhr.send(fd);
+        });
+      }
+
       var MAX_PHOTO_SITE = 5 * 1024 * 1024;
       var MAX_PHOTO_BLUESKY = 2 * 1024 * 1024;
       var MAX_PHOTO_INPUT = 25 * 1024 * 1024;
@@ -1271,10 +1356,9 @@
         }
       }
 
-      async function callThinkingAPI(text, photoFile, blueskyPhotoFile, audioFile, videoFile) {
+      async function callThinkingAPI(text, photoFile, blueskyPhotoFile, audioFile, videoFile, onProgress) {
         var pw = loadSession();
         if (!pw) throw new Error("You need to be signed in. Go to the Login tab.");
-        var res;
         if (photoFile || audioFile || videoFile) {
           var fd = new FormData();
           fd.append("password", pw);
@@ -1284,14 +1368,17 @@
           if (audioFile) fd.append("audio", audioFile);
           if (videoFile) fd.append("video", videoFile);
           if (blueskyPhotoFile) fd.append("photo_bluesky", blueskyPhotoFile);
-          res = await fetch(API_URL, { method: "POST", body: fd });
-        } else {
-          res = await fetch(API_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ password: pw, action: "thinking", text: text }),
-          });
+          if (onProgress) return postThinkingMultipart(fd, onProgress);
+          var res = await fetch(API_URL, { method: "POST", body: fd });
+          var data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Request failed");
+          return data;
         }
+        var res = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: pw, action: "thinking", text: text }),
+        });
         var data = await res.json();
         if (!res.ok) throw new Error(data.error || "Request failed");
         return data;
@@ -1542,22 +1629,70 @@
             return;
           }
           submit.disabled = true;
-          showStatus(status, "Saving to rommy.blog…", false);
+          var useProgress = thinkingUploadShowsProgress(videoFile, audioFile, photoFile);
+          if (useProgress) {
+            status.hidden = true;
+            setThinkingUploadProgress(
+              true,
+              0,
+              videoFile
+                ? "Uploading video… 0%. Keep this page open."
+                : "Uploading… 0%. Keep this page open."
+            );
+          } else {
+            hideThinkingUploadProgress();
+            showStatus(status, "Saving to rommy.blog…", false);
+          }
           try {
             var blueskyFile = null;
             if (photoFile) {
-              showStatus(status, "Preparing photo…", false);
+              if (!useProgress) showStatus(status, "Preparing photo…", false);
               photoFile = await compressPhotoForSite(photoFile);
               blueskyFile = await compressPhotoForBluesky(photoFile);
             }
-            if (videoFile) showStatus(status, "Uploading video…", false);
+            var onProgress = useProgress
+              ? function (pct, phase, loaded, total) {
+                  if (phase === "processing") {
+                    setThinkingUploadProgress(
+                      true,
+                      100,
+                      "Publishing — syndicating and rebuilding. Your post will appear on rommy.blog shortly."
+                    );
+                    return;
+                  }
+                  var label =
+                    videoFile
+                      ? "Uploading video"
+                      : audioFile
+                        ? "Uploading audio"
+                        : "Uploading photo";
+                  if (pct == null) {
+                    setThinkingUploadProgress(
+                      true,
+                      null,
+                      label +
+                        "… " +
+                        formatBytes(loaded) +
+                        " sent. Keep this page open."
+                    );
+                  } else {
+                    setThinkingUploadProgress(
+                      true,
+                      pct,
+                      label + "… " + pct + "%. Keep this page open."
+                    );
+                  }
+                }
+              : null;
             var result = await callThinkingAPI(
               textInput.value,
               photoFile || null,
               blueskyFile,
               audioFile || null,
-              videoFile || null
+              videoFile || null,
+              onProgress
             );
+            hideThinkingUploadProgress();
             var out = formatThinkingSaveStatus(result);
             showStatus(status, out.text, false, !out.warn, out.warn);
             textInput.value = "";
@@ -1565,6 +1700,7 @@
             clearThinkingMedia();
             loadThinkingArchive();
           } catch (err) {
+            hideThinkingUploadProgress();
             var errMsg = err.message || "Request failed";
             if (!/^rommy\.blog:|^micro\.blog:|^Bluesky:/i.test(errMsg)) {
               errMsg = "rommy.blog: " + errMsg;
