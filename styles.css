@@ -654,14 +654,16 @@ article.post {
   margin: 0;
   line-height: 1.5;
   white-space: nowrap;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  color: var(--muted);
 }
 
 .thinking-crumb-section {
-  font-size: 0.7rem;
   font-weight: 600;
-  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: inherit;
   text-decoration: none;
 }
 
@@ -672,17 +674,18 @@ article.post {
 }
 
 .thinking-crumb-sep {
-  font-size: 0.7rem;
-  color: var(--muted);
-  letter-spacing: 0.14em;
+  color: inherit;
 }
 
 .thinking-crumb-date {
   display: inline;
   margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  color: inherit;
   font-variant-numeric: tabular-nums;
-  color: var(--muted);
-  font-size: 0.85rem;
+  text-transform: none;
 }
 
 .microblog-entry .thinking-crumb time {
