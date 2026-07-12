@@ -10,6 +10,7 @@ GITHUB_BRANCH = "main"
 ALLOWED_ORIGINS = "https://rommy.blog,https://rommy-blog.pages.dev,http://localhost:8799,http://127.0.0.1:8799"
 # Public media served same-origin via Worker at /media/* (iOS audio compatibility).
 MEDIA_PUBLIC_URL = "https://rommy.blog/media"
+R2_BUCKET_NAME = "rommy-blog-media"
 
 [ai]
 binding = "AI"
@@ -35,3 +36,8 @@ zone_name = "rommy.blog"
 # Set via: wrangler secret put GITHUB_TOKEN
 # Set via: wrangler secret put PAGES_DEPLOY_HOOK  (Cloudflare Pages deploy hook URL)
 # Set via: wrangler secret put MICROBLOG_TOKEN  (micro.blog API token — optional, skipped if absent)
+# Direct video upload (presigned PUT to R2 — optional; falls back to Worker multipart if absent):
+#   wrangler secret put R2_ACCOUNT_ID
+#   wrangler secret put R2_ACCESS_KEY_ID
+#   wrangler secret put R2_SECRET_ACCESS_KEY
+# Then apply bucket CORS: wrangler r2 bucket cors set rommy-blog-media --file=r2-cors.json

@@ -55,6 +55,15 @@ wrangler secret put BLUESKY_APP_PASSWORD  # optional
 wrangler secret put GITHUB_TOKEN          # optional fallback for rebuild trigger
 ```
 
+Direct video upload (faster — browser PUTs to R2, optional; multipart fallback if unset):
+
+```bash
+wrangler secret put R2_ACCOUNT_ID
+wrangler secret put R2_ACCESS_KEY_ID      # R2 → Manage R2 API tokens → Object Read & Write
+wrangler secret put R2_SECRET_ACCESS_KEY
+wrangler r2 bucket cors set rommy-blog-media --file=r2-cors.json
+```
+
 Deploy:
 
 ```bash
@@ -79,6 +88,7 @@ Output directory: `dist`
 | Action | Description |
 |---|---|
 | `thinking` | Update thinking text in D1 |
+| `thinking-video-upload-url` | Presigned PUT URL for direct video upload to R2 |
 | `list-thinking` | List Thinking archive from D1 |
 | `post` | Publish new writing post |
 | `edit-post` | Edit post (saves version history) |

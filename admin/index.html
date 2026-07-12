@@ -1083,6 +1083,56 @@
         });
       }
 
+      function putFileToPresignedUrl(url, file, contentType, onProgress) {
+        return new Promise(function (resolve, reject) {
+          var xhr = new XMLHttpRequest();
+          xhr.open("PUT", url);
+          xhr.setRequestHeader(
+            "Content-Type",
+            contentType || file.type || "application/octet-stream"
+          );
+          xhr.upload.onprogress = function (e) {
+            if (!onProgress) return;
+            if (e.lengthComputable && e.total > 0) {
+              var pct = Math.min(100, Math.round((e.loaded / e.total) * 100));
+              onProgress(pct, "upload", e.loaded, e.total);
+            } else {
+              onProgress(null, "upload", e.loaded, 0);
+            }
+          };
+          xhr.onload = function () {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve();
+              return;
+            }
+            reject(
+              new Error(
+                "Direct upload failed (HTTP " + xhr.status + "). Try again."
+              )
+            );
+          };
+          xhr.onerror = function () {
+            reject(new Error("Direct upload failed — check your connection."));
+          };
+          xhr.onabort = function () {
+            reject(new Error("Upload cancelled."));
+          };
+          xhr.send(file);
+        });
+      }
+
+      function resolveVideoMimeForUpload(file) {
+        var type = (file.type || "").toLowerCase().split(";")[0].trim();
+        var name = (file.name || "").toLowerCase();
+        if (type === "video/mp4" || type === "video/quicktime" || type === "video/x-m4v") {
+          return type;
+        }
+        if (name.endsWith(".mp4")) return "video/mp4";
+        if (name.endsWith(".mov")) return "video/quicktime";
+        if (name.endsWith(".m4v")) return "video/x-m4v";
+        return type || "video/mp4";
+      }
+
       var MAX_PHOTO_SITE = 5 * 1024 * 1024;
       var MAX_PHOTO_BLUESKY = 2 * 1024 * 1024;
       var MAX_PHOTO_INPUT = 25 * 1024 * 1024;
@@ -1356,17 +1406,74 @@
         }
       }
 
+      async function callThinkingVideoAPI(text, videoFile, onProgress) {
+        var pw = loadSession();
+        if (!pw) throw new Error("You need to be signed in. Go to the Login tab.");
+
+        var mimeType = resolveVideoMimeForUpload(videoFile);
+        var initRes = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            password: pw,
+            action: "thinking-video-upload-url",
+            mimeType: mimeType,
+            fileName: videoFile.name,
+            size: videoFile.size,
+          }),
+        });
+        var init = await initRes.json();
+        if (!initRes.ok) {
+          if (
+            initRes.status === 503 ||
+            (init.error && init.error.indexOf("not configured") !== -1)
+          ) {
+            var fd = new FormData();
+            fd.append("password", pw);
+            fd.append("action", "thinking");
+            fd.append("text", text);
+            fd.append("video", videoFile);
+            if (onProgress) return postThinkingMultipart(fd, onProgress);
+            var fallbackRes = await fetch(API_URL, { method: "POST", body: fd });
+            var fallbackData = await fallbackRes.json();
+            if (!fallbackRes.ok) throw new Error(fallbackData.error || "Request failed");
+            return fallbackData;
+          }
+          throw new Error(init.error || "Request failed");
+        }
+
+        await putFileToPresignedUrl(init.uploadUrl, videoFile, init.mimeType, onProgress);
+        if (onProgress) onProgress(100, "processing");
+
+        var finRes = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            password: pw,
+            action: "thinking",
+            text: text,
+            video_key: init.key,
+            video_mime: init.mimeType,
+          }),
+        });
+        var data = await finRes.json();
+        if (!finRes.ok) throw new Error(data.error || "Request failed");
+        return data;
+      }
+
       async function callThinkingAPI(text, photoFile, blueskyPhotoFile, audioFile, videoFile, onProgress) {
         var pw = loadSession();
         if (!pw) throw new Error("You need to be signed in. Go to the Login tab.");
-        if (photoFile || audioFile || videoFile) {
+        if (videoFile) {
+          return callThinkingVideoAPI(text, videoFile, onProgress);
+        }
+        if (photoFile || audioFile) {
           var fd = new FormData();
           fd.append("password", pw);
           fd.append("action", "thinking");
           fd.append("text", text);
           if (photoFile) fd.append("photo", photoFile);
           if (audioFile) fd.append("audio", audioFile);
-          if (videoFile) fd.append("video", videoFile);
           if (blueskyPhotoFile) fd.append("photo_bluesky", blueskyPhotoFile);
           if (onProgress) return postThinkingMultipart(fd, onProgress);
           var res = await fetch(API_URL, { method: "POST", body: fd });

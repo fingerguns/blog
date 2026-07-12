@@ -5,6 +5,7 @@ import { addHashtagFacets } from "../scripts/lib/linkify.mjs";
 import { renderThinkingContentHtml } from "../scripts/lib/thinking-html.mjs";
 import { scheduleSectionHintRefresh } from "./section-hints.mjs";
 import { serveMedia } from "./media.mjs";
+import { createR2PresignedPutUrl } from "./r2-presign.mjs";
 
 /**
  * Cloudflare Worker: admin API for rommy.blog
@@ -20,6 +21,12 @@ import { serveMedia } from "./media.mjs";
  *   MASTODON_ACCESS_TOKEN — Mastodon access token (optional; see /settings/applications)
  *   MASTODON_INSTANCE     — Mastodon instance URL, default https://mas.to (optional)
  *   GITHUB_TOKEN          — optional fallback to trigger GitHub workflow_dispatch
+ *
+ * Direct video upload (presigned PUT to R2 — optional):
+ *   R2_ACCOUNT_ID         — Cloudflare account ID
+ *   R2_ACCESS_KEY_ID      — R2 S3 API token access key
+ *   R2_SECRET_ACCESS_KEY    — R2 S3 API token secret
+ *   Apply bucket CORS: wrangler r2 bucket cors set rommy-blog-media --file=r2-cors.json
  *
  * Workers AI (section hover tooltips — auto-regenerated on content changes):
  *   Enable Workers AI in Cloudflare dashboard; [ai] binding in wrangler.toml
@@ -142,6 +149,10 @@ export default {
 
     if (action === "thinking") {
       return handleThinking(payload, db, cors, env, ctx);
+    }
+
+    if (action === "thinking-video-upload-url") {
+      return handleThinkingVideoUploadUrl(payload, cors, env);
     }
 
     if (action === "list-thinking") {
@@ -446,11 +457,13 @@ async function handleThinking(payload, db, cors, env, ctx) {
   const photo = payload.photo || null;
   const audio = payload.audio || null;
   const video = payload.video || null;
+  const videoKey =
+    typeof payload.video_key === "string" ? payload.video_key.trim() : "";
 
-  if (!text && !photo && !audio && !video) {
+  if (!text && !photo && !audio && !video && !videoKey) {
     return json({ error: "Add text, a photo, audio, or video" }, 400, cors);
   }
-  if ([photo, audio, video].filter(Boolean).length > 1) {
+  if ([photo, audio, video, videoKey].filter(Boolean).length > 1) {
     return json({ error: "Add a photo, audio, or video — not more than one" }, 400, cors);
   }
   if (text.length > 2000) {
@@ -491,6 +504,16 @@ async function handleThinking(payload, db, cors, env, ctx) {
       syndicationPhoto = null;
     } else if (video) {
       const uploaded = await uploadVideoToR2(env, video);
+      mediaUrl = uploaded.url;
+      mediaAlt = text.slice(0, 1000) || "Video";
+      mediaType = "video";
+      syndicationPhoto = null;
+    } else if (videoKey) {
+      const uploaded = await finalizeVideoFromR2(
+        env,
+        videoKey,
+        payload.video_mime
+      );
       mediaUrl = uploaded.url;
       mediaAlt = text.slice(0, 1000) || "Video";
       mediaType = "video";
@@ -943,6 +966,120 @@ function resolveVideoMime(file) {
   if (name.endsWith(".mov")) return "video/quicktime";
   if (name.endsWith(".m4v")) return "video/x-m4v";
   return type || "";
+}
+
+function resolveVideoMimeFromMeta(mimeType, fileName) {
+  const type = (mimeType || "").toLowerCase().split(";")[0].trim();
+  if (type && ALLOWED_VIDEO_TYPES.has(type)) return type;
+  const name = String(fileName || "").toLowerCase();
+  if (name.endsWith(".mp4")) return "video/mp4";
+  if (name.endsWith(".mov")) return "video/quicktime";
+  if (name.endsWith(".m4v")) return "video/x-m4v";
+  return type || "";
+}
+
+function isValidThinkingVideoKey(key) {
+  return /^thinking\/video\/\d{4}-\d{2}-\d{2}\/[0-9a-f-]{36}\.(mp4|mov|m4v)$/i.test(
+    key
+  );
+}
+
+function r2PresignConfigured(env) {
+  return !!(
+    env.R2_ACCOUNT_ID &&
+    env.R2_ACCESS_KEY_ID &&
+    env.R2_SECRET_ACCESS_KEY &&
+    env.MEDIA
+  );
+}
+
+async function handleThinkingVideoUploadUrl(payload, cors, env) {
+  if (!r2PresignConfigured(env)) {
+    return json({ error: "Direct video upload is not configured." }, 503, cors);
+  }
+
+  const mimeType = resolveVideoMimeFromMeta(payload.mimeType, payload.fileName);
+  const size = Number(payload.size);
+
+  if (!mimeType || !ALLOWED_VIDEO_TYPES.has(mimeType)) {
+    return json({ error: "Video must be MP4 or MOV (iPhone)." }, 400, cors);
+  }
+  if (!Number.isFinite(size) || size <= 0 || size > MAX_VIDEO_BYTES) {
+    return json({ error: "Video must be 100 MB or smaller." }, 400, cors);
+  }
+
+  const bucket = env.R2_BUCKET_NAME || "rommy-blog-media";
+  const publicBase = (env.MEDIA_PUBLIC_URL || "").replace(/\/$/, "");
+  if (!publicBase) {
+    return json({ error: "Video storage is missing a public URL (MEDIA_PUBLIC_URL)." }, 500, cors);
+  }
+
+  const ext = VIDEO_EXT[mimeType] || "mp4";
+  const key = `thinking/video/${toDateStr(new Date())}/${crypto.randomUUID()}.${ext}`;
+
+  let uploadUrl;
+  try {
+    uploadUrl = await createR2PresignedPutUrl({
+      accountId: env.R2_ACCOUNT_ID,
+      bucket,
+      key,
+      accessKeyId: env.R2_ACCESS_KEY_ID,
+      secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+      mimeType,
+    });
+  } catch (err) {
+    return json(
+      { error: err.message || "Could not create upload URL." },
+      500,
+      cors
+    );
+  }
+
+  return json(
+    {
+      ok: true,
+      uploadUrl,
+      key,
+      mediaUrl: `${publicBase}/${key}`,
+      mimeType,
+    },
+    200,
+    cors
+  );
+}
+
+async function finalizeVideoFromR2(env, key, expectedMime) {
+  if (!env.MEDIA) {
+    throw new Error("Video storage is not configured (R2).");
+  }
+  const publicBase = (env.MEDIA_PUBLIC_URL || "").replace(/\/$/, "");
+  if (!publicBase) {
+    throw new Error("Video storage is missing a public URL (MEDIA_PUBLIC_URL).");
+  }
+  if (!isValidThinkingVideoKey(key)) {
+    throw new Error("Invalid video upload.");
+  }
+
+  const head = await env.MEDIA.head(key);
+  if (!head) {
+    throw new Error("Video upload not found. Try uploading again.");
+  }
+  if (head.size > MAX_VIDEO_BYTES) {
+    throw new Error("Video must be 100 MB or smaller.");
+  }
+
+  const mimeType =
+    resolveVideoMimeFromMeta(expectedMime, key) ||
+    (head.httpMetadata?.contentType || "").toLowerCase().split(";")[0].trim();
+  if (!mimeType || !ALLOWED_VIDEO_TYPES.has(mimeType)) {
+    throw new Error("Video must be MP4 or MOV (iPhone).");
+  }
+
+  return {
+    url: `${publicBase}/${key}`,
+    bytes: null,
+    mimeType,
+  };
 }
 
 async function uploadVideoToR2(env, file) {
