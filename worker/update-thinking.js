@@ -415,13 +415,27 @@ function isLinkOnlyThinkingMedia(mediaType) {
   return mediaType === "audio" || mediaType === "video";
 }
 
-function thinkingLinkSyndicationText(text, postUrl, label) {
-  return text ? `${text}\n\n${postUrl}` : `${label}: ${postUrl}`;
+function thinkingSyndicationPrefix(mediaType) {
+  if (mediaType === "video") return "Video: ";
+  if (mediaType === "audio") return "Audio: ";
+  return "";
+}
+
+function thinkingLinkSyndicationText(text, postUrl, mediaType) {
+  const prefix = thinkingSyndicationPrefix(mediaType);
+  if (text) return `${prefix}${text}\n\n${postUrl}`;
+  return `${prefix}${postUrl}`;
+}
+
+function thinkingBlueskySyndicationText(text, postUrl, mediaType) {
+  const prefix = thinkingSyndicationPrefix(mediaType);
+  if (text) return `${prefix}${text}`;
+  return `${prefix}${postUrl}`;
 }
 
 function thinkingMediaLabel(mediaType) {
-  if (mediaType === "video") return "Video note";
-  if (mediaType === "audio") return "Audio note";
+  if (mediaType === "video") return "Video";
+  if (mediaType === "audio") return "Audio";
   return "Note";
 }
 
@@ -486,11 +500,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
     if (env.MICROBLOG_TOKEN) {
       try {
         if (isLinkOnlyThinkingMedia(mediaType)) {
-          const mbText = thinkingLinkSyndicationText(
-            text,
-            postUrl,
-            thinkingMediaLabel(mediaType)
-          );
+          const mbText = thinkingLinkSyndicationText(text, postUrl, mediaType);
           microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, mbText, null);
         } else {
           microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, text, syndicationPhoto);
@@ -538,10 +548,9 @@ async function handleThinking(payload, db, cors, env, ctx) {
             }
           }
         }
-        const blueskyText =
-          isLinkOnlyThinkingMedia(mediaType) && !text
-            ? `${thinkingMediaLabel(mediaType)}: ${postUrl}`
-            : text;
+        const blueskyText = isLinkOnlyThinkingMedia(mediaType)
+          ? thinkingBlueskySyndicationText(text, postUrl, mediaType)
+          : text;
         blueskyUri = await postToBluesky(
           env.BLUESKY_HANDLE,
           env.BLUESKY_APP_PASSWORD,
@@ -564,7 +573,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
             ? { bytes: uploadedForBluesky.bytes, mimeType: uploadedForBluesky.mimeType, alt: uploadedForBluesky.alt }
             : null;
         const mastodonText = isLinkOnlyThinkingMedia(mediaType)
-          ? thinkingLinkSyndicationText(text, postUrl, thinkingMediaLabel(mediaType))
+          ? thinkingLinkSyndicationText(text, postUrl, mediaType)
           : text;
         mastodonUrl = await postToMastodon(mastodonInstance, env.MASTODON_ACCESS_TOKEN, mastodonText, mastodonImage);
       } catch (msErr) {
