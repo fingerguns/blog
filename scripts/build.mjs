@@ -731,6 +731,15 @@ const formatMbDate = (iso) => {
 };
 const thinkingSlug = (item) => item._slug || thinkingSlugFromIso(item.date_published);
 
+function thinkingPostCrumb(iso) {
+  const dateLabel = formatMbDate(iso);
+  return `      <nav class="thinking-crumb" aria-label="Breadcrumb">
+        <h4 class="thinking-crumb-title">
+          <a href="/">${escHtml(site.title)}</a><span class="thinking-crumb-sep" aria-hidden="true">→</span><a href="/thinking/">Thinking</a><span class="thinking-crumb-sep" aria-hidden="true">→</span><span class="thinking-crumb-current" aria-current="page">${escHtml(dateLabel)}</span>
+        </h4>
+      </nav>`;
+}
+
 const thinkingPostHead = (iso, item, slug) => {
   const pageTitle = `${formatMbDate(iso)} — ${site.title}`;
   const pageUrl = `${base}/thinking/${slug}/`;
@@ -755,7 +764,7 @@ ${gaSnippet}
   </head>
   <body>
     <article class="post microblog-entry" data-slug="${escHtml(slug)}" data-microblog-url="${escHtml(item.url || "")}">
-      <a class="post-back" href="/thinking/">←</a>`;
+${thinkingPostCrumb(iso)}`;
 };
 
 const thinkingPostFoot = `      <footer class="site-footer">

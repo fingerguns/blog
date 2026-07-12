@@ -626,6 +626,41 @@ article.post {
   color: var(--link-hover);
 }
 
+.thinking-crumb {
+  margin: 0 0 1.5rem;
+}
+
+.thinking-crumb-title {
+  font-size: 0.88rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.45;
+  margin: 0;
+  color: var(--muted);
+}
+
+.thinking-crumb-title a {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.thinking-crumb-title a:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+}
+
+.thinking-crumb-sep {
+  margin: 0 0.35rem;
+  color: var(--rule);
+  font-weight: 400;
+}
+
+.thinking-crumb-current {
+  color: var(--muted);
+  font-weight: 500;
+}
+
 .post h1 {
   font-size: 1.65rem;
   font-weight: 600;
