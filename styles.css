@@ -651,14 +651,17 @@ article.post {
 }
 
 .thinking-crumb-trail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
   margin: 0;
   line-height: 1.5;
-  white-space: nowrap;
+  row-gap: 0.2rem;
 }
 
 .thinking-crumb-heading {
-  display: inline;
   margin: 0;
+  flex: 0 0 auto;
 }
 
 .thinking-crumb-heading a {
@@ -670,6 +673,11 @@ article.post {
   color: var(--link-hover);
   text-decoration: underline;
   text-decoration-color: currentColor;
+}
+
+.thinking-crumb-meta {
+  white-space: nowrap;
+  flex: 0 1 auto;
 }
 
 .thinking-crumb-sep {

@@ -736,7 +736,7 @@ function thinkingPostCrumb(iso) {
   return `      <nav class="thinking-crumb" aria-label="Breadcrumb">
         <h1 class="site-title"><a href="/">${escHtml(site.title)}</a></h1>
         <div class="thinking-crumb-trail">
-          <h2 class="thinking-crumb-heading"><a href="/thinking/">Thinking</a></h2><span class="thinking-crumb-sep" aria-hidden="true"> // </span><time class="thinking-crumb-date" datetime="${escHtml(iso)}" aria-current="page">${escHtml(dateLabel)}</time>
+          <h2 class="thinking-crumb-heading"><a href="/thinking/">Thinking</a></h2><span class="thinking-crumb-meta"><span class="thinking-crumb-sep" aria-hidden="true"> // </span><time class="thinking-crumb-date" datetime="${escHtml(iso)}" aria-current="page">${escHtml(dateLabel)}</time></span>
         </div>
       </nav>`;
 }
