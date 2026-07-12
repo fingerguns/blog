@@ -654,15 +654,23 @@ article.post {
   margin: 0;
   line-height: 1.5;
   white-space: nowrap;
+  font-family: inherit;
   font-size: 0.7rem;
   font-weight: 600;
+  letter-spacing: normal;
   color: var(--muted);
 }
 
-.thinking-crumb-section {
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+.thinking-crumb-section,
+.thinking-crumb-sep,
+.thinking-crumb-date {
+  font: inherit;
+  letter-spacing: normal;
   color: inherit;
+}
+
+.thinking-crumb-section {
+  text-transform: uppercase;
   text-decoration: none;
 }
 
@@ -672,19 +680,9 @@ article.post {
   text-decoration-color: currentColor;
 }
 
-.thinking-crumb-sep {
-  letter-spacing: normal;
-  color: inherit;
-}
-
 .thinking-crumb-date {
   display: inline;
   margin: 0;
-  font-size: inherit;
-  font-weight: inherit;
-  letter-spacing: normal;
-  color: inherit;
-  font-variant-numeric: tabular-nums;
   text-transform: none;
 }
 
