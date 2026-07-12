@@ -653,6 +653,7 @@ article.post {
 .thinking-crumb-trail {
   margin: 0;
   line-height: 1.5;
+  white-space: nowrap;
 }
 
 .thinking-crumb-heading {
@@ -678,7 +679,9 @@ article.post {
   white-space: nowrap;
 }
 
-.thinking-crumb-date {
+.thinking-crumb .thinking-crumb-date {
+  display: inline;
+  margin: 0;
   font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: normal;
