@@ -1443,7 +1443,7 @@ async function handlePost(body, db, cors, env, ctx) {
     const postUrl = `${SITE_URL}/posts/${slug}/`;
     const { microblogWarning, blueskyWarning, mastodonWarning } = await syndicateText(
       env,
-      `New post: ${postUrl}`,
+      `New post: ${cleanTitle}\n\n${postUrl}`,
       postUrl
     );
 
@@ -1488,7 +1488,7 @@ async function handleReading(body, db, cors, env, ctx) {
 
     const { microblogWarning, blueskyWarning, mastodonWarning } = await syndicateText(
       env,
-      `Now reading: ${entry.url}`,
+      `Now reading: ${entry.title}\n\n${entry.url}`,
       entry.url
     );
 
