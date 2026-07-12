@@ -632,29 +632,28 @@ article.post {
   border-bottom: 1px solid var(--rule);
 }
 
-.thinking-crumb-site {
-  margin: 0 0 0.4rem;
-  font-size: 0.95rem;
+.thinking-crumb .site-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.3;
 }
 
-.thinking-crumb-site a {
-  color: var(--text);
+.thinking-crumb .site-title a {
+  color: inherit;
   text-decoration: none;
-  font-weight: 600;
 }
 
-.thinking-crumb-site a:hover {
+.thinking-crumb .site-title a:hover {
   color: var(--link-hover);
-  text-decoration: underline;
-  text-decoration-color: currentColor;
+  text-decoration: none;
 }
 
 .thinking-crumb-trail {
   margin: 0;
   line-height: 1.5;
+  white-space: nowrap;
 }
 
 .thinking-crumb-section {
@@ -681,6 +680,14 @@ article.post {
 .thinking-crumb-date {
   display: inline;
   margin: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.microblog-entry .thinking-crumb time {
+  display: inline;
+  margin-top: 0;
 }
 
 .thinking-crumb + .microblog-body {

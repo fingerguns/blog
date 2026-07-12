@@ -734,9 +734,9 @@ const thinkingSlug = (item) => item._slug || thinkingSlugFromIso(item.date_publi
 function thinkingPostCrumb(iso) {
   const dateLabel = formatMbDate(iso);
   return `      <nav class="thinking-crumb" aria-label="Breadcrumb">
-        <p class="thinking-crumb-site"><a href="/">${escHtml(site.title)}</a></p>
+        <h1 class="site-title"><a href="/">${escHtml(site.title)}</a></h1>
         <p class="thinking-crumb-trail">
-          <a class="thinking-crumb-section" href="/thinking/">Thinking</a><span class="thinking-crumb-sep" aria-hidden="true"> // </span><time class="thinking-crumb-date post-date" datetime="${escHtml(iso)}" aria-current="page">${escHtml(dateLabel)}</time>
+          <a class="thinking-crumb-section" href="/thinking/">Thinking</a><span class="thinking-crumb-sep" aria-hidden="true"> // </span><time class="thinking-crumb-date" datetime="${escHtml(iso)}" aria-current="page">${escHtml(dateLabel)}</time>
         </p>
       </nav>`;
 }
