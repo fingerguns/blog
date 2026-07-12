@@ -1,4 +1,5 @@
-const CACHE_CONTROL = "public, max-age=31536000, immutable";
+const CACHE_CONTROL =
+  "public, max-age=31536000, immutable, stale-while-revalidate=86400";
 
 function parseRange(rangeHeader, size) {
   const m = /^bytes=(\d+)-(\d*)$/i.exec(String(rangeHeader || "").trim());
@@ -28,6 +29,8 @@ function mediaHeaders(key, object, size) {
   headers.set("etag", object.httpEtag);
   headers.set("Accept-Ranges", "bytes");
   headers.set("Cache-Control", CACHE_CONTROL);
+  headers.set("CDN-Cache-Control", CACHE_CONTROL);
+  headers.set("Vary", "Range");
   if (size != null) headers.set("Content-Length", String(size));
   return headers;
 }

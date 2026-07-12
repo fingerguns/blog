@@ -12,10 +12,18 @@ export function inferMediaType(mediaUrl, mediaType) {
   return "";
 }
 
-export function renderThinkingContentHtml(text, mediaUrl, mediaAlt, mediaType = "", siteUrl = "") {
+export function renderThinkingContentHtml(
+  text,
+  mediaUrl,
+  mediaAlt,
+  mediaType = "",
+  siteUrl = "",
+  options = {}
+) {
   const t = (text || "").trim();
   const type = inferMediaType(mediaUrl, mediaType);
   const resolvedUrl = siteUrl ? toSiteMediaUrl(mediaUrl, siteUrl) : mediaUrl;
+  const videoPreload = options.videoPreload === "auto" ? "auto" : "metadata";
   const parts = [];
   if (t) {
     for (const para of t.split(/\n\n+/).filter(Boolean)) {
@@ -31,7 +39,7 @@ export function renderThinkingContentHtml(text, mediaUrl, mediaAlt, mediaType = 
     );
   } else if (resolvedUrl && type === "video") {
     parts.push(
-      `<video class="thinking-video" controls preload="metadata" playsinline src="${escHtml(resolvedUrl)}">${escHtml(mediaAlt || "Video")}</video>`
+      `<video class="thinking-video" controls preload="${videoPreload}" playsinline src="${escHtml(resolvedUrl)}">${escHtml(mediaAlt || "Video")}</video>`
     );
   } else if (resolvedUrl) {
     parts.push(

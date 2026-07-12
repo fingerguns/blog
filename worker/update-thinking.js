@@ -96,7 +96,9 @@ export default {
     };
 
     if (request.method === "OPTIONS") {
-      return new Response(null, { headers: cors });
+      return new Response(null, {
+        headers: { ...cors, "Cache-Control": "no-store" },
+      });
     }
 
     if (request.method !== "POST") {
@@ -2088,7 +2090,12 @@ async function handleFetchTitle(body, cors) {
 function json(data, status, cors, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...cors, "Content-Type": "application/json", ...extraHeaders },
+    headers: {
+      ...cors,
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      ...extraHeaders,
+    },
   });
 }
 

@@ -223,13 +223,14 @@ function thinkingOgFromItem(item) {
   return { description, image };
 }
 
-function thinkingContentHtmlFromRow(p) {
+function thinkingContentHtmlFromRow(p, options = {}) {
   const fromSource = renderThinkingContentHtml(
     p.text,
     p.media_url,
     p.media_alt,
     p.media_type,
-    base
+    base,
+    options
   );
   if (fromSource) return fromSource;
   return p.content_html || "";
@@ -846,11 +847,15 @@ writeFileSync(join(outDir, "changelog/index.html"), changelogPageHtml, "utf8");
 mkdirSync(join(outDir, "thinking"), { recursive: true });
 writeFileSync(join(outDir, "thinking/index.html"), microblogPageHtml, "utf8");
 
-// Individual thinking post pages
+// Individual thinking post pages — preload video on detail pages for faster playback start
 for (const item of microblogItems) {
   const slug = thinkingSlug(item);
+  const row = thinkingPosts.find((p) => p.slug === slug);
+  const detailContent = row
+    ? thinkingContentHtmlFromRow(row, { videoPreload: "auto" })
+    : item.content_html;
   const postHtml = `${thinkingPostHead(item.date_published, item, slug)}
-      <div class="microblog-body" style="margin-top:1.5rem">${item.content_html}</div>
+      <div class="microblog-body" style="margin-top:1.5rem">${detailContent}</div>
       <time class="post-date" style="display:block;margin-top:0.75rem" datetime="${escHtml(item.date_published)}">${escHtml(formatMbDate(item.date_published))}</time>
 ${thinkingDeletePanelHtml}
 ${thinkingPostFoot}`;

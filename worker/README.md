@@ -70,6 +70,8 @@ Deploy:
 wrangler deploy
 ```
 
+Media at `/media/*` is edge-cached via Workers Cache (`[cache] enabled` in `wrangler.toml`). Responses use long-lived `Cache-Control` headers; admin API responses use `no-store` so they are never cached.
+
 ### Cloudflare Pages build env
 
 In Pages project settings → Environment variables, add:
