@@ -541,7 +541,7 @@ h2 {
 [data-theme="dark"] .thinking-delete-status.err { color: #e88; }
 .microblog-body p  { margin: 0 0 0.65rem; line-height: 1.65; }
 .microblog-body p:last-child { margin-bottom: 0; }
-.microblog-entry time { margin-top: 0.75rem; display: block; }
+.microblog-entry time:not(.thinking-crumb-date) { margin-top: 0.75rem; display: block; }
 .microblog-body img {
   max-width: 100%;
   height: auto;
@@ -655,37 +655,26 @@ article.post {
   line-height: 1.5;
 }
 
-.thinking-crumb-heading {
-  display: inline;
-  margin: 0;
-}
-
-.thinking-crumb-heading a {
-  color: inherit;
+.thinking-crumb-section {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
   text-decoration: none;
 }
 
-.thinking-crumb-heading a:hover {
+.thinking-crumb-section:hover {
   color: var(--link-hover);
   text-decoration: underline;
   text-decoration-color: currentColor;
 }
 
 .thinking-crumb-meta {
-  display: inline;
   white-space: nowrap;
 }
 
-.thinking-crumb-sep {
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: normal;
-  color: var(--muted);
-}
-
-.post .thinking-crumb time.thinking-crumb-date {
-  display: inline;
-  margin: 0;
+.thinking-crumb-date {
   font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: normal;
@@ -705,7 +694,7 @@ article.post {
   margin: 0 0 0.5rem;
 }
 
-.post time {
+.post time:not(.thinking-crumb-date) {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
