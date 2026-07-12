@@ -455,7 +455,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
     if (env.MICROBLOG_TOKEN) {
       try {
         if (mediaType === "audio") {
-          const mbText = text || `Audio note: ${postUrl}`;
+          const mbText = text ? `${text}\n\n${postUrl}` : `Audio note: ${postUrl}`;
           microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, mbText, null);
         } else {
           microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, text, syndicationPhoto);
@@ -527,7 +527,11 @@ async function handleThinking(payload, db, cors, env, ctx) {
             ? { bytes: uploadedForBluesky.bytes, mimeType: uploadedForBluesky.mimeType, alt: uploadedForBluesky.alt }
             : null;
         const mastodonText =
-          mediaType === "audio" && !text ? `Audio note: ${postUrl}` : text;
+          mediaType === "audio"
+            ? text
+              ? `${text}\n\n${postUrl}`
+              : `Audio note: ${postUrl}`
+            : text;
         mastodonUrl = await postToMastodon(mastodonInstance, env.MASTODON_ACCESS_TOKEN, mastodonText, mastodonImage);
       } catch (msErr) {
         mastodonWarning = formatServiceWarning("Mastodon", msErr.message);
