@@ -734,9 +734,10 @@ const thinkingSlug = (item) => item._slug || thinkingSlugFromIso(item.date_publi
 function thinkingPostCrumb(iso) {
   const dateLabel = formatMbDate(iso);
   return `      <nav class="thinking-crumb" aria-label="Breadcrumb">
-        <h4 class="thinking-crumb-title">
-          <a href="/">${escHtml(site.title)}</a><span class="thinking-crumb-sep" aria-hidden="true">→</span><a href="/thinking/">Thinking</a><span class="thinking-crumb-sep" aria-hidden="true">→</span><span class="thinking-crumb-current" aria-current="page">${escHtml(dateLabel)}</span>
-        </h4>
+        <p class="thinking-crumb-site"><a href="/">${escHtml(site.title)}</a></p>
+        <p class="thinking-crumb-trail">
+          <a class="thinking-crumb-section" href="/thinking/">Thinking</a><span class="thinking-crumb-sep" aria-hidden="true"> // </span><time class="thinking-crumb-date post-date" datetime="${escHtml(iso)}" aria-current="page">${escHtml(dateLabel)}</time>
+        </p>
       </nav>`;
 }
 
@@ -864,8 +865,7 @@ for (const item of microblogItems) {
     ? thinkingContentHtmlFromRow(row, { videoPreload: "auto" })
     : item.content_html;
   const postHtml = `${thinkingPostHead(item.date_published, item, slug)}
-      <div class="microblog-body" style="margin-top:1.5rem">${detailContent}</div>
-      <time class="post-date" style="display:block;margin-top:0.75rem" datetime="${escHtml(item.date_published)}">${escHtml(formatMbDate(item.date_published))}</time>
+      <div class="microblog-body">${detailContent}</div>
 ${thinkingDeletePanelHtml}
 ${thinkingPostFoot}`;
   mkdirSync(join(outDir, "thinking", slug), { recursive: true });

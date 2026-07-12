@@ -627,38 +627,64 @@ article.post {
 }
 
 .thinking-crumb {
-  margin: 0 0 1.5rem;
+  margin: 0 0 1.25rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--rule);
 }
 
-.thinking-crumb-title {
-  font-size: 0.88rem;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  line-height: 1.45;
-  margin: 0;
-  color: var(--muted);
+.thinking-crumb-site {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
 }
 
-.thinking-crumb-title a {
+.thinking-crumb-site a {
   color: var(--text);
   text-decoration: none;
   font-weight: 600;
 }
 
-.thinking-crumb-title a:hover {
+.thinking-crumb-site a:hover {
   color: var(--link-hover);
   text-decoration: underline;
+  text-decoration-color: currentColor;
+}
+
+.thinking-crumb-trail {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.thinking-crumb-section {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.thinking-crumb-section:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+  text-decoration-color: currentColor;
 }
 
 .thinking-crumb-sep {
-  margin: 0 0.35rem;
-  color: var(--rule);
-  font-weight: 400;
+  font-size: 0.7rem;
+  color: var(--muted);
+  letter-spacing: 0.14em;
 }
 
-.thinking-crumb-current {
-  color: var(--muted);
-  font-weight: 500;
+.thinking-crumb-date {
+  display: inline;
+  margin: 0;
+}
+
+.thinking-crumb + .microblog-body {
+  margin-top: 1.25rem;
 }
 
 .post h1 {
