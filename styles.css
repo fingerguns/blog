@@ -654,15 +654,15 @@ article.post {
   margin: 0;
   line-height: 1.5;
   white-space: nowrap;
+  font-size: 0.7rem;
+  font-weight: 600;
   color: var(--muted);
 }
 
 .thinking-crumb-section {
-  font-size: 0.7rem;
-  font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: inherit;
   text-decoration: none;
 }
 
@@ -673,18 +673,17 @@ article.post {
 }
 
 .thinking-crumb-sep {
-  font-size: 0.7rem;
   letter-spacing: normal;
-  color: var(--muted);
+  color: inherit;
 }
 
 .thinking-crumb-date {
   display: inline;
   margin: 0;
-  font-size: 0.7rem;
-  font-weight: 500;
+  font-size: inherit;
+  font-weight: inherit;
   letter-spacing: normal;
-  color: var(--muted);
+  color: inherit;
   font-variant-numeric: tabular-nums;
   text-transform: none;
 }
