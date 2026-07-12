@@ -651,17 +651,13 @@ article.post {
 }
 
 .thinking-crumb-trail {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
   margin: 0;
   line-height: 1.5;
-  row-gap: 0.2rem;
 }
 
 .thinking-crumb-heading {
+  display: inline;
   margin: 0;
-  flex: 0 0 auto;
 }
 
 .thinking-crumb-heading a {
@@ -676,8 +672,8 @@ article.post {
 }
 
 .thinking-crumb-meta {
+  display: inline;
   white-space: nowrap;
-  flex: 0 1 auto;
 }
 
 .thinking-crumb-sep {
@@ -687,7 +683,7 @@ article.post {
   color: var(--muted);
 }
 
-.thinking-crumb .thinking-crumb-date {
+.post .thinking-crumb time.thinking-crumb-date {
   display: inline;
   margin: 0;
   font-size: 0.7rem;
