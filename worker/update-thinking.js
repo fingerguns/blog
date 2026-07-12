@@ -33,11 +33,13 @@ const SITE_URL = "https://rommy.blog";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_PHOTO_INPUT_BYTES = 25 * 1024 * 1024;
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 75 * 1024 * 1024;
 const MAX_BLUESKY_IMAGE_BYTES = 2_000_000;
 const MAX_MASTODON_CHARS = 500;
 const DEFAULT_MASTODON_INSTANCE = "https://mas.to";
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const ALLOWED_AUDIO_TYPES = new Set(["audio/mp4", "audio/x-m4a", "audio/m4a", "audio/mpeg", "audio/mp3"]);
+const ALLOWED_VIDEO_TYPES = new Set(["video/mp4"]);
 const IMAGE_EXT = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -50,6 +52,9 @@ const AUDIO_EXT = {
   "audio/m4a": "m4a",
   "audio/mpeg": "mp3",
   "audio/mp3": "mp3",
+};
+const VIDEO_EXT = {
+  "video/mp4": "mp4",
 };
 const SITE_TITLE = "rommy.blog";
 const SITE_AUTHOR = "Rommy Ghaly";
@@ -374,6 +379,7 @@ async function parseRequest(request) {
     const photo = fd.get("photo");
     const photoBluesky = fd.get("photo_bluesky");
     const audio = fd.get("audio");
+    const video = fd.get("video");
     return {
       password: fd.get("password"),
       action: fd.get("action"),
@@ -394,6 +400,10 @@ async function parseRequest(request) {
         audio && typeof audio === "object" && "arrayBuffer" in audio && audio.size > 0
           ? audio
           : null,
+      video:
+        video && typeof video === "object" && "arrayBuffer" in video && video.size > 0
+          ? video
+          : null,
     };
   }
   return request.json();
@@ -401,16 +411,31 @@ async function parseRequest(request) {
 
 // ─── Thinking ────────────────────────────────────────────────────────────────
 
+function isLinkOnlyThinkingMedia(mediaType) {
+  return mediaType === "audio" || mediaType === "video";
+}
+
+function thinkingLinkSyndicationText(text, postUrl, label) {
+  return text ? `${text}\n\n${postUrl}` : `${label}: ${postUrl}`;
+}
+
+function thinkingMediaLabel(mediaType) {
+  if (mediaType === "video") return "Video note";
+  if (mediaType === "audio") return "Audio note";
+  return "Note";
+}
+
 async function handleThinking(payload, db, cors, env, ctx) {
   const text = typeof payload.text === "string" ? payload.text.trim() : "";
   const photo = payload.photo || null;
   const audio = payload.audio || null;
+  const video = payload.video || null;
 
-  if (!text && !photo && !audio) {
-    return json({ error: "Add text, a photo, or audio" }, 400, cors);
+  if (!text && !photo && !audio && !video) {
+    return json({ error: "Add text, a photo, audio, or video" }, 400, cors);
   }
-  if (photo && audio) {
-    return json({ error: "Add a photo or audio, not both" }, 400, cors);
+  if ([photo, audio, video].filter(Boolean).length > 1) {
+    return json({ error: "Add a photo, audio, or video — not more than one" }, 400, cors);
   }
   if (text.length > 2000) {
     return json({ error: "Text must be 2000 characters or fewer" }, 400, cors);
@@ -448,14 +473,24 @@ async function handleThinking(payload, db, cors, env, ctx) {
       mediaAlt = text.slice(0, 1000) || "Audio";
       mediaType = "audio";
       syndicationPhoto = null;
+    } else if (video) {
+      const uploaded = await uploadVideoToR2(env, video);
+      mediaUrl = uploaded.url;
+      mediaAlt = text.slice(0, 1000) || "Video";
+      mediaType = "video";
+      syndicationPhoto = null;
     }
 
     let microblogUrl = null;
     let microblogWarning = null;
     if (env.MICROBLOG_TOKEN) {
       try {
-        if (mediaType === "audio") {
-          const mbText = text ? `${text}\n\n${postUrl}` : `Audio note: ${postUrl}`;
+        if (isLinkOnlyThinkingMedia(mediaType)) {
+          const mbText = thinkingLinkSyndicationText(
+            text,
+            postUrl,
+            thinkingMediaLabel(mediaType)
+          );
           microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, mbText, null);
         } else {
           microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, text, syndicationPhoto);
@@ -479,12 +514,12 @@ async function handleThinking(payload, db, cors, env, ctx) {
           blueskyCompressed = prepared.compressed;
         }
         let blueskyLinkCard = null;
-        if (!blueskyImage && (mediaType === "audio" || [...text].length > 300)) {
-          if (mediaType === "audio") {
+        if (!blueskyImage && (isLinkOnlyThinkingMedia(mediaType) || [...text].length > 300)) {
+          if (isLinkOnlyThinkingMedia(mediaType)) {
             blueskyLinkCard = {
               uri: postUrl,
-              title: text.slice(0, 100).trim() || "Audio note",
-              description: "Audio on rommy.blog",
+              title: text.slice(0, 100).trim() || thinkingMediaLabel(mediaType),
+              description: `${mediaType === "video" ? "Video" : "Audio"} on rommy.blog`,
               thumb: null,
             };
           } else {
@@ -504,7 +539,9 @@ async function handleThinking(payload, db, cors, env, ctx) {
           }
         }
         const blueskyText =
-          mediaType === "audio" && !text ? `Audio note: ${postUrl}` : text;
+          isLinkOnlyThinkingMedia(mediaType) && !text
+            ? `${thinkingMediaLabel(mediaType)}: ${postUrl}`
+            : text;
         blueskyUri = await postToBluesky(
           env.BLUESKY_HANDLE,
           env.BLUESKY_APP_PASSWORD,
@@ -526,12 +563,9 @@ async function handleThinking(payload, db, cors, env, ctx) {
           mediaType === "image" && uploadedForBluesky
             ? { bytes: uploadedForBluesky.bytes, mimeType: uploadedForBluesky.mimeType, alt: uploadedForBluesky.alt }
             : null;
-        const mastodonText =
-          mediaType === "audio"
-            ? text
-              ? `${text}\n\n${postUrl}`
-              : `Audio note: ${postUrl}`
-            : text;
+        const mastodonText = isLinkOnlyThinkingMedia(mediaType)
+          ? thinkingLinkSyndicationText(text, postUrl, thinkingMediaLabel(mediaType))
+          : text;
         mastodonUrl = await postToMastodon(mastodonInstance, env.MASTODON_ACCESS_TOKEN, mastodonText, mastodonImage);
       } catch (msErr) {
         mastodonWarning = formatServiceWarning("Mastodon", msErr.message);
@@ -608,6 +642,7 @@ function thinkingArchiveLabel(row) {
   const text = (row.text || "").trim();
   if (text) return text;
   if (row.media_type === "audio") return "Audio note";
+  if (row.media_type === "video") return "Video note";
   const plain = String(row.content_html || "")
     .replace(/<img[^>]*>/gi, "")
     .replace(/<[^>]+>/g, " ")
@@ -877,6 +912,46 @@ async function uploadAudioToR2(env, file) {
   const bytes = await file.arrayBuffer();
   const ext = AUDIO_EXT[mimeType] || "m4a";
   const key = `thinking/audio/${toDateStr(new Date())}/${crypto.randomUUID()}.${ext}`;
+
+  await env.MEDIA.put(key, bytes, {
+    httpMetadata: { contentType: mimeType },
+  });
+
+  return {
+    url: `${publicBase}/${key}`,
+    bytes,
+    mimeType,
+  };
+}
+
+function resolveVideoMime(file) {
+  const type = (file.type || "").toLowerCase().split(";")[0].trim();
+  if (type && ALLOWED_VIDEO_TYPES.has(type)) return type;
+  const name = String(file.name || "").toLowerCase();
+  if (name.endsWith(".mp4")) return "video/mp4";
+  return type || "";
+}
+
+async function uploadVideoToR2(env, file) {
+  if (!env.MEDIA) {
+    throw new Error("Video storage is not configured (R2).");
+  }
+  const publicBase = (env.MEDIA_PUBLIC_URL || "").replace(/\/$/, "");
+  if (!publicBase) {
+    throw new Error("Video storage is missing a public URL (MEDIA_PUBLIC_URL).");
+  }
+
+  const mimeType = resolveVideoMime(file);
+  if (!mimeType || !ALLOWED_VIDEO_TYPES.has(mimeType)) {
+    throw new Error("Video must be MP4 (H.264).");
+  }
+  if (file.size > MAX_VIDEO_BYTES) {
+    throw new Error("Video must be 75 MB or smaller.");
+  }
+
+  const bytes = await file.arrayBuffer();
+  const ext = VIDEO_EXT[mimeType] || "mp4";
+  const key = `thinking/video/${toDateStr(new Date())}/${crypto.randomUUID()}.${ext}`;
 
   await env.MEDIA.put(key, bytes, {
     httpMetadata: { contentType: mimeType },

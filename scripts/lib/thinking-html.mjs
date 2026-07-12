@@ -3,10 +3,11 @@ import { linkifyThinkingEscapedHtml } from "./linkify.mjs";
 import { toSiteMediaUrl } from "./media-url.mjs";
 
 export function inferMediaType(mediaUrl, mediaType) {
-  if (mediaType === "audio" || mediaType === "image") return mediaType;
+  if (mediaType === "audio" || mediaType === "image" || mediaType === "video") return mediaType;
   if (!mediaUrl) return "";
   const lower = mediaUrl.toLowerCase();
   if (/\.(m4a|mp3|aac)(\?|$)/.test(lower)) return "audio";
+  if (/\.(mp4|webm|mov)(\?|$)/.test(lower)) return "video";
   if (mediaUrl) return "image";
   return "";
 }
@@ -27,6 +28,10 @@ export function renderThinkingContentHtml(text, mediaUrl, mediaAlt, mediaType = 
       `<audio class="thinking-audio" controls preload="metadata" playsinline>` +
         `<source src="${escHtml(resolvedUrl)}" type="audio/mp4">` +
         `${escHtml(mediaAlt || "Audio")}</audio>`
+    );
+  } else if (resolvedUrl && type === "video") {
+    parts.push(
+      `<video class="thinking-video" controls preload="metadata" playsinline src="${escHtml(resolvedUrl)}">${escHtml(mediaAlt || "Video")}</video>`
     );
   } else if (resolvedUrl) {
     parts.push(

@@ -578,6 +578,15 @@ h2 {
   max-width: 28rem;
   margin: 0.75rem 0 0;
 }
+.microblog-body video.thinking-video,
+.post .body video.thinking-video {
+  display: block;
+  width: 100%;
+  max-width: 28rem;
+  margin: 0.75rem 0 0;
+  border-radius: 4px;
+  background: var(--bg);
+}
 .post-list .microblog-body a,
 .microblog-body a {
   color: var(--link);

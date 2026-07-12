@@ -15,6 +15,7 @@ function mediaContentType(key, object) {
   if (key.endsWith(".m4a")) return "audio/mp4";
   if (key.endsWith(".mp3")) return "audio/mpeg";
   if (key.endsWith(".aac")) return "audio/mp4";
+  if (key.endsWith(".mp4")) return "video/mp4";
   return object?.httpMetadata?.contentType || "application/octet-stream";
 }
 
