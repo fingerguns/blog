@@ -677,15 +677,23 @@ article.post {
 
 .thinking-crumb-meta {
   white-space: nowrap;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: normal;
+  color: var(--muted);
+}
+
+.thinking-crumb-sep {
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
 }
 
 .thinking-crumb .thinking-crumb-date {
   display: inline;
   margin: 0;
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: normal;
-  color: var(--muted);
+  font: inherit;
+  color: inherit;
   font-variant-numeric: tabular-nums;
 }
 
