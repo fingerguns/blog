@@ -31,9 +31,18 @@ import { createR2PresignedPutUrl } from "./r2-presign.mjs";
  * Workers AI (section hover tooltips — auto-regenerated on content changes):
  *   Enable Workers AI in Cloudflare dashboard; [ai] binding in wrangler.toml
  *
- * R2 (photos on THINKING):
+ * R2 (photos, audio, video on THINKING):
  *   Enable R2 in Cloudflare dashboard, then: wrangler r2 bucket create rommy-blog-media
  *   Enable public access on the bucket and set MEDIA_PUBLIC_URL in wrangler.toml [vars]
+ *
+ * Syndication of audio/video (Thinking posts):
+ *   micro.blog  — audio and video URLs are passed via Micropub `audio[]` / `video[]` properties,
+ *                 so micro.blog and downstream podcast/RSS readers render a native player.
+ *   Mastodon    — audio and video files are uploaded as native media attachments (up to 40 MB).
+ *                 Falls back to a link-in-text post when the file is too large or unavailable.
+ *   Bluesky     — video files are uploaded as `app.bsky.embed.video` blobs (up to 50 MB).
+ *                 Audio posts fall back to a link card (Bluesky has no native audio support).
+ *                 Video falls back to a link card when the file is too large or upload fails.
  */
 
 const SITE_URL = "https://rommy.blog";
@@ -42,6 +51,8 @@ const MAX_PHOTO_INPUT_BYTES = 25 * 1024 * 1024;
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 const MAX_BLUESKY_IMAGE_BYTES = 2_000_000;
+const MAX_BLUESKY_VIDEO_BYTES = 50 * 1024 * 1024;
+const MAX_MASTODON_MEDIA_BYTES = 40 * 1024 * 1024;
 const MAX_MASTODON_CHARS = 500;
 const DEFAULT_MASTODON_INSTANCE = "https://mas.to";
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -485,6 +496,8 @@ async function handleThinking(payload, db, cors, env, ctx) {
     let uploadedForBluesky = null;
     let blueskyCompressed = false;
     let syndicationPhoto = photo;
+    // syndicationMedia holds R2 upload metadata for audio/video syndication.
+    let syndicationMedia = null;
 
     if (photo) {
       const uploaded = await uploadPhotoToR2(env, photo, "thinking");
@@ -504,31 +517,34 @@ async function handleThinking(payload, db, cors, env, ctx) {
       mediaAlt = text.slice(0, 1000) || "Audio";
       mediaType = "audio";
       syndicationPhoto = null;
+      syndicationMedia = { url: mediaUrl, bytes: uploaded.bytes, mimeType: uploaded.mimeType, key: uploaded.key, size: uploaded.bytes?.byteLength ?? 0, mediaType: "audio", alt: mediaAlt };
     } else if (video) {
       const uploaded = await uploadVideoToR2(env, video);
       mediaUrl = uploaded.url;
       mediaAlt = text.slice(0, 1000) || "Video";
       mediaType = "video";
       syndicationPhoto = null;
+      syndicationMedia = { url: mediaUrl, bytes: uploaded.bytes, mimeType: uploaded.mimeType, key: uploaded.key, size: uploaded.bytes?.byteLength ?? 0, mediaType: "video", alt: mediaAlt };
     } else if (videoKey) {
-      const uploaded = await finalizeVideoFromR2(
-        env,
-        videoKey,
-        payload.video_mime
-      );
+      const uploaded = await finalizeVideoFromR2(env, videoKey, payload.video_mime);
       mediaUrl = uploaded.url;
       mediaAlt = text.slice(0, 1000) || "Video";
       mediaType = "video";
       syndicationPhoto = null;
+      // bytes is null for presigned uploads; we'll fetch from R2 when needed.
+      syndicationMedia = { url: mediaUrl, bytes: null, mimeType: uploaded.mimeType, key: uploaded.key, size: uploaded.size ?? 0, mediaType: "video", alt: mediaAlt };
     }
 
     let microblogUrl = null;
     let microblogWarning = null;
     if (env.MICROBLOG_TOKEN) {
       try {
-        if (isLinkOnlyThinkingMedia(mediaType)) {
-          const mbText = thinkingLinkSyndicationText(text, postUrl, mediaType);
-          microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, mbText, null);
+        if (mediaType === "audio") {
+          // Pass the hosted audio URL via Micropub so micro.blog renders a player.
+          microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, text, null, mediaUrl, null);
+        } else if (mediaType === "video") {
+          // Pass the hosted video URL via Micropub so micro.blog renders a player.
+          microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, text, null, null, mediaUrl);
         } else {
           microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, text, syndicationPhoto);
         }
@@ -550,8 +566,21 @@ async function handleThinking(payload, db, cors, env, ctx) {
           blueskyImage = prepared.image;
           blueskyCompressed = prepared.compressed;
         }
+
+        // Try to get video bytes for Bluesky's native video embed.
+        let blueskyVideo = null;
+        if (mediaType === "video" && syndicationMedia) {
+          const videoBytes = await getMediaBytesForSyndication(env, syndicationMedia, MAX_BLUESKY_VIDEO_BYTES);
+          if (videoBytes) {
+            blueskyVideo = { bytes: videoBytes, mimeType: syndicationMedia.mimeType, alt: mediaAlt };
+          }
+        }
+
+        // Build a link card for: audio (no native support), video too large for upload,
+        // and long text-only posts that contain a URL.
         let blueskyLinkCard = null;
-        if (!blueskyImage && (isLinkOnlyThinkingMedia(mediaType) || [...text].length > 300)) {
+        const needsLinkCard = !blueskyImage && !blueskyVideo && (isLinkOnlyThinkingMedia(mediaType) || [...text].length > 300);
+        if (needsLinkCard) {
           if (isLinkOnlyThinkingMedia(mediaType)) {
             blueskyLinkCard = {
               uri: postUrl,
@@ -575,15 +604,21 @@ async function handleThinking(payload, db, cors, env, ctx) {
             }
           }
         }
-        const blueskyText = isLinkOnlyThinkingMedia(mediaType)
-          ? thinkingBlueskySyndicationText(text, postUrl, mediaType)
-          : text;
+
+        // Text: include "Audio: " prefix + link when falling back to a link card for audio.
+        // For video with a native embed, or for images, just send the note text.
+        const blueskyText =
+          isLinkOnlyThinkingMedia(mediaType) && !blueskyVideo
+            ? thinkingBlueskySyndicationText(text, postUrl, mediaType)
+            : text;
+
         blueskyUri = await postToBluesky(
           env.BLUESKY_HANDLE,
           env.BLUESKY_APP_PASSWORD,
           blueskyText,
           blueskyImage,
-          blueskyLinkCard
+          blueskyLinkCard,
+          blueskyVideo
         );
       } catch (bsErr) {
         blueskyWarning = formatServiceWarning("Bluesky", bsErr.message);
@@ -595,14 +630,26 @@ async function handleThinking(payload, db, cors, env, ctx) {
     if (env.MASTODON_ACCESS_TOKEN) {
       const mastodonInstance = (env.MASTODON_INSTANCE || DEFAULT_MASTODON_INSTANCE).replace(/\/$/, "");
       try {
-        const mastodonImage =
-          mediaType === "image" && uploadedForBluesky
-            ? { bytes: uploadedForBluesky.bytes, mimeType: uploadedForBluesky.mimeType, alt: uploadedForBluesky.alt }
-            : null;
-        const mastodonText = isLinkOnlyThinkingMedia(mediaType)
-          ? thinkingLinkSyndicationText(text, postUrl, mediaType)
-          : text;
-        mastodonUrl = await postToMastodon(mastodonInstance, env.MASTODON_ACCESS_TOKEN, mastodonText, mastodonImage);
+        let mastodonMedia = null;
+        let mastodonText;
+
+        if (mediaType === "image" && uploadedForBluesky) {
+          mastodonMedia = { bytes: uploadedForBluesky.bytes, mimeType: uploadedForBluesky.mimeType, alt: uploadedForBluesky.alt, mediaType: "image" };
+          mastodonText = text;
+        } else if ((mediaType === "audio" || mediaType === "video") && syndicationMedia) {
+          const mediaBytes = await getMediaBytesForSyndication(env, syndicationMedia, MAX_MASTODON_MEDIA_BYTES);
+          if (mediaBytes) {
+            mastodonMedia = { bytes: mediaBytes, mimeType: syndicationMedia.mimeType, alt: mediaAlt, mediaType };
+            mastodonText = text; // media attachment replaces the link fallback
+          } else {
+            // File too large or unavailable; fall back to link-in-text.
+            mastodonText = thinkingLinkSyndicationText(text, postUrl, mediaType);
+          }
+        } else {
+          mastodonText = text;
+        }
+
+        mastodonUrl = await postToMastodon(mastodonInstance, env.MASTODON_ACCESS_TOKEN, mastodonText, mastodonMedia);
       } catch (msErr) {
         mastodonWarning = formatServiceWarning("Mastodon", msErr.message);
       }
@@ -836,6 +883,29 @@ function syndicationPhotoFromUpload(uploaded) {
   return new File([uploaded.bytes], `photo.${ext}`, { type: uploaded.mimeType });
 }
 
+/**
+ * Returns bytes for a media file that was already uploaded to R2.
+ * If `uploaded.bytes` is already in memory, returns those directly.
+ * Otherwise fetches from R2 (only if size is within `maxBytes`).
+ * Returns null if bytes aren't available or the file is too large.
+ */
+async function getMediaBytesForSyndication(env, uploaded, maxBytes) {
+  if (uploaded.bytes) {
+    const len = uploaded.bytes.byteLength ?? uploaded.bytes.length ?? 0;
+    return len <= maxBytes ? uploaded.bytes : null;
+  }
+  if (!uploaded.key || !env.MEDIA) return null;
+  const size = uploaded.size || 0;
+  if (size > maxBytes) return null;
+  try {
+    const obj = await env.MEDIA.get(uploaded.key);
+    if (!obj) return null;
+    return obj.arrayBuffer();
+  } catch {
+    return null;
+  }
+}
+
 function blueskyImageError(byteLength, status, body) {
   if (byteLength > MAX_BLUESKY_IMAGE_BYTES) {
     return "Photo is still over the 2 MB limit after compression. rommy.blog and micro.blog were still updated.";
@@ -957,6 +1027,7 @@ async function uploadAudioToR2(env, file) {
     url: `${publicBase}/${key}`,
     bytes,
     mimeType,
+    key,
   };
 }
 
@@ -1081,6 +1152,8 @@ async function finalizeVideoFromR2(env, key, expectedMime) {
     url: `${publicBase}/${key}`,
     bytes: null,
     mimeType,
+    key,
+    size: head.size,
   };
 }
 
@@ -1113,6 +1186,7 @@ async function uploadVideoToR2(env, file) {
     url: `${publicBase}/${key}`,
     bytes,
     mimeType,
+    key,
   };
 }
 
@@ -1128,7 +1202,7 @@ async function imageAspectRatio(bytes, mimeType) {
   }
 }
 
-async function postToMicroblog(token, content, photoFile = null) {
+async function postToMicroblog(token, content, photoFile = null, audioUrl = null, videoUrl = null) {
   if (photoFile) {
     const mimeType = photoFile.type || "image/jpeg";
     const bytes = await photoFile.arrayBuffer();
@@ -1141,6 +1215,28 @@ async function postToMicroblog(token, content, photoFile = null) {
       `photo.${IMAGE_EXT[mimeType] || "jpg"}`
     );
 
+    const res = await fetch("https://micro.blog/micropub", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(
+        `micropub request failed (${res.status})${summarizeApiBody(err) ? ": " + summarizeApiBody(err) : ""}`
+      );
+    }
+    return micropubPostUrl(res);
+  }
+
+  // Pass hosted audio or video URL via Micropub properties so micro.blog
+  // renders a native player in the feed rather than a plain link.
+  if (audioUrl || videoUrl) {
+    const fd = new FormData();
+    fd.append("h", "entry");
+    if (content) fd.append("content", content);
+    if (audioUrl) fd.append("audio[]", audioUrl);
+    if (videoUrl) fd.append("video[]", videoUrl);
     const res = await fetch("https://micro.blog/micropub", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
@@ -1243,7 +1339,7 @@ async function fetchLinkCard(url) {
   }
 }
 
-async function postToBluesky(handle, appPassword, content, image = null, linkCard = null) {
+async function postToBluesky(handle, appPassword, content, image = null, linkCard = null, video = null) {
   const { accessJwt, did } = await blueskySession(handle, appPassword);
 
   const LINK_URL = `${SITE_URL}/thinking/`;
@@ -1313,7 +1409,40 @@ async function postToBluesky(handle, appPassword, content, image = null, linkCar
         },
       ],
     };
-  } else if (linkCard) {
+  } else if (video) {
+    // Upload video blob and embed it so Bluesky renders a native player.
+    // Falls back to a link card (passed in as linkCard) if the upload fails.
+    try {
+      const blobRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessJwt}`,
+          "Content-Type": video.mimeType,
+        },
+        body: video.bytes,
+      });
+      if (!blobRes.ok) {
+        const err = await blobRes.text();
+        throw new Error(`Video blob upload failed (${blobRes.status}): ${summarizeApiBody(err)}`);
+      }
+      const { blob } = await blobRes.json();
+      embed = {
+        $type: "app.bsky.embed.video",
+        video: blob,
+        alt: video.alt || "",
+      };
+    } catch {
+      // Video upload failed; fall through to link card below if one was provided
+      if (linkCard) {
+        embed = {
+          $type: "app.bsky.embed.external",
+          external: { uri: linkCard.uri, title: linkCard.title, description: linkCard.description },
+        };
+      }
+    }
+  }
+
+  if (!embed && linkCard) {
     let thumb = null;
     if (linkCard.thumb) {
       try {
@@ -1451,16 +1580,22 @@ async function deleteFromBluesky(handle, appPassword, uri) {
   }
 }
 
-async function postToMastodon(instanceUrl, accessToken, content, image = null) {
+/**
+ * Post a status to Mastodon, optionally attaching a media file.
+ * `media` may be { bytes, mimeType, alt, mediaType: 'image'|'audio'|'video' }.
+ * Images, audio, and video are all uploaded via /api/v1/media before posting.
+ */
+async function postToMastodon(instanceUrl, accessToken, content, media = null) {
   let mediaId = null;
-  if (image) {
+  if (media && media.bytes) {
+    const mt = media.mediaType || "image";
+    const ext =
+      mt === "audio" ? (AUDIO_EXT[media.mimeType] || "m4a") :
+      mt === "video" ? (VIDEO_EXT[media.mimeType] || "mp4") :
+      (IMAGE_EXT[media.mimeType] || "jpg");
     const fd = new FormData();
-    fd.append(
-      "file",
-      new Blob([image.bytes], { type: image.mimeType }),
-      `photo.${IMAGE_EXT[image.mimeType] || "jpg"}`
-    );
-    if (image.alt) fd.append("description", image.alt.slice(0, 1500));
+    fd.append("file", new Blob([media.bytes], { type: media.mimeType }), `media.${ext}`);
+    if (media.alt) fd.append("description", media.alt.slice(0, 1500));
     const mediaRes = await fetch(`${instanceUrl}/api/v1/media`, {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}` },
