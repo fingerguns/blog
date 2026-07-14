@@ -43,6 +43,8 @@ import { createR2PresignedPutUrl } from "./r2-presign.mjs";
  *   Bluesky     — video files are uploaded as `app.bsky.embed.video` blobs (up to 50 MB).
  *                 Audio posts fall back to a link card (Bluesky has no native audio support).
  *                 Video falls back to a link card when the file is too large or upload fails.
+ *   All media   — when a native player is attached, the Thinking permalink is also included in
+ *                 the post text (Bluesky cannot combine a link card embed with media embeds).
  */
 
 const SITE_URL = "https://rommy.blog";
@@ -453,6 +455,14 @@ function thinkingLinkSyndicationText(text, postUrl, mediaType) {
   return `${prefix}${postUrl}`;
 }
 
+/** Append the Thinking permalink when a native media attachment is also present. */
+function thinkingSyndicationTextWithPermalink(text, postUrl) {
+  const t = (text || "").trim();
+  if (t.includes(postUrl)) return t;
+  if (t) return `${t}\n\n${postUrl}`;
+  return postUrl;
+}
+
 function thinkingBlueskySyndicationText(text, postUrl, mediaType) {
   const prefix = thinkingSyndicationPrefix(mediaType);
   if (text) return `${prefix}${text}`;
@@ -539,14 +549,19 @@ async function handleThinking(payload, db, cors, env, ctx) {
     let microblogWarning = null;
     if (env.MICROBLOG_TOKEN) {
       try {
+        const mbText = mediaType
+          ? thinkingSyndicationTextWithPermalink(text, postUrl)
+          : text;
         if (mediaType === "audio") {
           // Pass the hosted audio URL via Micropub so micro.blog renders a player.
-          microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, text, null, mediaUrl, null);
+          microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, mbText, null, mediaUrl, null);
         } else if (mediaType === "video") {
           // Pass the hosted video URL via Micropub so micro.blog renders a player.
-          microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, text, null, null, mediaUrl);
+          microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, mbText, null, null, mediaUrl);
+        } else if (mediaType === "image") {
+          microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, mbText, syndicationPhoto);
         } else {
-          microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, text, syndicationPhoto);
+          microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, text);
         }
       } catch (mbErr) {
         microblogWarning = formatServiceWarning("micro.blog", mbErr.message);
@@ -605,12 +620,14 @@ async function handleThinking(payload, db, cors, env, ctx) {
           }
         }
 
-        // Text: include "Audio: " prefix + link when falling back to a link card for audio.
-        // For video with a native embed, or for images, just send the note text.
+        // Text: link-card fallback for audio (and oversized video); permalink in text when
+        // a native image/video embed is present (Bluesky allows only one embed per post).
         const blueskyText =
           isLinkOnlyThinkingMedia(mediaType) && !blueskyVideo
             ? thinkingBlueskySyndicationText(text, postUrl, mediaType)
-            : text;
+            : mediaType
+              ? thinkingSyndicationTextWithPermalink(text, postUrl)
+              : text;
 
         blueskyUri = await postToBluesky(
           env.BLUESKY_HANDLE,
@@ -635,12 +652,12 @@ async function handleThinking(payload, db, cors, env, ctx) {
 
         if (mediaType === "image" && uploadedForBluesky) {
           mastodonMedia = { bytes: uploadedForBluesky.bytes, mimeType: uploadedForBluesky.mimeType, alt: uploadedForBluesky.alt, mediaType: "image" };
-          mastodonText = text;
+          mastodonText = thinkingSyndicationTextWithPermalink(text, postUrl);
         } else if ((mediaType === "audio" || mediaType === "video") && syndicationMedia) {
           const mediaBytes = await getMediaBytesForSyndication(env, syndicationMedia, MAX_MASTODON_MEDIA_BYTES);
           if (mediaBytes) {
             mastodonMedia = { bytes: mediaBytes, mimeType: syndicationMedia.mimeType, alt: mediaAlt, mediaType };
-            mastodonText = text; // media attachment replaces the link fallback
+            mastodonText = thinkingSyndicationTextWithPermalink(text, postUrl);
           } else {
             // File too large or unavailable; fall back to link-in-text.
             mastodonText = thinkingLinkSyndicationText(text, postUrl, mediaType);
