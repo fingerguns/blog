@@ -40,9 +40,9 @@ import { createR2PresignedPutUrl } from "./r2-presign.mjs";
  *                 so micro.blog and downstream podcast/RSS readers render a native player.
  *   Mastodon    — audio and video files are uploaded as native media attachments (up to 40 MB).
  *                 Falls back to a link-in-text post when the file is too large or unavailable.
- *   Bluesky     — video files are uploaded as `app.bsky.embed.video` blobs (up to 50 MB).
- *                 Audio posts fall back to a link card (Bluesky has no native audio support).
- *                 Video falls back to a link card when the file is too large or upload fails.
+ *   Bluesky     — MP4 video via native embed when possible; iPhone MOV uses a link card.
+ *                 Audio posts use a link card (Bluesky has no native audio support).
+ *                 Video falls back to a link card when native upload or createRecord fails.
  *   All media   — when a native player is attached, the Thinking permalink is also included in
  *                 the post text (Bluesky cannot combine a link card embed with media embeds).
  */
@@ -475,6 +475,20 @@ function thinkingMediaLabel(mediaType) {
   return "Note";
 }
 
+function thinkingBlueskyLinkCard(postUrl, text, mediaType) {
+  return {
+    uri: postUrl,
+    title: text.slice(0, 100).trim() || thinkingMediaLabel(mediaType),
+    description: `${mediaType === "video" ? "Video" : "Audio"} on rommy.blog`,
+    thumb: null,
+  };
+}
+
+/** Bluesky native video embeds only accept MP4; iPhone MOV must use a link card. */
+function blueskySupportsNativeVideo(mimeType) {
+  return mimeType === "video/mp4";
+}
+
 async function handleThinking(payload, db, cors, env, ctx) {
   const text = typeof payload.text === "string" ? payload.text.trim() : "";
   const photo = payload.photo || null;
@@ -582,41 +596,37 @@ async function handleThinking(payload, db, cors, env, ctx) {
           blueskyCompressed = prepared.compressed;
         }
 
-        // Try to get video bytes for Bluesky's native video embed.
+        // Try native video only for MP4. iPhone MOV must use a link card on Bluesky.
         let blueskyVideo = null;
-        if (mediaType === "video" && syndicationMedia) {
+        if (
+          mediaType === "video" &&
+          syndicationMedia &&
+          blueskySupportsNativeVideo(syndicationMedia.mimeType)
+        ) {
           const videoBytes = await getMediaBytesForSyndication(env, syndicationMedia, MAX_BLUESKY_VIDEO_BYTES);
           if (videoBytes) {
             blueskyVideo = { bytes: videoBytes, mimeType: syndicationMedia.mimeType, alt: mediaAlt };
           }
         }
 
-        // Build a link card for: audio (no native support), video too large for upload,
-        // and long text-only posts that contain a URL.
+        // Always prepare a link card for audio/video so Bluesky still posts when native
+        // upload fails (MOV, Worker timeout, or createRecord rejecting the video embed).
         let blueskyLinkCard = null;
-        const needsLinkCard = !blueskyImage && !blueskyVideo && (isLinkOnlyThinkingMedia(mediaType) || [...text].length > 300);
-        if (needsLinkCard) {
-          if (isLinkOnlyThinkingMedia(mediaType)) {
+        if (isLinkOnlyThinkingMedia(mediaType)) {
+          blueskyLinkCard = thinkingBlueskyLinkCard(postUrl, text, mediaType);
+        } else if (!blueskyImage && [...text].length > 300) {
+          const urlMatch = text.match(/https?:\/\/[^\s]+/);
+          if (urlMatch) {
+            const extractedUrl = urlMatch[0].replace(/[.,;:!?)"']+$/, "");
+            blueskyLinkCard = await fetchLinkCard(extractedUrl);
+          }
+          if (!blueskyLinkCard) {
             blueskyLinkCard = {
               uri: postUrl,
-              title: text.slice(0, 100).trim() || thinkingMediaLabel(mediaType),
-              description: `${mediaType === "video" ? "Video" : "Audio"} on rommy.blog`,
+              title: text.slice(0, 100).trim(),
+              description: text.length > 100 ? text.slice(100, 280).trim() : "",
               thumb: null,
             };
-          } else {
-            const urlMatch = text.match(/https?:\/\/[^\s]+/);
-            if (urlMatch) {
-              const extractedUrl = urlMatch[0].replace(/[.,;:!?)"']+$/, "");
-              blueskyLinkCard = await fetchLinkCard(extractedUrl);
-            }
-            if (!blueskyLinkCard) {
-              blueskyLinkCard = {
-                uri: postUrl,
-                title: text.slice(0, 100).trim(),
-                description: text.length > 100 ? text.slice(100, 280).trim() : "",
-                thumb: null,
-              };
-            }
           }
         }
 
@@ -1427,66 +1437,81 @@ async function postToBluesky(handle, appPassword, content, image = null, linkCar
       ],
     };
   } else if (video) {
-    // Upload video blob and embed it so Bluesky renders a native player.
-    // Falls back to a link card (passed in as linkCard) if the upload fails.
-    try {
-      const blobRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessJwt}`,
-          "Content-Type": video.mimeType,
-        },
-        body: video.bytes,
-      });
-      if (!blobRes.ok) {
-        const err = await blobRes.text();
-        throw new Error(`Video blob upload failed (${blobRes.status}): ${summarizeApiBody(err)}`);
-      }
-      const { blob } = await blobRes.json();
-      embed = {
-        $type: "app.bsky.embed.video",
-        video: blob,
-        alt: video.alt || "",
-      };
-    } catch {
-      // Video upload failed; fall through to link card below if one was provided
-      if (linkCard) {
-        embed = {
-          $type: "app.bsky.embed.external",
-          external: { uri: linkCard.uri, title: linkCard.title, description: linkCard.description },
-        };
-      }
-    }
+    embed = await blueskyVideoEmbed(accessJwt, video);
   }
 
   if (!embed && linkCard) {
-    let thumb = null;
-    if (linkCard.thumb) {
-      try {
-        const thumbRes = await fetch(linkCard.thumb);
-        if (thumbRes.ok) {
-          const thumbBytes = await thumbRes.arrayBuffer();
-          const thumbMime = (thumbRes.headers.get("content-type") || "image/jpeg").split(";")[0];
-          const blobRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${accessJwt}`, "Content-Type": thumbMime },
-            body: thumbBytes,
-          });
-          if (blobRes.ok) ({ blob: thumb } = await blobRes.json());
-        }
-      } catch {}
-    }
-    embed = {
-      $type: "app.bsky.embed.external",
-      external: {
-        uri: linkCard.uri,
-        title: linkCard.title,
-        description: linkCard.description,
-        ...(thumb ? { thumb } : {}),
-      },
-    };
+    embed = await blueskyExternalEmbed(accessJwt, linkCard);
   }
 
+  let created;
+  try {
+    created = await blueskyCreatePost(accessJwt, did, text, facets, embed);
+  } catch (err) {
+    // Native video embed can fail at createRecord (e.g. unprocessed blob). Retry link card.
+    if (video && linkCard && embed?.$type === "app.bsky.embed.video") {
+      const fallbackEmbed = await blueskyExternalEmbed(accessJwt, linkCard);
+      created = await blueskyCreatePost(accessJwt, did, text, facets, fallbackEmbed);
+    } else {
+      throw err;
+    }
+  }
+  return created.uri || null;
+}
+
+async function blueskyVideoEmbed(accessJwt, video) {
+  try {
+    const blobRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessJwt}`,
+        "Content-Type": video.mimeType,
+      },
+      body: video.bytes,
+    });
+    if (!blobRes.ok) {
+      return null;
+    }
+    const { blob } = await blobRes.json();
+    return {
+      $type: "app.bsky.embed.video",
+      video: blob,
+      alt: video.alt || "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function blueskyExternalEmbed(accessJwt, linkCard) {
+  let thumb = null;
+  if (linkCard.thumb) {
+    try {
+      const thumbRes = await fetch(linkCard.thumb);
+      if (thumbRes.ok) {
+        const thumbBytes = await thumbRes.arrayBuffer();
+        const thumbMime = (thumbRes.headers.get("content-type") || "image/jpeg").split(";")[0];
+        const blobRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessJwt}`, "Content-Type": thumbMime },
+          body: thumbBytes,
+        });
+        if (blobRes.ok) ({ blob: thumb } = await blobRes.json());
+      }
+    } catch {}
+  }
+  return {
+    $type: "app.bsky.embed.external",
+    external: {
+      uri: linkCard.uri,
+      title: linkCard.title,
+      description: linkCard.description,
+      ...(thumb ? { thumb } : {}),
+    },
+  };
+}
+
+async function blueskyCreatePost(accessJwt, did, text, facets, embed) {
   const record = {
     $type: "app.bsky.feed.post",
     text,
@@ -1515,8 +1540,7 @@ async function postToBluesky(handle, appPassword, content, image = null, linkCar
         : `Post failed (HTTP ${postRes.status}).`
     );
   }
-  const created = await postRes.json();
-  return created.uri || null;
+  return postRes.json();
 }
 
 async function syndicateText(env, content, linkUrl = null) {
