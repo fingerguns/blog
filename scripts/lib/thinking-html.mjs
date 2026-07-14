@@ -38,8 +38,10 @@ export function renderThinkingContentHtml(
         `${escHtml(mediaAlt || "Audio")}</audio>`
     );
   } else if (resolvedUrl && type === "video") {
+    // Appending #t=0.001 causes iOS Safari (and other mobile browsers) to seek
+    // to the first frame and render it as the thumbnail instead of a blank box.
     parts.push(
-      `<video class="thinking-video" controls preload="${videoPreload}" playsinline src="${escHtml(resolvedUrl)}">${escHtml(mediaAlt || "Video")}</video>`
+      `<video class="thinking-video" controls preload="${videoPreload}" playsinline src="${escHtml(resolvedUrl)}#t=0.001">${escHtml(mediaAlt || "Video")}</video>`
     );
   } else if (resolvedUrl) {
     parts.push(
