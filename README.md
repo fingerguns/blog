@@ -8,9 +8,9 @@ Built with [Cursor](https://cursor.com). See the [colophon](https://rommy.blog/c
 
 - **Static site** — HTML, CSS, Atom feed, sitemap; no runtime npm dependencies on Pages
 - **Content in D1** — Writing posts, drafts, Reading, Sharing, and the homepage Thinking blurb
-- **Media in R2** — Photos for Thinking and Writing (public bucket)
+- **Media in R2** — Photos, audio, and video for Thinking; photos for Writing (public bucket)
 - **Admin** — Password-protected UI at `/admin/` (Thinking, Writing, Reading, Sharing, Login)
-- **Cross-posting** — Thinking can publish to [Micro.blog](https://micro.blog) (Micropub) and [Bluesky](https://bsky.app) when configured
+- **Cross-posting** — Thinking can publish to [Micro.blog](https://micro.blog) (Micropub), [Bluesky](https://bsky.app), and [Mastodon](https://joinmastodon.org) when configured; audio and video render as native players in each feed (see [Audio & Video Syndication](#audio--video-syndication) below)
 - **Comments** — [Remark42](https://remark42.com) on Writing posts (`comments.rommy.blog`)
 - **Writing editor** — [Quill](https://quilljs.com/) with image upload, text wrap (left / right / center / full), drafts, and post version history
 - **Social previews** — Open Graph / Twitter meta on Writing and Thinking permalinks (first in-post image when available)
@@ -143,6 +143,18 @@ wrangler deploy
 - Up to **5 MB** on rommy.blog and Micro.blog (JPEG, PNG, WebP, GIF)
 - Bluesky gets a compressed JPEG when the original is over **2 MB**
 - Portrait images on the site default to half width; click to expand/collapse
+
+## Audio & Video Syndication
+
+When a Thinking post includes audio or video, each platform receives it as a native, playable attachment rather than a plain link:
+
+| Platform | Audio | Video |
+|----------|-------|-------|
+| **micro.blog** | `audio[]` Micropub property → native player in feed and podcast RSS | `video[]` Micropub property → native player |
+| **Mastodon** | Uploaded as a media attachment (≤ 40 MB) → renders a player in timelines and third-party apps | Same |
+| **Bluesky** | No native audio support; falls back to a link card pointing to the post | Uploaded as `app.bsky.embed.video` blob (≤ 50 MB) → native video player |
+
+For files that exceed the per-platform size limit, or when bytes are unavailable (presigned video uploads over the threshold), syndication falls back to the previous behaviour: a plain-text post with a permalink and an "Audio: " or "Video: " prefix.
 
 ## Sharing rommy.blog links
 
