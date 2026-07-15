@@ -1650,6 +1650,29 @@ async function postToMastodon(instanceUrl, accessToken, content, media = null) {
     }
     const mediaData = await mediaRes.json();
     mediaId = mediaData.id;
+
+    // Mastodon returns 202 for video/audio uploads that require async transcoding.
+    // Poll GET /api/v1/media/:id until `url` is non-null before posting the status,
+    // otherwise the status API returns 422 "Media not processed".
+    if (mediaRes.status === 202) {
+      const POLL_INTERVAL_MS = 2000;
+      const POLL_TIMEOUT_MS = 25000;
+      const deadline = Date.now() + POLL_TIMEOUT_MS;
+      let ready = !!mediaData.url;
+      while (!ready && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+        const pollRes = await fetch(`${instanceUrl}/api/v1/media/${encodeURIComponent(mediaId)}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (pollRes.ok) {
+          const pollData = await pollRes.json();
+          ready = !!pollData.url;
+        }
+      }
+      if (!ready) {
+        throw new Error("Media processing timed out — video was not ready in time.");
+      }
+    }
   }
 
   const chars = [...content];
