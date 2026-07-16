@@ -58,6 +58,8 @@ wrangler secret put PAGES_DEPLOY_HOOK   # Cloudflare Pages → Settings → Depl
 wrangler secret put MICROBLOG_TOKEN     # optional
 wrangler secret put BLUESKY_HANDLE        # optional
 wrangler secret put BLUESKY_APP_PASSWORD  # optional
+wrangler secret put MASTODON_ACCESS_TOKEN # optional
+wrangler secret put MASTODON_INSTANCE     # optional, defaults to https://mas.to
 wrangler secret put GITHUB_TOKEN          # optional fallback for rebuild trigger
 ```
 
