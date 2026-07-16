@@ -37,6 +37,12 @@ Add Thinking audio posts (`media_type` column — image or audio):
 wrangler d1 execute rommy-blog-db --file=migrate-thinking-audio.sql --remote
 ```
 
+Add Thinking multi-photo support (`media_urls` JSON column, up to 4 photos):
+
+```bash
+wrangler d1 execute rommy-blog-db --file=migrate-thinking-photos.sql --remote
+```
+
 Migrate existing content from `data/posts.json`:
 
 ```bash

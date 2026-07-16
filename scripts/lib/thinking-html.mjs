@@ -12,6 +12,40 @@ export function inferMediaType(mediaUrl, mediaType) {
   return "";
 }
 
+function resolvePhotoUrls(mediaUrl, mediaUrls, siteUrl) {
+  let urls = [];
+  if (Array.isArray(mediaUrls) && mediaUrls.length) {
+    urls = mediaUrls.filter((u) => typeof u === "string" && u);
+  } else if (mediaUrl) {
+    urls = [mediaUrl];
+  }
+  urls = urls.slice(0, 4);
+  if (siteUrl) {
+    return urls.map((u) => toSiteMediaUrl(u, siteUrl));
+  }
+  return urls;
+}
+
+function renderPhotoGallery(urls, mediaAlt) {
+  const alt = escHtml(mediaAlt || "Photo");
+  if (urls.length === 1) {
+    return (
+      `<button type="button" class="thinking-photo-tile thinking-photo-tile--single" data-gallery-index="0" aria-label="View photo">` +
+        `<img class="thinking-photo" src="${escHtml(urls[0])}" alt="${alt}" loading="lazy" decoding="async" />` +
+      `</button>`
+    );
+  }
+  const tiles = urls
+    .map(
+      (url, i) =>
+        `<button type="button" class="thinking-photo-tile" data-gallery-index="${i}" aria-label="View photo ${i + 1} of ${urls.length}">` +
+          `<img class="thinking-photo" src="${escHtml(url)}" alt="${alt}" loading="lazy" decoding="async" />` +
+        `</button>`
+    )
+    .join("");
+  return `<div class="thinking-photo-grid" data-gallery>${tiles}</div>`;
+}
+
 export function renderThinkingContentHtml(
   text,
   mediaUrl,
@@ -22,7 +56,13 @@ export function renderThinkingContentHtml(
 ) {
   const t = (text || "").trim();
   const type = inferMediaType(mediaUrl, mediaType);
-  const resolvedUrl = siteUrl ? toSiteMediaUrl(mediaUrl, siteUrl) : mediaUrl;
+  const photoUrls = type === "image" ? resolvePhotoUrls(mediaUrl, options.mediaUrls, siteUrl) : [];
+  const resolvedUrl =
+    !photoUrls.length && mediaUrl
+      ? siteUrl
+        ? toSiteMediaUrl(mediaUrl, siteUrl)
+        : mediaUrl
+      : photoUrls[0] || "";
   const videoPreload = options.videoPreload === "auto" ? "auto" : "metadata";
   const parts = [];
   if (t) {
@@ -43,10 +83,8 @@ export function renderThinkingContentHtml(
     parts.push(
       `<video class="thinking-video" controls preload="${videoPreload}" playsinline src="${escHtml(resolvedUrl)}#t=0.001">${escHtml(mediaAlt || "Video")}</video>`
     );
-  } else if (resolvedUrl) {
-    parts.push(
-      `<img class="thinking-photo" src="${escHtml(resolvedUrl)}" alt="${escHtml(mediaAlt || "Photo")}" loading="lazy" decoding="async" />`
-    );
+  } else if (photoUrls.length) {
+    parts.push(renderPhotoGallery(photoUrls, mediaAlt));
   }
   return parts.join("\n");
 }

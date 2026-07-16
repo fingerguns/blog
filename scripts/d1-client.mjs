@@ -37,6 +37,22 @@ export async function d1Query(sql, params = []) {
   return data.result?.[0]?.results ?? [];
 }
 
+/** Parse media_urls JSON; fall back to single media_url for legacy rows. */
+function parseMediaUrls(raw, mediaUrl) {
+  if (raw) {
+    try {
+      const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+      if (Array.isArray(parsed)) {
+        return parsed.filter((u) => typeof u === "string" && u).slice(0, 4);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  if (mediaUrl) return [mediaUrl];
+  return [];
+}
+
 export async function d1Batch(statements) {
   if (!d1Configured()) {
     throw new Error("D1 not configured");
@@ -88,7 +104,7 @@ export async function loadBlogDataFromD1() {
   );
 
   const thinkingPostRows = await d1Query(
-    "SELECT slug, text, media_url, media_alt, media_type, content_html, datetime, microblog_url FROM thinking_posts ORDER BY datetime DESC"
+    "SELECT slug, text, media_url, media_alt, media_type, media_urls, content_html, datetime, microblog_url FROM thinking_posts ORDER BY datetime DESC"
   );
   const thinkingPosts = thinkingPostRows.map((r) => ({
     slug: r.slug,
@@ -96,6 +112,7 @@ export async function loadBlogDataFromD1() {
     media_url: r.media_url || "",
     media_alt: r.media_alt || "",
     media_type: r.media_type || "",
+    media_urls: parseMediaUrls(r.media_urls, r.media_url),
     content_html: r.content_html || "",
     datetime: r.datetime,
     microblog_url: r.microblog_url || "",
@@ -107,8 +124,9 @@ export async function loadBlogDataFromD1() {
         media_url: latest.media_url,
         media_alt: latest.media_alt,
         media_type: latest.media_type,
+        media_urls: latest.media_urls,
       }
-    : { text: "", media_url: "", media_alt: "", media_type: "" };
+    : { text: "", media_url: "", media_alt: "", media_type: "", media_urls: [] };
 
   return {
     site: {

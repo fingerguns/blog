@@ -571,6 +571,136 @@ h2 {
   cursor: zoom-in;
   transition: width 0.2s ease, max-width 0.2s ease;
 }
+
+.thinking-photo-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.thinking-photo-tile {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.thinking-photo-tile--single {
+  margin-top: 0.5rem;
+}
+
+.thinking-photo-tile img.thinking-photo,
+.microblog-body .thinking-photo-tile img,
+.post .body .thinking-photo-tile img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin: 0;
+  border-radius: 4px;
+}
+
+html.thinking-lightbox-open {
+  overflow: hidden;
+}
+
+.thinking-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.88);
+  box-sizing: border-box;
+}
+
+.thinking-lightbox[hidden] {
+  display: none !important;
+}
+
+.thinking-lightbox-figure {
+  margin: 0;
+  max-width: min(var(--max), 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.thinking-lightbox-figure img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 5rem);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.thinking-lightbox-counter {
+  color: #ddd;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  min-height: 1.2em;
+}
+
+.thinking-lightbox-close,
+.thinking-lightbox-prev,
+.thinking-lightbox-next {
+  position: absolute;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  font-size: 2rem;
+  line-height: 1;
+  padding: 0.35rem 0.5rem;
+  opacity: 0.85;
+}
+
+.thinking-lightbox-close:hover,
+.thinking-lightbox-prev:hover,
+.thinking-lightbox-next:hover {
+  opacity: 1;
+}
+
+.thinking-lightbox-close {
+  top: 0.75rem;
+  right: 0.75rem;
+  font-size: 2.25rem;
+}
+
+.thinking-lightbox-prev,
+.thinking-lightbox-next {
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+}
+
+.thinking-lightbox--multi .thinking-lightbox-prev,
+.thinking-lightbox--multi .thinking-lightbox-next {
+  display: block;
+}
+
+.thinking-lightbox-prev {
+  left: 0.5rem;
+}
+
+.thinking-lightbox-next {
+  right: 0.5rem;
+}
+
 .microblog-body audio.thinking-audio,
 .post .body audio.thinking-audio {
   display: block;

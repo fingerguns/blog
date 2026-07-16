@@ -171,6 +171,19 @@
         margin: 0 0 1.25rem;
         border-radius: 4px;
       }
+      .thinking-photo-previews {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+        margin: 0 0 1.25rem;
+        max-width: 28rem;
+      }
+      .thinking-photo-previews img {
+        display: block;
+        width: 100%;
+        height: auto;
+        border-radius: 4px;
+      }
       .thinking-audio-preview {
         display: block;
         width: 100%;
@@ -619,7 +632,7 @@
 
         <form class="admin-form" id="thinking-form">
           <label for="t-text">Thought</label>
-          <textarea id="t-text" placeholder="What's on your mind? (optional if you add a photo, audio, or video)"></textarea>
+          <textarea id="t-text" placeholder="What's on your mind? (optional if you add photos, audio, or video)"></textarea>
 
           <div class="thinking-meta-row">
             <div class="thinking-media-pickers">
@@ -629,16 +642,17 @@
                 class="thinking-photo-input"
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/gif"
+                multiple
               />
               <div class="thinking-photo-picker">
-                <label for="t-photo" class="thinking-photo-icon-btn" title="Add photo" aria-label="Add photo">
+                <label for="t-photo" class="thinking-photo-icon-btn" title="Add photos (up to 4)" aria-label="Add photos (up to 4)">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
                     <rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"></rect>
                     <circle cx="9" cy="9" r="2" fill="currentColor"></circle>
                     <path fill="currentColor" d="M6 18h12l-4.5-6-2.5 3-2-2.5L6 18z"></path>
                   </svg>
                 </label>
-                <span id="t-photo-name" class="thinking-photo-name">No photo</span>
+                <span id="t-photo-name" class="thinking-photo-name">No photos</span>
               </div>
             </div>
             <div class="thinking-photo-upload">
@@ -680,6 +694,7 @@
             <p id="t-char-count" class="thinking-char-count" aria-live="polite">0 / 300</p>
           </div>
           <p id="t-photo-warn" hidden></p>
+          <div id="t-photo-previews" class="thinking-photo-previews" hidden></div>
           <img id="t-photo-preview" class="thinking-photo-preview" alt="" hidden />
           <audio id="t-audio-preview" class="thinking-audio-preview" controls hidden></audio>
           <video id="t-video-preview" class="thinking-video-preview" controls playsinline hidden></video>
@@ -1461,20 +1476,26 @@
         return data;
       }
 
-      async function callThinkingAPI(text, photoFile, blueskyPhotoFile, audioFile, videoFile, onProgress) {
+      async function callThinkingAPI(text, photoFiles, blueskyPhotoFiles, audioFile, videoFile, onProgress) {
         var pw = loadSession();
         if (!pw) throw new Error("You need to be signed in. Go to the Login tab.");
         if (videoFile) {
           return callThinkingVideoAPI(text, videoFile, onProgress);
         }
-        if (photoFile || audioFile) {
+        var photos = Array.isArray(photoFiles) ? photoFiles.filter(Boolean) : photoFiles ? [photoFiles] : [];
+        var blueskyPhotos = Array.isArray(blueskyPhotoFiles)
+          ? blueskyPhotoFiles.filter(Boolean)
+          : blueskyPhotoFiles
+            ? [blueskyPhotoFiles]
+            : [];
+        if (photos.length || audioFile) {
           var fd = new FormData();
           fd.append("password", pw);
           fd.append("action", "thinking");
           fd.append("text", text);
-          if (photoFile) fd.append("photo", photoFile);
+          for (var i = 0; i < photos.length; i++) fd.append("photo", photos[i]);
+          for (var j = 0; j < blueskyPhotos.length; j++) fd.append("photo_bluesky", blueskyPhotos[j]);
           if (audioFile) fd.append("audio", audioFile);
-          if (blueskyPhotoFile) fd.append("photo_bluesky", blueskyPhotoFile);
           if (onProgress) return postThinkingMultipart(fd, onProgress);
           var res = await fetch(API_URL, { method: "POST", body: fd });
           var data = await res.json();
@@ -1493,6 +1514,7 @@
 
       (function () {
         var THINKING_SOFT_MAX = 300;
+        var MAX_THINKING_PHOTOS = 4;
         var form = document.getElementById("thinking-form");
         var status = document.getElementById("t-status");
         var submit = document.getElementById("t-submit");
@@ -1502,6 +1524,7 @@
         var audioInput = document.getElementById("t-audio");
         var videoInput = document.getElementById("t-video");
         var preview = document.getElementById("t-photo-preview");
+        var photoPreviews = document.getElementById("t-photo-previews");
         var audioPreview = document.getElementById("t-audio-preview");
         var videoPreview = document.getElementById("t-video-preview");
         var photoWarn = document.getElementById("t-photo-warn");
@@ -1509,13 +1532,52 @@
         var photoName = document.getElementById("t-photo-name");
         var audioName = document.getElementById("t-audio-name");
         var videoName = document.getElementById("t-video-name");
+        var photoPreviewUrls = [];
+
+        function selectedPhotoFiles() {
+          if (!photoInput.files || !photoInput.files.length) return [];
+          return Array.prototype.slice.call(photoInput.files, 0, MAX_THINKING_PHOTOS);
+        }
 
         function anyThinkingMediaSelected() {
           return !!(
-            (photoInput.files && photoInput.files[0]) ||
+            selectedPhotoFiles().length ||
             (audioInput.files && audioInput.files[0]) ||
             (videoInput.files && videoInput.files[0])
           );
+        }
+
+        function revokePhotoPreviewUrls() {
+          photoPreviewUrls.forEach(function (u) {
+            URL.revokeObjectURL(u);
+          });
+          photoPreviewUrls = [];
+        }
+
+        function clearPhotoPreviews() {
+          revokePhotoPreviewUrls();
+          if (photoPreviews) {
+            photoPreviews.innerHTML = "";
+            photoPreviews.hidden = true;
+          }
+          if (preview) {
+            preview.hidden = true;
+            preview.removeAttribute("src");
+          }
+        }
+
+        function renderPhotoPreviews(files) {
+          clearPhotoPreviews();
+          if (!files.length || !photoPreviews) return;
+          files.forEach(function (file) {
+            var url = URL.createObjectURL(file);
+            photoPreviewUrls.push(url);
+            var img = document.createElement("img");
+            img.src = url;
+            img.alt = file.name || "Photo preview";
+            photoPreviews.appendChild(img);
+          });
+          photoPreviews.hidden = false;
         }
 
         function revokeVideoPreviewUrl() {
@@ -1541,8 +1603,7 @@
           photoInput.value = "";
           audioInput.value = "";
           videoInput.value = "";
-          preview.hidden = true;
-          preview.removeAttribute("src");
+          clearPhotoPreviews();
           audioPreview.hidden = true;
           audioPreview.removeAttribute("src");
           if (audioPreview._objectUrl) {
@@ -1555,16 +1616,15 @@
           mediaRemove.hidden = true;
           photoWarn.hidden = true;
           photoWarn.textContent = "";
-          if (photoName) photoName.textContent = "No photo";
+          if (photoName) photoName.textContent = "No photos";
           if (audioName) audioName.textContent = "No audio";
           if (videoName) videoName.textContent = "No video";
         }
 
         function clearPhotoSelection() {
           photoInput.value = "";
-          preview.hidden = true;
-          preview.removeAttribute("src");
-          if (photoName) photoName.textContent = "No photo";
+          clearPhotoPreviews();
+          if (photoName) photoName.textContent = "No photos";
         }
 
         function clearAudioSelection() {
@@ -1589,37 +1649,51 @@
         mediaRemove.addEventListener("click", clearThinkingMedia);
 
         photoInput.addEventListener("change", function () {
-          var file = photoInput.files && photoInput.files[0];
-          if (!file) {
+          var allFiles = photoInput.files ? Array.prototype.slice.call(photoInput.files) : [];
+          if (!allFiles.length) {
             clearPhotoSelection();
             if (!anyThinkingMediaSelected()) mediaRemove.hidden = true;
             return;
           }
           clearAudioSelection();
           clearVideoSelection();
-          preview.src = URL.createObjectURL(file);
-          preview.hidden = false;
+          var files = allFiles.slice(0, MAX_THINKING_PHOTOS);
+          renderPhotoPreviews(files);
           audioPreview.hidden = true;
           videoPreview.hidden = true;
           mediaRemove.hidden = false;
-          if (photoName) photoName.textContent = file.name;
+          if (photoName) {
+            photoName.textContent =
+              files.length === 1
+                ? files[0].name
+                : files.length + " photos" + (allFiles.length > MAX_THINKING_PHOTOS ? " (max 4)" : "");
+          }
           if (audioName) audioName.textContent = "No audio";
           if (videoName) videoName.textContent = "No video";
-          if (file.size > MAX_PHOTO_INPUT) {
+          var tooBig = files.find(function (f) {
+            return f.size > MAX_PHOTO_INPUT;
+          });
+          var needsSiteCompress = files.some(function (f) {
+            return f.size > MAX_PHOTO_SITE;
+          });
+          var needsBluesky = files.some(function (f) {
+            return f.size > MAX_PHOTO_BLUESKY;
+          });
+          if (allFiles.length > MAX_THINKING_PHOTOS) {
             photoWarn.textContent =
-              "This file is " + formatBytes(file.size) + " (max 25 MB).";
+              "Only the first " + MAX_THINKING_PHOTOS + " photos will be uploaded.";
             photoWarn.hidden = false;
-          } else if (file.size > MAX_PHOTO_SITE) {
+          } else if (tooBig) {
             photoWarn.textContent =
-              "Over 5 MB — will be compressed on upload (up to " +
-              formatBytes(file.size) +
-              ").";
+              "A file is " + formatBytes(tooBig.size) + " (max 25 MB each).";
             photoWarn.hidden = false;
-          } else if (file.size > MAX_PHOTO_BLUESKY) {
+          } else if (needsSiteCompress) {
             photoWarn.textContent =
-              "Bluesky: This file is " +
-              formatBytes(file.size) +
-              ". A compressed copy will be sent to Bluesky; rommy.blog and micro.blog keep the original.";
+              "One or more photos are over 5 MB — they will be compressed on upload.";
+            photoWarn.hidden = false;
+          } else if (needsBluesky) {
+            photoWarn.textContent =
+              "Bluesky: one or more photos exceed 2 MB. Compressed copies will be sent to Bluesky; rommy.blog and micro.blog keep the originals.";
             photoWarn.hidden = false;
           } else {
             photoWarn.hidden = true;
@@ -1644,7 +1718,7 @@
           videoPreview.hidden = true;
           mediaRemove.hidden = false;
           if (audioName) audioName.textContent = file.name;
-          if (photoName) photoName.textContent = "No photo";
+          if (photoName) photoName.textContent = "No photos";
           if (videoName) videoName.textContent = "No video";
           if (file.size > MAX_PHOTO_INPUT) {
             photoWarn.textContent =
@@ -1672,7 +1746,7 @@
             photoWarn.hidden = false;
             return;
           }
-          preview.hidden = true;
+          if (preview) preview.hidden = true;
           audioPreview.hidden = true;
           revokeVideoPreviewUrl();
           videoPreview._objectUrl = URL.createObjectURL(file);
@@ -1680,7 +1754,7 @@
           videoPreview.hidden = false;
           mediaRemove.hidden = false;
           if (videoName) videoName.textContent = file.name;
-          if (photoName) photoName.textContent = "No photo";
+          if (photoName) photoName.textContent = "No photos";
           if (audioName) audioName.textContent = "No audio";
           if (file.size > MAX_VIDEO_INPUT) {
             photoWarn.textContent =
@@ -1696,21 +1770,28 @@
         form.addEventListener("submit", async function (e) {
           e.preventDefault();
           var text = textInput.value.trim();
-          var photoFile = photoInput.files && photoInput.files[0];
+          var photoFiles = selectedPhotoFiles();
           var audioFile = audioInput.files && audioInput.files[0];
           var videoFile = videoInput.files && videoInput.files[0];
-          if (!text && !photoFile && !audioFile && !videoFile) {
-            showStatus(status, "Add text, a photo, audio, or video.", true);
+          if (!text && !photoFiles.length && !audioFile && !videoFile) {
+            showStatus(status, "Add text, photos, audio, or video.", true);
             return;
           }
-          if ([photoFile, audioFile, videoFile].filter(Boolean).length > 1) {
-            showStatus(status, "Add a photo, audio, or video — not more than one.", true);
+          if ([photoFiles.length > 0, audioFile, videoFile].filter(Boolean).length > 1) {
+            showStatus(status, "Add photos, audio, or video — not more than one kind.", true);
             return;
           }
-          if (photoFile && photoFile.size > MAX_PHOTO_INPUT) {
+          if (photoFiles.length > MAX_THINKING_PHOTOS) {
+            showStatus(status, "At most " + MAX_THINKING_PHOTOS + " photos per post.", true);
+            return;
+          }
+          var oversizedPhoto = photoFiles.find(function (f) {
+            return f.size > MAX_PHOTO_INPUT;
+          });
+          if (oversizedPhoto) {
             showStatus(
               status,
-              "Photo must be 25 MB or smaller (yours is " + formatBytes(photoFile.size) + ").",
+              "Each photo must be 25 MB or smaller (one is " + formatBytes(oversizedPhoto.size) + ").",
               true
             );
             return;
@@ -1736,7 +1817,10 @@
             return;
           }
           submit.disabled = true;
-          var useProgress = thinkingUploadShowsProgress(videoFile, audioFile, photoFile);
+          var largestPhoto = photoFiles.reduce(function (max, f) {
+            return !max || f.size > max.size ? f : max;
+          }, null);
+          var useProgress = thinkingUploadShowsProgress(videoFile, audioFile, largestPhoto);
           if (useProgress) {
             status.hidden = true;
             setThinkingUploadProgress(
@@ -1751,11 +1835,14 @@
             showStatus(status, "Saving to rommy.blog…", false);
           }
           try {
-            var blueskyFile = null;
-            if (photoFile) {
-              if (!useProgress) showStatus(status, "Preparing photo…", false);
-              photoFile = await compressPhotoForSite(photoFile);
-              blueskyFile = await compressPhotoForBluesky(photoFile);
+            var blueskyFiles = [];
+            var sitePhotos = photoFiles.slice();
+            if (sitePhotos.length) {
+              if (!useProgress) showStatus(status, "Preparing photos…", false);
+              for (var pi = 0; pi < sitePhotos.length; pi++) {
+                sitePhotos[pi] = await compressPhotoForSite(sitePhotos[pi]);
+                blueskyFiles.push(await compressPhotoForBluesky(sitePhotos[pi]));
+              }
             }
             var onProgress = useProgress
               ? function (pct, phase, loaded, total) {
@@ -1772,7 +1859,7 @@
                       ? "Uploading video"
                       : audioFile
                         ? "Uploading audio"
-                        : "Uploading photo";
+                        : "Uploading photo" + (sitePhotos.length > 1 ? "s" : "");
                   if (pct == null) {
                     setThinkingUploadProgress(
                       true,
@@ -1793,8 +1880,8 @@
               : null;
             var result = await callThinkingAPI(
               textInput.value,
-              photoFile || null,
-              blueskyFile,
+              sitePhotos,
+              blueskyFiles,
               audioFile || null,
               videoFile || null,
               onProgress

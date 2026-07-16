@@ -53,7 +53,76 @@ const GA_ID = "G-L1CC5F3DP8";
 const gaSnippet = `    <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_ID}"></script>
     <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}');</script>`;
 
-const portraitPhotoToggleScript = `    <script>(function(){function init(){document.querySelectorAll(".microblog-body img, .post .body img").forEach(function(img){if(img.dataset.portraitInit)return;function setup(){var w=img.naturalWidth,h=img.naturalHeight;if(!w||!h)return;img.dataset.portraitInit="1";if(h<=w)return;img.classList.add("photo-portrait");img.setAttribute("role","button");img.setAttribute("tabindex","0");img.setAttribute("aria-expanded","false");img.title="Click to enlarge";function toggle(){var ex=img.classList.toggle("photo-expanded");img.setAttribute("aria-expanded",ex?"true":"false");}img.addEventListener("click",toggle);img.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle();}});}if(img.complete)setup();else img.addEventListener("load",setup,{once:true});});}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();}());</script>`;
+const portraitPhotoToggleScript = `    <script>(function(){function init(){document.querySelectorAll(".post .body img:not(.thinking-photo)").forEach(function(img){if(img.dataset.portraitInit)return;function setup(){var w=img.naturalWidth,h=img.naturalHeight;if(!w||!h)return;img.dataset.portraitInit="1";if(h<=w)return;img.classList.add("photo-portrait");img.setAttribute("role","button");img.setAttribute("tabindex","0");img.setAttribute("aria-expanded","false");img.title="Click to enlarge";function toggle(){var ex=img.classList.toggle("photo-expanded");img.setAttribute("aria-expanded",ex?"true":"false");}img.addEventListener("click",toggle);img.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle();}});}if(img.complete)setup();else img.addEventListener("load",setup,{once:true});});}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();}());</script>`;
+
+const thinkingLightboxScript = `    <script>(function(){
+  var overlay=null,imgEl=null,counterEl=null,urls=[],index=0;
+  function ensure(){
+    if(overlay)return;
+    overlay=document.createElement("div");
+    overlay.className="thinking-lightbox";
+    overlay.hidden=true;
+    overlay.setAttribute("role","dialog");
+    overlay.setAttribute("aria-modal","true");
+    overlay.setAttribute("aria-label","Photo gallery");
+    overlay.innerHTML='<button type="button" class="thinking-lightbox-close" aria-label="Close">&times;</button><button type="button" class="thinking-lightbox-prev" aria-label="Previous photo">‹</button><figure class="thinking-lightbox-figure"><img alt="" /><figcaption class="thinking-lightbox-counter"></figcaption></figure><button type="button" class="thinking-lightbox-next" aria-label="Next photo">›</button>';
+    document.body.appendChild(overlay);
+    imgEl=overlay.querySelector("img");
+    counterEl=overlay.querySelector(".thinking-lightbox-counter");
+    overlay.querySelector(".thinking-lightbox-close").addEventListener("click",close);
+    overlay.querySelector(".thinking-lightbox-prev").addEventListener("click",function(e){e.stopPropagation();show(index-1);});
+    overlay.querySelector(".thinking-lightbox-next").addEventListener("click",function(e){e.stopPropagation();show(index+1);});
+    overlay.addEventListener("click",function(e){if(e.target===overlay)close();});
+    document.addEventListener("keydown",function(e){
+      if(overlay.hidden)return;
+      if(e.key==="Escape")close();
+      else if(e.key==="ArrowLeft")show(index-1);
+      else if(e.key==="ArrowRight")show(index+1);
+    });
+  }
+  function show(i){
+    if(!urls.length)return;
+    index=(i+urls.length)%urls.length;
+    imgEl.src=urls[index];
+    counterEl.textContent=urls.length>1?(index+1)+" / "+urls.length:"";
+    overlay.classList.toggle("thinking-lightbox--multi",urls.length>1);
+  }
+  function open(list,start){
+    ensure();
+    urls=list;
+    show(start||0);
+    overlay.hidden=false;
+    document.documentElement.classList.add("thinking-lightbox-open");
+  }
+  function close(){
+    if(!overlay||overlay.hidden)return;
+    overlay.hidden=true;
+    imgEl.removeAttribute("src");
+    document.documentElement.classList.remove("thinking-lightbox-open");
+  }
+  function collectUrls(root){
+    return Array.prototype.map.call(root.querySelectorAll("img.thinking-photo"),function(img){return img.currentSrc||img.src;}).filter(Boolean);
+  }
+  function onActivate(btn){
+    var grid=btn.closest("[data-gallery], .thinking-photo-grid");
+    var single=btn.classList.contains("thinking-photo-tile--single")?btn:null;
+    var root=grid||single;
+    if(!root)return;
+    var list=collectUrls(root);
+    if(!list.length)return;
+    var start=parseInt(btn.getAttribute("data-gallery-index")||"0",10)||0;
+    open(list,start);
+  }
+  function init(){
+    document.addEventListener("click",function(e){
+      var btn=e.target.closest(".thinking-photo-tile");
+      if(!btn)return;
+      e.preventDefault();
+      onActivate(btn);
+    });
+  }
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
+}());</script>`;
 
 const thinkingDeleteLinkScript = `    <script>(function(){
       var SESSION_KEY="admin_session";
@@ -230,7 +299,7 @@ function thinkingContentHtmlFromRow(p, options = {}) {
     p.media_alt,
     p.media_type,
     base,
-    options
+    { ...options, mediaUrls: p.media_urls || [] }
   );
   if (fromSource) return fromSource;
   return p.content_html || "";
@@ -242,14 +311,20 @@ function renderThinkingHtml(thinking) {
     thinking?.media_url,
     thinking?.media_alt,
     thinking?.media_type,
-    base
+    base,
+    { mediaUrls: thinking?.media_urls || [] }
   );
   if (!inner) return "";
   return `<div class="microblog-body">${inner}</div>`;
 }
 
 function hasThinking(thinking) {
-  return !!(thinking && ((thinking.text || "").trim() || thinking.media_url));
+  return !!(
+    thinking &&
+    ((thinking.text || "").trim() ||
+      thinking.media_url ||
+      (Array.isArray(thinking.media_urls) && thinking.media_urls.length))
+  );
 }
 
 function toIsoZ(p) {
@@ -360,6 +435,7 @@ ${gaSnippet}
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
 ${portraitPhotoToggleScript}
+${thinkingLightboxScript}
   </body>
 </html>
 `;
@@ -568,6 +644,7 @@ ${linksHtml}
 ${colophonSection}    </main>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
 ${portraitPhotoToggleScript}
+${thinkingLightboxScript}
   </body>
 </html>
 `;
@@ -647,6 +724,7 @@ const archiveFoot = `      <footer class="site-footer">
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
 ${portraitPhotoToggleScript}
+${thinkingLightboxScript}
     <script>(function(){var BATCH=10;var list=document.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++)items[i].hidden=true;var shown=BATCH;var sentinel=document.createElement('div');document.body.appendChild(sentinel);var obs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++)items[i].hidden=false;shown=next;if(shown>=items.length)obs.disconnect();},{rootMargin:'0px'});obs.observe(sentinel);}());</script>
   </body>
 </html>
@@ -659,6 +737,7 @@ const thinkingArchiveFoot = `      <footer class="site-footer">
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
 ${portraitPhotoToggleScript}
+${thinkingLightboxScript}
 ${thinkingDeleteLinkScript}
   </body>
 </html>
@@ -775,6 +854,7 @@ const thinkingPostFoot = `      <footer class="site-footer">
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
 ${portraitPhotoToggleScript}
+${thinkingLightboxScript}
 ${thinkingDeleteLinkScript}
 ${thinkingDeleteConfirmScript}
   </body>

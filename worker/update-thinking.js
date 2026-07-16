@@ -56,6 +56,7 @@ const MAX_BLUESKY_IMAGE_BYTES = 2_000_000;
 const MAX_BLUESKY_VIDEO_BYTES = 50 * 1024 * 1024;
 const MAX_MASTODON_MEDIA_BYTES = 40 * 1024 * 1024;
 const MAX_MASTODON_CHARS = 500;
+const MAX_THINKING_PHOTOS = 4;
 const DEFAULT_MASTODON_INSTANCE = "https://mas.to";
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const ALLOWED_AUDIO_TYPES = new Set(["audio/mp4", "audio/x-m4a", "audio/m4a", "audio/mpeg", "audio/mp3"]);
@@ -404,8 +405,18 @@ async function parseRequest(request) {
   const ct = request.headers.get("Content-Type") || "";
   if (ct.includes("multipart/form-data")) {
     const fd = await request.formData();
-    const photo = fd.get("photo");
-    const photoBluesky = fd.get("photo_bluesky");
+    const photoEntries = fd
+      .getAll("photo")
+      .concat(fd.getAll("photo[]"))
+      .filter(
+        (f) => f && typeof f === "object" && "arrayBuffer" in f && f.size > 0
+      );
+    const blueskyEntries = fd
+      .getAll("photo_bluesky")
+      .concat(fd.getAll("photo_bluesky[]"))
+      .filter(
+        (f) => f && typeof f === "object" && "arrayBuffer" in f && f.size > 0
+      );
     const audio = fd.get("audio");
     const video = fd.get("video");
     return {
@@ -413,17 +424,11 @@ async function parseRequest(request) {
       action: fd.get("action"),
       folder: String(fd.get("folder") || "writing"),
       text: String(fd.get("text") || ""),
-      photo:
-        photo && typeof photo === "object" && "arrayBuffer" in photo && photo.size > 0
-          ? photo
-          : null,
-      photo_bluesky:
-        photoBluesky &&
-        typeof photoBluesky === "object" &&
-        "arrayBuffer" in photoBluesky &&
-        photoBluesky.size > 0
-          ? photoBluesky
-          : null,
+      photos: photoEntries.slice(0, MAX_THINKING_PHOTOS),
+      photo_bluesky_list: blueskyEntries.slice(0, MAX_THINKING_PHOTOS),
+      // Back-compat single fields for other actions (e.g. upload-photo)
+      photo: photoEntries[0] || null,
+      photo_bluesky: blueskyEntries[0] || null,
       audio:
         audio && typeof audio === "object" && "arrayBuffer" in audio && audio.size > 0
           ? audio
@@ -491,17 +496,30 @@ function blueskySupportsNativeVideo(mimeType) {
 
 async function handleThinking(payload, db, cors, env, ctx) {
   const text = typeof payload.text === "string" ? payload.text.trim() : "";
-  const photo = payload.photo || null;
+  const photos = Array.isArray(payload.photos)
+    ? payload.photos.filter(Boolean).slice(0, MAX_THINKING_PHOTOS)
+    : payload.photo
+      ? [payload.photo]
+      : [];
+  const photoBlueskyList = Array.isArray(payload.photo_bluesky_list)
+    ? payload.photo_bluesky_list.filter(Boolean).slice(0, MAX_THINKING_PHOTOS)
+    : payload.photo_bluesky
+      ? [payload.photo_bluesky]
+      : [];
   const audio = payload.audio || null;
   const video = payload.video || null;
   const videoKey =
     typeof payload.video_key === "string" ? payload.video_key.trim() : "";
+  const hasPhotos = photos.length > 0;
 
-  if (!text && !photo && !audio && !video && !videoKey) {
+  if (!text && !hasPhotos && !audio && !video && !videoKey) {
     return json({ error: "Add text, a photo, audio, or video" }, 400, cors);
   }
-  if ([photo, audio, video, videoKey].filter(Boolean).length > 1) {
-    return json({ error: "Add a photo, audio, or video — not more than one" }, 400, cors);
+  if ([hasPhotos, audio, video, videoKey].filter(Boolean).length > 1) {
+    return json({ error: "Add photos, audio, or video — not more than one kind" }, 400, cors);
+  }
+  if (photos.length > MAX_THINKING_PHOTOS) {
+    return json({ error: `At most ${MAX_THINKING_PHOTOS} photos per post` }, 400, cors);
   }
   if (text.length > 2000) {
     return json({ error: "Text must be 2000 characters or fewer" }, 400, cors);
@@ -515,46 +533,42 @@ async function handleThinking(payload, db, cors, env, ctx) {
     const postUrl = `${SITE_URL}/thinking/${slug}/`;
 
     let mediaUrl = null;
+    let mediaUrls = [];
     let mediaAlt = text.slice(0, 1000) || "";
     let mediaType = "";
-    let uploadedForBluesky = null;
+    let uploadedPhotos = [];
     let blueskyCompressed = false;
-    let syndicationPhoto = photo;
+    let syndicationPhotos = [];
     // syndicationMedia holds R2 upload metadata for audio/video syndication.
     let syndicationMedia = null;
 
-    if (photo) {
-      const uploaded = await uploadPhotoToR2(env, photo, "thinking");
-      mediaUrl = uploaded.url;
+    if (hasPhotos) {
+      for (const photo of photos) {
+        const uploaded = await uploadPhotoToR2(env, photo, "thinking");
+        uploadedPhotos.push(uploaded);
+        syndicationPhotos.push(syndicationPhotoFromUpload(uploaded));
+      }
+      mediaUrls = uploadedPhotos.map((u) => u.url);
+      mediaUrl = mediaUrls[0];
       mediaAlt = text.slice(0, 1000) || "Photo";
       mediaType = "image";
-      syndicationPhoto = syndicationPhotoFromUpload(uploaded);
-      uploadedForBluesky = {
-        bytes: uploaded.bytes,
-        mimeType: uploaded.mimeType,
-        alt: mediaAlt,
-        aspectRatio: uploaded.aspectRatio,
-      };
     } else if (audio) {
       const uploaded = await uploadAudioToR2(env, audio);
       mediaUrl = uploaded.url;
       mediaAlt = text.slice(0, 1000) || "Audio";
       mediaType = "audio";
-      syndicationPhoto = null;
       syndicationMedia = { url: mediaUrl, bytes: uploaded.bytes, mimeType: uploaded.mimeType, key: uploaded.key, size: uploaded.bytes?.byteLength ?? 0, mediaType: "audio", alt: mediaAlt };
     } else if (video) {
       const uploaded = await uploadVideoToR2(env, video);
       mediaUrl = uploaded.url;
       mediaAlt = text.slice(0, 1000) || "Video";
       mediaType = "video";
-      syndicationPhoto = null;
       syndicationMedia = { url: mediaUrl, bytes: uploaded.bytes, mimeType: uploaded.mimeType, key: uploaded.key, size: uploaded.bytes?.byteLength ?? 0, mediaType: "video", alt: mediaAlt };
     } else if (videoKey) {
       const uploaded = await finalizeVideoFromR2(env, videoKey, payload.video_mime);
       mediaUrl = uploaded.url;
       mediaAlt = text.slice(0, 1000) || "Video";
       mediaType = "video";
-      syndicationPhoto = null;
       // bytes is null for presigned uploads; we'll fetch from R2 when needed.
       syndicationMedia = { url: mediaUrl, bytes: null, mimeType: uploaded.mimeType, key: uploaded.key, size: uploaded.size ?? 0, mediaType: "video", alt: mediaAlt };
     }
@@ -573,7 +587,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
           // Pass the hosted video URL via Micropub so micro.blog renders a player.
           microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, mbText, null, null, mediaUrl);
         } else if (mediaType === "image") {
-          microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, mbText, syndicationPhoto);
+          microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, mbText, syndicationPhotos);
         } else {
           microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, text);
         }
@@ -586,14 +600,23 @@ async function handleThinking(payload, db, cors, env, ctx) {
     let blueskyWarning = null;
     if (env.BLUESKY_HANDLE && env.BLUESKY_APP_PASSWORD) {
       try {
-        let blueskyImage = null;
-        if (uploadedForBluesky) {
-          const prepared = await prepareBlueskyImage(
-            uploadedForBluesky,
-            payload.photo_bluesky
-          );
-          blueskyImage = prepared.image;
-          blueskyCompressed = prepared.compressed;
+        let blueskyImages = null;
+        if (uploadedPhotos.length) {
+          blueskyImages = [];
+          for (let i = 0; i < uploadedPhotos.length; i++) {
+            const uploaded = uploadedPhotos[i];
+            const prepared = await prepareBlueskyImage(
+              {
+                bytes: uploaded.bytes,
+                mimeType: uploaded.mimeType,
+                alt: mediaAlt,
+                aspectRatio: uploaded.aspectRatio,
+              },
+              photoBlueskyList[i] || null
+            );
+            blueskyImages.push(prepared.image);
+            if (prepared.compressed) blueskyCompressed = true;
+          }
         }
 
         // Try native video only for MP4. iPhone MOV must use a link card on Bluesky.
@@ -614,7 +637,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
         let blueskyLinkCard = null;
         if (isLinkOnlyThinkingMedia(mediaType)) {
           blueskyLinkCard = thinkingBlueskyLinkCard(postUrl, text, mediaType);
-        } else if (!blueskyImage && [...text].length > 300) {
+        } else if (!blueskyImages && [...text].length > 300) {
           const urlMatch = text.match(/https?:\/\/[^\s]+/);
           if (urlMatch) {
             const extractedUrl = urlMatch[0].replace(/[.,;:!?)"']+$/, "");
@@ -643,7 +666,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
           env.BLUESKY_HANDLE,
           env.BLUESKY_APP_PASSWORD,
           blueskyText,
-          blueskyImage,
+          blueskyImages,
           blueskyLinkCard,
           blueskyVideo
         );
@@ -660,8 +683,13 @@ async function handleThinking(payload, db, cors, env, ctx) {
         let mastodonMedia = null;
         let mastodonText;
 
-        if (mediaType === "image" && uploadedForBluesky) {
-          mastodonMedia = { bytes: uploadedForBluesky.bytes, mimeType: uploadedForBluesky.mimeType, alt: uploadedForBluesky.alt, mediaType: "image" };
+        if (mediaType === "image" && uploadedPhotos.length) {
+          mastodonMedia = uploadedPhotos.map((u) => ({
+            bytes: u.bytes,
+            mimeType: u.mimeType,
+            alt: mediaAlt,
+            mediaType: "image",
+          }));
           mastodonText = thinkingSyndicationTextWithPermalink(text, postUrl);
         } else if ((mediaType === "audio" || mediaType === "video") && syndicationMedia) {
           const mediaBytes = await getMediaBytesForSyndication(env, syndicationMedia, MAX_MASTODON_MEDIA_BYTES);
@@ -682,16 +710,26 @@ async function handleThinking(payload, db, cors, env, ctx) {
       }
     }
 
-    const contentHtml = renderThinkingContentHtml(text, mediaUrl, mediaAlt, mediaType, SITE_URL);
+    const mediaUrlsJson =
+      mediaType === "image" && mediaUrls.length > 1 ? JSON.stringify(mediaUrls) : null;
+    const contentHtml = renderThinkingContentHtml(
+      text,
+      mediaUrl,
+      mediaAlt,
+      mediaType,
+      SITE_URL,
+      { mediaUrls: mediaType === "image" ? mediaUrls : [] }
+    );
     await dbRun(
       db,
-      `INSERT INTO thinking_posts (slug, text, media_url, media_alt, media_type, content_html, datetime, microblog_url, bluesky_uri, mastodon_uri, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO thinking_posts (slug, text, media_url, media_alt, media_type, media_urls, content_html, datetime, microblog_url, bluesky_uri, mastodon_uri, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(slug) DO UPDATE SET
          text = excluded.text,
          media_url = excluded.media_url,
          media_alt = excluded.media_alt,
          media_type = excluded.media_type,
+         media_urls = excluded.media_urls,
          content_html = excluded.content_html,
          microblog_url = COALESCE(excluded.microblog_url, thinking_posts.microblog_url),
          bluesky_uri = COALESCE(excluded.bluesky_uri, thinking_posts.bluesky_uri),
@@ -702,6 +740,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
       mediaUrl,
       mediaAlt,
       mediaType || null,
+      mediaUrlsJson,
       contentHtml,
       nowIso,
       microblogUrl,
@@ -718,6 +757,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
         ok: true,
         text,
         mediaUrl,
+        mediaUrls: mediaUrls.length ? mediaUrls : undefined,
         microblogWarning,
         blueskyWarning,
         blueskyCompressed,
@@ -1229,18 +1269,27 @@ async function imageAspectRatio(bytes, mimeType) {
   }
 }
 
-async function postToMicroblog(token, content, photoFile = null, audioUrl = null, videoUrl = null) {
-  if (photoFile) {
-    const mimeType = photoFile.type || "image/jpeg";
-    const bytes = await photoFile.arrayBuffer();
+async function postToMicroblog(token, content, photoFiles = null, audioUrl = null, videoUrl = null) {
+  const photos = Array.isArray(photoFiles)
+    ? photoFiles.filter(Boolean)
+    : photoFiles
+      ? [photoFiles]
+      : [];
+
+  if (photos.length) {
     const fd = new FormData();
     fd.append("h", "entry");
     if (content) fd.append("content", content);
-    fd.append(
-      "photo",
-      new Blob([bytes], { type: mimeType }),
-      `photo.${IMAGE_EXT[mimeType] || "jpg"}`
-    );
+    for (let i = 0; i < photos.length; i++) {
+      const photoFile = photos[i];
+      const mimeType = photoFile.type || "image/jpeg";
+      const bytes = await photoFile.arrayBuffer();
+      fd.append(
+        "photo[]",
+        new Blob([bytes], { type: mimeType }),
+        `photo${i + 1}.${IMAGE_EXT[mimeType] || "jpg"}`
+      );
+    }
 
     const res = await fetch("https://micro.blog/micropub", {
       method: "POST",
@@ -1409,32 +1458,35 @@ async function postToBluesky(handle, appPassword, content, image = null, linkCar
 
   addHashtagFacets(text, facets, enc);
 
-  let embed;
-  if (image) {
-    const byteLength = image.bytes?.byteLength ?? 0;
+  const images = Array.isArray(image) ? image.filter(Boolean) : image ? [image] : [];
 
-    const blobRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessJwt}`,
-        "Content-Type": image.mimeType,
-      },
-      body: image.bytes,
-    });
-    if (!blobRes.ok) {
-      const err = await blobRes.text();
-      throw new Error(blueskyImageError(byteLength, blobRes.status, err));
+  let embed;
+  if (images.length) {
+    const embedImages = [];
+    for (const img of images.slice(0, MAX_THINKING_PHOTOS)) {
+      const byteLength = img.bytes?.byteLength ?? 0;
+      const blobRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessJwt}`,
+          "Content-Type": img.mimeType,
+        },
+        body: img.bytes,
+      });
+      if (!blobRes.ok) {
+        const err = await blobRes.text();
+        throw new Error(blueskyImageError(byteLength, blobRes.status, err));
+      }
+      const { blob } = await blobRes.json();
+      embedImages.push({
+        alt: img.alt || "",
+        image: blob,
+        aspectRatio: img.aspectRatio,
+      });
     }
-    const { blob } = await blobRes.json();
     embed = {
       $type: "app.bsky.embed.images",
-      images: [
-        {
-          alt: image.alt || "",
-          image: blob,
-          aspectRatio: image.aspectRatio,
-        },
-      ],
+      images: embedImages,
     };
   } else if (video) {
     embed = await blueskyVideoEmbed(accessJwt, video);
@@ -1622,21 +1674,23 @@ async function deleteFromBluesky(handle, appPassword, uri) {
 }
 
 /**
- * Post a status to Mastodon, optionally attaching a media file.
- * `media` may be { bytes, mimeType, alt, mediaType: 'image'|'audio'|'video' }.
- * Images, audio, and video are all uploaded via /api/v1/media before posting.
+ * Post a status to Mastodon, optionally attaching media file(s).
+ * `media` may be a single { bytes, mimeType, alt, mediaType } or an array (images, max 4).
  */
 async function postToMastodon(instanceUrl, accessToken, content, media = null) {
-  let mediaId = null;
-  if (media && media.bytes) {
-    const mt = media.mediaType || "image";
+  const mediaItems = Array.isArray(media) ? media.filter(Boolean) : media ? [media] : [];
+  const mediaIds = [];
+
+  for (const item of mediaItems.slice(0, MAX_THINKING_PHOTOS)) {
+    if (!item.bytes) continue;
+    const mt = item.mediaType || "image";
     const ext =
-      mt === "audio" ? (AUDIO_EXT[media.mimeType] || "m4a") :
-      mt === "video" ? (VIDEO_EXT[media.mimeType] || "mp4") :
-      (IMAGE_EXT[media.mimeType] || "jpg");
+      mt === "audio" ? (AUDIO_EXT[item.mimeType] || "m4a") :
+      mt === "video" ? (VIDEO_EXT[item.mimeType] || "mp4") :
+      (IMAGE_EXT[item.mimeType] || "jpg");
     const fd = new FormData();
-    fd.append("file", new Blob([media.bytes], { type: media.mimeType }), `media.${ext}`);
-    if (media.alt) fd.append("description", media.alt.slice(0, 1500));
+    fd.append("file", new Blob([item.bytes], { type: item.mimeType }), `media.${ext}`);
+    if (item.alt) fd.append("description", item.alt.slice(0, 1500));
     const mediaRes = await fetch(`${instanceUrl}/api/v1/media`, {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -1649,7 +1703,7 @@ async function postToMastodon(instanceUrl, accessToken, content, media = null) {
       );
     }
     const mediaData = await mediaRes.json();
-    mediaId = mediaData.id;
+    const mediaId = mediaData.id;
 
     // Mastodon returns 202 for video/audio uploads that require async transcoding.
     // Poll GET /api/v1/media/:id until `url` is non-null before posting the status,
@@ -1673,6 +1727,7 @@ async function postToMastodon(instanceUrl, accessToken, content, media = null) {
         throw new Error("Media processing timed out — video was not ready in time.");
       }
     }
+    mediaIds.push(mediaId);
   }
 
   const chars = [...content];
@@ -1684,7 +1739,7 @@ async function postToMastodon(instanceUrl, accessToken, content, media = null) {
   }
 
   const body = { status };
-  if (mediaId) body.media_ids = [mediaId];
+  if (mediaIds.length) body.media_ids = mediaIds;
 
   const res = await fetch(`${instanceUrl}/api/v1/statuses`, {
     method: "POST",
