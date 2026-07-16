@@ -16,7 +16,7 @@ import { thinkingSlugFromIso } from "./lib/thinking-slug.mjs";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
 const outDir = join(root, process.env.BUILD_OUT_DIR || "dist");
-const cssV = new Date().toISOString().slice(0, 10);
+const cssV = `${new Date().toISOString().slice(0, 10)}-${Date.now().toString(36)}`;
 
 let data;
 if (d1Configured()) {
