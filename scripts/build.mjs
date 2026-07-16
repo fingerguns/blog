@@ -57,6 +57,8 @@ const portraitPhotoToggleScript = `    <script>(function(){function init(){docum
 
 const thinkingLightboxScript = `    <script>(function(){
   var overlay=null,imgEl=null,counterEl=null,urls=[],index=0;
+  var touchX=0,touchY=0,touchT=0,swiping=false;
+  var SWIPE_MIN=40;
   function ensure(){
     if(overlay)return;
     overlay=document.createElement("div");
@@ -65,7 +67,7 @@ const thinkingLightboxScript = `    <script>(function(){
     overlay.setAttribute("role","dialog");
     overlay.setAttribute("aria-modal","true");
     overlay.setAttribute("aria-label","Photo gallery");
-    overlay.innerHTML='<button type="button" class="thinking-lightbox-close" aria-label="Close">&times;</button><button type="button" class="thinking-lightbox-prev" aria-label="Previous photo">‹</button><figure class="thinking-lightbox-figure"><img alt="" /><figcaption class="thinking-lightbox-counter"></figcaption></figure><button type="button" class="thinking-lightbox-next" aria-label="Next photo">›</button>';
+    overlay.innerHTML='<button type="button" class="thinking-lightbox-close" aria-label="Close">&times;</button><button type="button" class="thinking-lightbox-prev" aria-label="Previous photo">‹</button><figure class="thinking-lightbox-figure"><img alt="" draggable="false" /><figcaption class="thinking-lightbox-counter"></figcaption></figure><button type="button" class="thinking-lightbox-next" aria-label="Next photo">›</button>';
     document.body.appendChild(overlay);
     imgEl=overlay.querySelector("img");
     counterEl=overlay.querySelector(".thinking-lightbox-counter");
@@ -79,6 +81,36 @@ const thinkingLightboxScript = `    <script>(function(){
       else if(e.key==="ArrowLeft")show(index-1);
       else if(e.key==="ArrowRight")show(index+1);
     });
+    overlay.addEventListener("touchstart",function(e){
+      if(overlay.hidden||urls.length<2||!e.touches||!e.touches.length)return;
+      touchX=e.touches[0].clientX;
+      touchY=e.touches[0].clientY;
+      touchT=Date.now();
+      swiping=true;
+    },{passive:true});
+    overlay.addEventListener("touchmove",function(e){
+      if(!swiping||!e.touches||!e.touches.length)return;
+      var dx=e.touches[0].clientX-touchX;
+      var dy=e.touches[0].clientY-touchY;
+      if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>12){
+        if(e.cancelable)e.preventDefault();
+      }
+    },{passive:false});
+    overlay.addEventListener("touchend",function(e){
+      if(!swiping)return;
+      swiping=false;
+      if(urls.length<2)return;
+      var t=e.changedTouches&&e.changedTouches[0];
+      if(!t)return;
+      var dx=t.clientX-touchX;
+      var dy=t.clientY-touchY;
+      var dt=Date.now()-touchT;
+      if(Math.abs(dx)<SWIPE_MIN||Math.abs(dx)<Math.abs(dy))return;
+      if(dt>800&&Math.abs(dx)<80)return;
+      if(dx<0)show(index+1);
+      else show(index-1);
+    },{passive:true});
+    overlay.addEventListener("touchcancel",function(){swiping=false;},{passive:true});
   }
   function show(i){
     if(!urls.length)return;

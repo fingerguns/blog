@@ -673,6 +673,9 @@ html.thinking-lightbox-open {
   height: auto;
   object-fit: contain;
   border-radius: 4px;
+  -webkit-user-drag: none;
+  user-select: none;
+  touch-action: pan-y;
 }
 
 .thinking-lightbox-counter {
