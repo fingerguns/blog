@@ -580,10 +580,26 @@ h2 {
   margin-top: 0.5rem;
 }
 
-.thinking-photo-tile {
+.thinking-photo-grid .thinking-photo-tile {
   display: block;
   width: 100%;
+  aspect-ratio: 1 / 1;
   margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.thinking-photo-tile--single {
+  display: block;
+  width: 100%;
+  margin: 0.5rem 0 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -593,19 +609,29 @@ h2 {
   color: inherit;
 }
 
-.thinking-photo-tile--single {
-  margin-top: 0.5rem;
+.thinking-photo-grid .thinking-photo-tile img.thinking-photo,
+.microblog-body .thinking-photo-grid .thinking-photo-tile img,
+.post .body .thinking-photo-grid .thinking-photo-tile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+  border-radius: 0;
+  object-fit: cover;
+  object-position: center;
 }
 
-.thinking-photo-tile img.thinking-photo,
-.microblog-body .thinking-photo-tile img,
-.post .body .thinking-photo-tile img {
+.thinking-photo-tile--single img.thinking-photo,
+.microblog-body .thinking-photo-tile--single img,
+.post .body .thinking-photo-tile--single img {
   display: block;
   width: 100%;
   max-width: 100%;
   height: auto;
   margin: 0;
   border-radius: 4px;
+  object-fit: unset;
 }
 
 html.thinking-lightbox-open {
