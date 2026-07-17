@@ -832,6 +832,51 @@ article.post {
   color: var(--link-hover);
 }
 
+/* Colophon: normal / Walt Whitman style toggle */
+.colophon-style-toggle {
+  margin: -0.35rem 0 1.5rem;
+}
+
+.colophon-style-toggle a {
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-underline-offset: 0.2em;
+}
+
+.colophon-style-toggle a:hover {
+  color: var(--link-hover);
+  text-decoration-color: currentColor;
+}
+
+#colophon-whitman {
+  display: none;
+}
+
+html[data-colophon="whitman"] #colophon-prose {
+  display: none;
+}
+
+html[data-colophon="whitman"] #colophon-whitman {
+  display: block;
+}
+
+.colophon-whitman p {
+  line-height: 1.7;
+}
+
+.colophon-whitman-title {
+  font-style: italic;
+  font-size: 1.05rem;
+  margin-bottom: 1.1rem;
+}
+
+.colophon-whitman em {
+  color: var(--muted);
+  font-style: italic;
+}
+
 .thinking-crumb {
   margin: 0 0 1.25rem;
   padding-bottom: 1.25rem;
