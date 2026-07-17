@@ -539,7 +539,7 @@ h2 {
 .thinking-delete-status.ok { color: var(--text); }
 .thinking-delete-status.err { color: #b44; }
 [data-theme="dark"] .thinking-delete-status.err { color: #e88; }
-.microblog-body p  { margin: 0 0 0.65rem; line-height: 1.65; }
+.microblog-body p  { margin: 0 0 0.65rem; line-height: 1.65; overflow-wrap: anywhere; }
 .microblog-body p:last-child { margin-bottom: 0; }
 .microblog-entry time:not(.thinking-crumb-date) { margin-top: 0.75rem; display: block; }
 .microblog-body img {
