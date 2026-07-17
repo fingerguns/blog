@@ -672,7 +672,6 @@ html.thinking-lightbox-open {
   width: auto;
   height: auto;
   object-fit: contain;
-  border-radius: 4px;
   -webkit-user-drag: none;
   user-select: none;
   touch-action: pan-y;
@@ -729,6 +728,53 @@ html.thinking-lightbox-open {
 
 .thinking-lightbox-next {
   right: 0.5rem;
+}
+
+@media (max-width: 600px) {
+  .thinking-lightbox {
+    padding: 0;
+  }
+
+  .thinking-lightbox-figure {
+    width: 100%;
+    max-width: 100vw;
+    max-height: 100vh;
+    gap: 0.5rem;
+  }
+
+  .thinking-lightbox-figure img {
+    max-width: 100vw;
+    max-height: 100vh;
+  }
+
+  .thinking-lightbox-counter {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0.5rem;
+    text-align: center;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  }
+
+  .thinking-lightbox-close,
+  .thinking-lightbox-prev,
+  .thinking-lightbox-next {
+    background: rgba(0, 0, 0, 0.35);
+    border-radius: 50%;
+  }
+
+  .thinking-lightbox-close {
+    top: 0.5rem;
+    right: 0.5rem;
+  }
+
+  .thinking-lightbox-prev {
+    left: 0.25rem;
+  }
+
+  .thinking-lightbox-next {
+    right: 0.25rem;
+  }
 }
 
 .microblog-body audio.thinking-audio,
