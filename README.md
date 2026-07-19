@@ -12,11 +12,12 @@ Built with [Cursor](https://cursor.com). See the [colophon](https://rommy.blog/c
 - **Photo gallery** — 2–4 Thinking photos render as a cropped, equal-size 2×2 grid; click opens a full-viewport lightbox with prev/next, keyboard arrows, and infinite swipe on mobile
 - **Admin** — Password-protected UI at `/admin/` (Thinking, Writing, Reading, Sharing, Login)
 - **Cross-posting** — Thinking can publish to [Micro.blog](https://micro.blog) (Micropub), [Bluesky](https://bsky.app), and [Mastodon](https://joinmastodon.org) when configured; photos, audio, and video render as native attachments/players in each feed (see [Audio & Video Syndication](#audio--video-syndication) below), with the Thinking permalink included in the syndicated text alongside native media
-- **Comments** — [Remark42](https://remark42.com) on Writing posts (`comments.rommy.blog`)
+- **Comments** — [Webmentions](https://webmention.io) on Writing posts: incoming likes, reposts, and replies are received by webmention.io and rendered client-side; [Bridgy](https://brid.gy) bridges Mastodon replies/boosts back in
 - **Writing editor** — [Quill](https://quilljs.com/) with image upload, text wrap (left / right / center / full), drafts, and post version history
 - **Social previews** — Open Graph / Twitter meta on Writing and Thinking permalinks (first in-post image when available)
 - **Plain links in Thinking** — URLs in notes are normal hyperlinks on the site (no on-site unfurl cards)
 - **Changelog** — Generated from Git history at build time
+- **Colophon** — [`/colophon/`](https://rommy.blog/colophon/) describes how the site is built, with an optional toggle to read it in the style of Walt Whitman
 
 ## Architecture
 
@@ -38,11 +39,11 @@ Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on the
 |------|---------|
 | `admin/` | Admin UI (static HTML + JS) |
 | `scripts/build.mjs` | Regenerates site into `dist/` |
-| `scripts/lib/` | Shared HTML, slug, thinking, and Remark42 helpers (build + Worker) |
+| `scripts/lib/` | Shared HTML, slug, thinking, linkify, and media-URL helpers (build + Worker) |
 | `scripts/d1-client.mjs` | D1 queries for local/Pages builds |
 | `build-pages.mjs` | Cloudflare Pages entrypoint (git unshallow + build) |
 | `worker/` | Cloudflare Worker (`update-thinking.js`) — admin API |
-| `remark42/` | Remark42 server config, theme CSS, Docker / Fly deploy |
+| `remark42/` | Legacy Remark42 server config, theme CSS, Docker / Fly deploy — unused now that Writing comments run on Webmentions, kept for reference |
 | `data/posts.json` | Legacy fallback if D1 env vars are not set |
 | `styles.css` | Site styles (light/dark) |
 | `about/`, `admin/`, `colophon/`, `contact/` | Hand-authored static pages (copied into `dist/` at build) |
@@ -72,7 +73,7 @@ Reads from D1 when these env vars are set:
 
 Without them, the build falls back to `data/posts.json`.
 
-**Remark42** (Writing comments): see [`remark42/README.md`](remark42/README.md). Embed is on by default (`REMARK42_HOST=https://comments.rommy.blog`); set `REMARK42_DISABLED=1` to omit.
+**Comments** on Writing posts use [Webmentions](https://webmention.io) — no server or env vars required. Each post page emits a `<link rel="webmention">` tag and fetches `https://webmention.io/api/mentions.jf2` client-side to render likes/reposts as avatars and replies as comments. [Bridgy](https://brid.gy) forwards Mastodon replies and boosts into webmention.io so they show up too.
 
 To preview the admin UI locally against the Worker:
 
@@ -146,7 +147,7 @@ wrangler deploy
 - Up to **4 photos** per Thinking post (mutually exclusive with audio/video); each is compressed independently
 - Up to **5 MB** per photo on rommy.blog and Micro.blog (JPEG, PNG, WebP, GIF)
 - Bluesky gets a compressed JPEG per photo when the original is over **2 MB**
-- **Thinking gallery:** 1 photo renders full width; 2–4 photos render as an equal-size, cropped 2×2 grid at the blog's content width (no letterboxing). Clicking any photo opens a same-page lightbox — full-viewport width, prev/next buttons, `←`/`→`/`Esc`, and swipe-to-navigate on mobile, wrapping at both ends — used identically on the homepage, `/thinking/` archive, and permalinks
+- **Thinking gallery:** 1 photo renders full width; 2–4 photos render as an equal-size, cropped 2×2 grid at the blog's content width (no letterboxing). Clicking any photo opens a same-page lightbox — full-viewport width, prev/next buttons, `←`/`→`/`Esc`, and swipe-to-navigate on mobile, wrapping at both ends — used identically on the homepage, `/thinking/` archive, and permalinks. On phones (including landscape orientation), lightbox photos render edge-to-edge with no corner rounding
 - On Writing posts, portrait-oriented photos default to half width; click to expand/collapse
 
 ## Audio & Video Syndication
