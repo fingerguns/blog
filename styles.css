@@ -616,10 +616,9 @@ h2 {
   color: inherit;
 }
 
-/* Single portrait photo: shrink to a fixed width instead of filling the blog. */
+/* Single portrait photo: shrink to roughly a 2-photo-grid tile's width instead of filling the blog. */
 .thinking-photo-tile--single.thinking-photo--portrait {
-  width: 224px;
-  max-width: 224px;
+  width: calc((100% - 0.5rem) / 2);
   margin: 0.5rem auto 0;
 }
 
