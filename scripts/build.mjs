@@ -145,31 +145,6 @@ const thinkingLightboxScript = `    <script>(function(){
     var start=parseInt(btn.getAttribute("data-gallery-index")||"0",10)||0;
     open(list,start);
   }
-  function initOrientation(){
-    document.querySelectorAll(".thinking-photo-tile--single img.thinking-photo").forEach(function(img){
-      if(img.dataset.oriInit)return;
-      function setup(){
-        var w=img.naturalWidth,h=img.naturalHeight;
-        if(!w||!h)return;
-        img.dataset.oriInit="1";
-        if(h>w){
-          var tile=img.closest(".thinking-photo-tile--single");
-          if(tile)tile.classList.add("thinking-photo--portrait");
-        }
-      }
-      if(img.complete)setup();else img.addEventListener("load",setup,{once:true});
-    });
-    document.querySelectorAll("video.thinking-video").forEach(function(v){
-      if(v.dataset.oriInit)return;
-      function setup(){
-        var w=v.videoWidth,h=v.videoHeight;
-        if(!w||!h)return;
-        v.dataset.oriInit="1";
-        if(h>w)v.classList.add("thinking-video--portrait");
-      }
-      if(v.readyState>=1)setup();else v.addEventListener("loadedmetadata",setup,{once:true});
-    });
-  }
   function init(){
     document.addEventListener("click",function(e){
       var btn=e.target.closest(".thinking-photo-tile");
@@ -177,7 +152,6 @@ const thinkingLightboxScript = `    <script>(function(){
       e.preventDefault();
       onActivate(btn);
     });
-    initOrientation();
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
 }());</script>`;

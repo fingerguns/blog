@@ -615,13 +615,6 @@ h2 {
   font: inherit;
   color: inherit;
 }
-
-/* Single portrait photo: shrink to roughly a 2-photo-grid tile's width instead of filling the blog. */
-.thinking-photo-tile--single.thinking-photo--portrait {
-  width: calc((100% - 0.5rem) / 2);
-  margin: 0.5rem auto 0;
-}
-
 .thinking-photo-grid .thinking-photo-tile img.thinking-photo,
 .microblog-body .thinking-photo-grid .thinking-photo-tile img,
 .post .body .thinking-photo-grid .thinking-photo-tile img {
@@ -805,14 +798,6 @@ html.thinking-lightbox-open {
   margin: 0.75rem 0 0;
   border-radius: 4px;
   background: var(--bg);
-}
-
-/* Portrait video: shrink to roughly a 2-photo-grid tile's width instead of filling the blog. */
-.microblog-body video.thinking-video.thinking-video--portrait,
-.post .body video.thinking-video.thinking-video--portrait {
-  width: calc((100% - 0.5rem) / 2);
-  max-width: calc((100% - 0.5rem) / 2);
-  margin: 0.75rem auto 0;
 }
 .post-list .microblog-body a,
 .microblog-body a {
