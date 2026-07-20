@@ -159,6 +159,16 @@ const thinkingLightboxScript = `    <script>(function(){
       }
       if(img.complete)setup();else img.addEventListener("load",setup,{once:true});
     });
+    document.querySelectorAll("video.thinking-video").forEach(function(v){
+      if(v.dataset.oriInit)return;
+      function setup(){
+        var w=v.videoWidth,h=v.videoHeight;
+        if(!w||!h)return;
+        v.dataset.oriInit="1";
+        if(h>w)v.classList.add("thinking-video--portrait");
+      }
+      if(v.readyState>=1)setup();else v.addEventListener("loadedmetadata",setup,{once:true});
+    });
   }
   function init(){
     document.addEventListener("click",function(e){
