@@ -596,6 +596,13 @@ h2 {
   border-radius: 4px;
 }
 
+/* Exactly three photos: center the lone third tile on its own row. */
+.thinking-photo-grid .thinking-photo-tile:nth-child(3):last-child {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: calc((100% - 0.5rem) / 2);
+}
+
 .thinking-photo-tile--single {
   display: block;
   width: 100%;
@@ -607,6 +614,13 @@ h2 {
   text-align: left;
   font: inherit;
   color: inherit;
+}
+
+/* Single portrait photo: shrink to a fixed width instead of filling the blog. */
+.thinking-photo-tile--single.thinking-photo--portrait {
+  width: 224px;
+  max-width: 224px;
+  margin: 0.5rem auto 0;
 }
 
 .thinking-photo-grid .thinking-photo-tile img.thinking-photo,
