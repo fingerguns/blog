@@ -1,6 +1,7 @@
 import { escHtml } from "./html.mjs";
 import { linkifyThinkingEscapedHtml } from "./linkify.mjs";
 import { toSiteMediaUrl } from "./media-url.mjs";
+import { extractYouTubeEmbeds } from "./youtube.mjs";
 
 export function inferMediaType(mediaUrl, mediaType) {
   if (mediaType === "audio" || mediaType === "image" || mediaType === "video") return mediaType;
@@ -46,6 +47,17 @@ function renderPhotoGallery(urls, mediaAlt) {
   return `<div class="thinking-photo-grid" data-gallery>${tiles}</div>`;
 }
 
+function renderYouTubeEmbed({ id, start }) {
+  const src = `https://www.youtube-nocookie.com/embed/${id}${start ? `?start=${start}` : ""}`;
+  return (
+    `<div class="thinking-youtube">` +
+      `<iframe src="${escHtml(src)}" title="YouTube video player" loading="lazy" ` +
+        `allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" ` +
+        `referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>` +
+    `</div>`
+  );
+}
+
 export function renderThinkingContentHtml(
   text,
   mediaUrl,
@@ -69,6 +81,9 @@ export function renderThinkingContentHtml(
     for (const para of t.split(/\n\n+/).filter(Boolean)) {
       const inner = linkifyThinkingEscapedHtml(escHtml(para).replace(/\n/g, "<br>"));
       parts.push(`<p>${inner}</p>`);
+    }
+    for (const embed of extractYouTubeEmbeds(t)) {
+      parts.push(renderYouTubeEmbed(embed));
     }
   }
   if (resolvedUrl && type === "audio") {
