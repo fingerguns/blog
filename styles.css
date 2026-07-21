@@ -799,6 +799,27 @@ html.thinking-lightbox-open {
   border-radius: 4px;
   background: var(--bg);
 }
+.microblog-body .thinking-youtube,
+.post .body .thinking-youtube {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  margin: 0.75rem 0 0;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg);
+}
+.microblog-body .thinking-youtube iframe,
+.post .body .thinking-youtube iframe {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
 .post-list .microblog-body a,
 .microblog-body a {
   color: var(--link);
