@@ -67,8 +67,6 @@ const IMAGE_EXT = {
   "image/webp": "webp",
   "image/gif": "gif",
 };
-// Only allow the Worker to fetch GIFs from Giphy's own CDN (no open proxy/SSRF).
-const GIPHY_URL_PATTERN = /^https:\/\/[a-z0-9-]+\.giphy\.com\//i;
 const AUDIO_EXT = {
   "audio/mp4": "m4a",
   "audio/x-m4a": "m4a",
@@ -498,7 +496,7 @@ function blueskySupportsNativeVideo(mimeType) {
 
 async function handleThinking(payload, db, cors, env, ctx) {
   const text = typeof payload.text === "string" ? payload.text.trim() : "";
-  let photos = Array.isArray(payload.photos)
+  const photos = Array.isArray(payload.photos)
     ? payload.photos.filter(Boolean).slice(0, MAX_THINKING_PHOTOS)
     : payload.photo
       ? [payload.photo]
@@ -512,21 +510,16 @@ async function handleThinking(payload, db, cors, env, ctx) {
   const video = payload.video || null;
   const videoKey =
     typeof payload.video_key === "string" ? payload.video_key.trim() : "";
-  const giphyUrl =
-    typeof payload.giphy_url === "string" ? payload.giphy_url.trim() : "";
   const hasPhotos = photos.length > 0;
 
-  if (!text && !hasPhotos && !audio && !video && !videoKey && !giphyUrl) {
-    return json({ error: "Add text, a photo, a GIF, audio, or video" }, 400, cors);
+  if (!text && !hasPhotos && !audio && !video && !videoKey) {
+    return json({ error: "Add text, a photo, audio, or video" }, 400, cors);
   }
-  if ([hasPhotos, audio, video, videoKey, giphyUrl].filter(Boolean).length > 1) {
-    return json({ error: "Add photos, a GIF, audio, or video — not more than one kind" }, 400, cors);
+  if ([hasPhotos, audio, video, videoKey].filter(Boolean).length > 1) {
+    return json({ error: "Add photos, audio, or video — not more than one kind" }, 400, cors);
   }
   if (photos.length > MAX_THINKING_PHOTOS) {
     return json({ error: `At most ${MAX_THINKING_PHOTOS} photos per post` }, 400, cors);
-  }
-  if (giphyUrl && !GIPHY_URL_PATTERN.test(giphyUrl)) {
-    return json({ error: "Invalid Giphy URL" }, 400, cors);
   }
   if (text.length > 2000) {
     return json({ error: "Text must be 2000 characters or fewer" }, 400, cors);
@@ -549,11 +542,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
     // syndicationMedia holds R2 upload metadata for audio/video syndication.
     let syndicationMedia = null;
 
-    if (giphyUrl) {
-      photos = [await fetchGiphyPhoto(giphyUrl)];
-    }
-
-    if (photos.length) {
+    if (hasPhotos) {
       for (const photo of photos) {
         const uploaded = await uploadPhotoToR2(env, photo, "thinking");
         uploadedPhotos.push(uploaded);
@@ -561,7 +550,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
       }
       mediaUrls = uploadedPhotos.map((u) => u.url);
       mediaUrl = mediaUrls[0];
-      mediaAlt = text.slice(0, 1000) || (giphyUrl ? "GIF" : "Photo");
+      mediaAlt = text.slice(0, 1000) || "Photo";
       mediaType = "image";
     } else if (audio) {
       const uploaded = await uploadAudioToR2(env, audio);
@@ -1030,26 +1019,6 @@ async function handleUploadMedia(payload, cors, env) {
   } catch (err) {
     return json({ error: formatServiceError("rommy.blog", err.message) }, 500, cors);
   }
-}
-
-/** Fetch a Giphy-picked GIF server-side and wrap it as a File for the normal photo pipeline. */
-async function fetchGiphyPhoto(giphyUrl) {
-  const res = await fetch(giphyUrl);
-  if (!res.ok) {
-    throw new Error(`Could not fetch the selected GIF from Giphy (HTTP ${res.status}).`);
-  }
-  const contentType = (res.headers.get("content-type") || "image/gif")
-    .split(";")[0]
-    .trim()
-    .toLowerCase();
-  if (contentType !== "image/gif") {
-    throw new Error(`Giphy did not return a GIF (got ${contentType || "unknown type"}).`);
-  }
-  const bytes = await res.arrayBuffer();
-  if (bytes.byteLength > MAX_PHOTO_INPUT_BYTES) {
-    throw new Error("Selected GIF is too large.");
-  }
-  return new File([bytes], "giphy.gif", { type: "image/gif" });
 }
 
 async function uploadPhotoToR2(env, file, folder = "writing") {

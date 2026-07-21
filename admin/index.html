@@ -286,134 +286,10 @@
         color: var(--link-hover);
         opacity: 0.85;
       }
-      .admin-form .thinking-photo-upload button.thinking-photo-icon-btn {
-        display: grid;
-        place-items: center;
-        flex-shrink: 0;
-        width: 1rem;
-        height: 1rem;
-        margin: 0;
-        padding: 0;
-        font-size: inherit;
-        font-weight: inherit;
-        letter-spacing: normal;
-        text-transform: none;
-        color: var(--text);
-        background: transparent;
-        border: none;
-        border-radius: 0;
-        cursor: pointer;
-      }
-      .admin-form .thinking-photo-upload button.thinking-photo-icon-btn:hover {
-        color: var(--link-hover);
-        opacity: 0.85;
-      }
       .thinking-photo-icon-btn svg {
         display: block;
         width: 1rem;
         height: 1rem;
-      }
-      .thinking-gif-panel {
-        position: fixed;
-        inset: 0;
-        z-index: 60;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 1.25rem;
-        background: color-mix(in srgb, black 55%, transparent);
-      }
-      .thinking-gif-panel-inner {
-        display: flex;
-        flex-direction: column;
-        width: 100%;
-        max-width: 26rem;
-        max-height: min(32rem, 85vh);
-        background: var(--bg);
-        border: 1px solid color-mix(in srgb, var(--muted) 35%, transparent);
-        border-radius: 6px;
-        padding: 0.85rem;
-        box-shadow: 0 12px 30px color-mix(in srgb, black 30%, transparent);
-      }
-      .thinking-gif-panel-header {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin: 0 0 0.6rem;
-      }
-      .thinking-gif-panel-header input {
-        flex: 1;
-        min-width: 0;
-        margin: 0;
-      }
-      .thinking-gif-panel-close {
-        flex-shrink: 0;
-        align-self: stretch;
-        width: 2rem;
-        display: grid;
-        place-items: center;
-        font-size: 1.3rem;
-        line-height: 1;
-        color: var(--text);
-        background: transparent;
-        border: none;
-        cursor: pointer;
-      }
-      .thinking-gif-panel-close:hover {
-        color: var(--muted);
-      }
-      .thinking-gif-status {
-        font-size: 0.75rem;
-        color: var(--muted);
-        margin: 0 0 0.5rem;
-        min-height: 1rem;
-      }
-      .thinking-gif-results {
-        display: flex;
-        flex-wrap: wrap;
-        align-content: flex-start;
-        gap: 0.4rem;
-        overflow-y: auto;
-        flex: 1;
-        min-height: 0;
-      }
-      .thinking-gif-result {
-        display: block;
-        flex: 0 0 auto;
-        height: 4.75rem;
-        padding: 0;
-        margin: 0;
-        border: 1px solid transparent;
-        border-radius: 4px;
-        background: color-mix(in srgb, var(--muted) 8%, transparent);
-        cursor: pointer;
-        overflow: hidden;
-      }
-      .thinking-gif-result:hover,
-      .thinking-gif-result:focus-visible {
-        border-color: var(--link-hover);
-      }
-      .thinking-gif-result img {
-        display: block;
-        height: 100%;
-        width: auto;
-      }
-      .thinking-gif-attribution {
-        margin: 0.6rem 0 0;
-        font-size: 0.7rem;
-        color: var(--muted);
-        text-align: center;
-      }
-      .thinking-gif-preview-wrap {
-        position: relative;
-        display: inline-block;
-        margin: 0 0 1.25rem;
-      }
-      .thinking-gif-preview-wrap img {
-        display: block;
-        max-width: 100%;
-        max-height: 240px;
-        border-radius: 4px;
       }
       .thinking-photo-name {
         display: flex;
@@ -764,7 +640,7 @@
 
         <form class="admin-form" id="thinking-form">
           <label for="t-text">Thought</label>
-          <textarea id="t-text" placeholder="What's on your mind? (optional if you add photos, a GIF, audio, or video)"></textarea>
+          <textarea id="t-text" placeholder="What's on your mind? (optional if you add photos, audio, or video)"></textarea>
 
           <div class="thinking-meta-row">
             <div class="thinking-media-pickers">
@@ -822,17 +698,6 @@
                 <span id="t-video-name" class="thinking-photo-name">No video</span>
               </div>
             </div>
-            <div class="thinking-photo-upload">
-              <div class="thinking-photo-picker">
-                <button type="button" id="t-gif-btn" class="thinking-photo-icon-btn" title="Add a GIF (via Giphy)" aria-label="Add a GIF via Giphy">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
-                    <rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"></rect>
-                    <text x="12" y="15.5" font-size="7.5" font-weight="700" text-anchor="middle" fill="currentColor" font-family="sans-serif">GIF</text>
-                  </svg>
-                </button>
-                <span id="t-gif-name" class="thinking-photo-name">No GIF</span>
-              </div>
-            </div>
             </div>
             <p id="t-char-count" class="thinking-char-count" aria-live="polite">0 / 300</p>
           </div>
@@ -841,22 +706,7 @@
           <img id="t-photo-preview" class="thinking-photo-preview" alt="" hidden />
           <audio id="t-audio-preview" class="thinking-audio-preview" controls hidden></audio>
           <video id="t-video-preview" class="thinking-video-preview" controls playsinline hidden></video>
-          <div id="t-gif-preview-wrap" class="thinking-gif-preview-wrap" hidden>
-            <img id="t-gif-preview" alt="" />
-          </div>
           <button type="button" class="admin-secondary-btn" id="t-media-remove" hidden>Remove media</button>
-
-          <div id="t-gif-panel" class="thinking-gif-panel" hidden>
-            <div class="thinking-gif-panel-inner">
-              <div class="thinking-gif-panel-header">
-                <input id="t-gif-search" type="text" placeholder="Search Giphy…" autocomplete="off" />
-                <button type="button" id="t-gif-panel-close" class="thinking-gif-panel-close" aria-label="Close GIF search">×</button>
-              </div>
-              <p id="t-gif-status" class="thinking-gif-status"></p>
-              <div id="t-gif-results" class="thinking-gif-results"></div>
-              <p class="thinking-gif-attribution">Powered by GIPHY</p>
-            </div>
-          </div>
 
           <button type="submit" id="t-submit">Save</button>
           <div id="t-upload-progress" class="thinking-upload-progress" hidden>
@@ -976,12 +826,6 @@
         }
         return "/api/admin";
       })();
-
-      // Giphy client-facing search key (Giphy requires the Search API be called
-      // client-side). This page is behind Cloudflare Access, but treat the key
-      // as public-ish anyway — never put a server/secret Giphy key here.
-      // Get one at https://developers.giphy.com/dashboard/.
-      const GIPHY_API_KEY = "DsPRv7YOJErr9fCJPKeNNrTmVsc5XYeQ";
 
       // ── Session (memory + optional 30-day remember-me on this device) ───────
 
@@ -1647,7 +1491,7 @@
         return data;
       }
 
-      async function callThinkingAPI(text, photoFiles, blueskyPhotoFiles, audioFile, videoFile, giphyUrl, onProgress) {
+      async function callThinkingAPI(text, photoFiles, blueskyPhotoFiles, audioFile, videoFile, onProgress) {
         var pw = loadSession();
         if (!pw) throw new Error("You need to be signed in. Go to the Login tab.");
         if (videoFile) {
@@ -1673,12 +1517,10 @@
           if (!res.ok) throw new Error(data.error || "Request failed");
           return data;
         }
-        var body = { password: pw, action: "thinking", text: text };
-        if (giphyUrl) body.giphy_url = giphyUrl;
         var res = await fetch(API_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+          body: JSON.stringify({ password: pw, action: "thinking", text: text }),
         });
         var data = await res.json();
         if (!res.ok) throw new Error(data.error || "Request failed");
@@ -1707,19 +1549,6 @@
         var videoName = document.getElementById("t-video-name");
         var photoPreviewUrls = [];
 
-        var gifBtn = document.getElementById("t-gif-btn");
-        var gifName = document.getElementById("t-gif-name");
-        var gifPanel = document.getElementById("t-gif-panel");
-        var gifPanelClose = document.getElementById("t-gif-panel-close");
-        var gifSearchInput = document.getElementById("t-gif-search");
-        var gifResults = document.getElementById("t-gif-results");
-        var gifStatus = document.getElementById("t-gif-status");
-        var gifPreviewWrap = document.getElementById("t-gif-preview-wrap");
-        var gifPreview = document.getElementById("t-gif-preview");
-        var selectedGif = null;
-        var gifSearchTimer = null;
-        var gifSearchSeq = 0;
-
         function selectedPhotoFiles() {
           if (!photoInput.files || !photoInput.files.length) return [];
           return Array.prototype.slice.call(photoInput.files, 0, MAX_THINKING_PHOTOS);
@@ -1729,8 +1558,7 @@
           return !!(
             selectedPhotoFiles().length ||
             (audioInput.files && audioInput.files[0]) ||
-            (videoInput.files && videoInput.files[0]) ||
-            selectedGif
+            (videoInput.files && videoInput.files[0])
           );
         }
 
@@ -1800,7 +1628,6 @@
           videoPreview.hidden = true;
           videoPreview.removeAttribute("src");
           revokeVideoPreviewUrl();
-          clearGifSelection();
           mediaRemove.hidden = true;
           photoWarn.hidden = true;
           photoWarn.textContent = "";
@@ -1834,13 +1661,6 @@
           if (videoName) videoName.textContent = "No video";
         }
 
-        function clearGifSelection() {
-          selectedGif = null;
-          if (gifPreviewWrap) gifPreviewWrap.hidden = true;
-          if (gifPreview) gifPreview.removeAttribute("src");
-          if (gifName) gifName.textContent = "No GIF";
-        }
-
         mediaRemove.addEventListener("click", clearThinkingMedia);
 
         photoInput.addEventListener("change", function () {
@@ -1852,7 +1672,6 @@
           }
           clearAudioSelection();
           clearVideoSelection();
-          clearGifSelection();
           var files = allFiles.slice(0, MAX_THINKING_PHOTOS);
           renderPhotoPreviews(files);
           audioPreview.hidden = true;
@@ -1906,7 +1725,6 @@
           }
           clearPhotoSelection();
           clearVideoSelection();
-          clearGifSelection();
           preview.hidden = true;
           if (audioPreview._objectUrl) URL.revokeObjectURL(audioPreview._objectUrl);
           audioPreview._objectUrl = URL.createObjectURL(file);
@@ -1937,7 +1755,6 @@
           }
           clearPhotoSelection();
           clearAudioSelection();
-          clearGifSelection();
           if (!isAllowedThinkingVideo(file)) {
             clearVideoSelection();
             photoWarn.textContent = "Use MP4 or MOV (iPhone camera / Photos).";
@@ -1965,144 +1782,18 @@
           }
         });
 
-        function giphyRenditionUrl(item, size) {
-          return item && item.images && item.images[size] && item.images[size].url;
-        }
-
-        function setGifStatus(text) {
-          if (gifStatus) gifStatus.textContent = text || "";
-        }
-
-        function renderGifResults(items) {
-          if (!gifResults) return;
-          gifResults.innerHTML = "";
-          items.forEach(function (item) {
-            var thumbUrl =
-              giphyRenditionUrl(item, "fixed_height_small") || giphyRenditionUrl(item, "preview_gif");
-            var fullUrl = giphyRenditionUrl(item, "downsized") || giphyRenditionUrl(item, "fixed_height");
-            if (!thumbUrl || !fullUrl) return;
-            var btn = document.createElement("button");
-            btn.type = "button";
-            btn.className = "thinking-gif-result";
-            var img = document.createElement("img");
-            img.src = thumbUrl;
-            img.loading = "lazy";
-            img.alt = item.title || "GIF";
-            btn.appendChild(img);
-            btn.addEventListener("click", function () {
-              selectGif(fullUrl, item.title || "GIF");
-            });
-            gifResults.appendChild(btn);
-          });
-        }
-
-        function selectGif(url, title) {
-          clearPhotoSelection();
-          clearAudioSelection();
-          clearVideoSelection();
-          selectedGif = { url: url, title: title };
-          if (gifPreview) gifPreview.src = url;
-          if (gifPreviewWrap) gifPreviewWrap.hidden = false;
-          if (preview) preview.hidden = true;
-          audioPreview.hidden = true;
-          videoPreview.hidden = true;
-          if (gifName) gifName.textContent = title || "GIF selected";
-          if (photoName) photoName.textContent = "No photos";
-          if (audioName) audioName.textContent = "No audio";
-          if (videoName) videoName.textContent = "No video";
-          mediaRemove.hidden = false;
-          photoWarn.textContent = "GIF via Giphy; syndication sends text and a link to the post.";
-          photoWarn.hidden = false;
-          closeGifPanel();
-        }
-
-        function giphySearch(query) {
-          if (!gifResults) return;
-          if (!GIPHY_API_KEY || GIPHY_API_KEY.indexOf("YOUR_") === 0) {
-            setGifStatus("Set GIPHY_API_KEY in admin/index.html to enable GIF search.");
-            gifResults.innerHTML = "";
-            return;
-          }
-          var seq = ++gifSearchSeq;
-          setGifStatus("Searching…");
-          var endpoint = query
-            ? "https://api.giphy.com/v1/gifs/search?api_key=" +
-              encodeURIComponent(GIPHY_API_KEY) +
-              "&q=" +
-              encodeURIComponent(query) +
-              "&limit=24&rating=pg-13"
-            : "https://api.giphy.com/v1/gifs/trending?api_key=" +
-              encodeURIComponent(GIPHY_API_KEY) +
-              "&limit=24&rating=pg-13";
-          fetch(endpoint)
-            .then(function (res) {
-              if (!res.ok) throw new Error("Giphy request failed (" + res.status + ").");
-              return res.json();
-            })
-            .then(function (data) {
-              if (seq !== gifSearchSeq) return;
-              var items = data.data || [];
-              renderGifResults(items);
-              setGifStatus(items.length ? "" : "No results.");
-            })
-            .catch(function (err) {
-              if (seq !== gifSearchSeq) return;
-              setGifStatus(err.message || "Could not reach Giphy.");
-              gifResults.innerHTML = "";
-            });
-        }
-
-        function openGifPanel() {
-          if (!gifPanel) return;
-          gifPanel.hidden = false;
-          if (gifSearchInput) {
-            gifSearchInput.value = "";
-            gifSearchInput.focus();
-          }
-          giphySearch("");
-        }
-
-        function closeGifPanel() {
-          if (gifPanel) gifPanel.hidden = true;
-          if (gifSearchTimer) {
-            clearTimeout(gifSearchTimer);
-            gifSearchTimer = null;
-          }
-        }
-
-        if (gifBtn) gifBtn.addEventListener("click", openGifPanel);
-        if (gifPanelClose) gifPanelClose.addEventListener("click", closeGifPanel);
-        if (gifPanel) {
-          gifPanel.addEventListener("click", function (e) {
-            if (e.target === gifPanel) closeGifPanel();
-          });
-        }
-        document.addEventListener("keydown", function (e) {
-          if (e.key === "Escape" && gifPanel && !gifPanel.hidden) closeGifPanel();
-        });
-        if (gifSearchInput) {
-          gifSearchInput.addEventListener("input", function () {
-            var q = gifSearchInput.value.trim();
-            if (gifSearchTimer) clearTimeout(gifSearchTimer);
-            gifSearchTimer = setTimeout(function () {
-              giphySearch(q);
-            }, 350);
-          });
-        }
-
         form.addEventListener("submit", async function (e) {
           e.preventDefault();
           var text = textInput.value.trim();
           var photoFiles = selectedPhotoFiles();
           var audioFile = audioInput.files && audioInput.files[0];
           var videoFile = videoInput.files && videoInput.files[0];
-          var giphyUrl = selectedGif ? selectedGif.url : null;
-          if (!text && !photoFiles.length && !audioFile && !videoFile && !giphyUrl) {
-            showStatus(status, "Add text, photos, a GIF, audio, or video.", true);
+          if (!text && !photoFiles.length && !audioFile && !videoFile) {
+            showStatus(status, "Add text, photos, audio, or video.", true);
             return;
           }
-          if ([photoFiles.length > 0, audioFile, videoFile, giphyUrl].filter(Boolean).length > 1) {
-            showStatus(status, "Add photos, a GIF, audio, or video — not more than one kind.", true);
+          if ([photoFiles.length > 0, audioFile, videoFile].filter(Boolean).length > 1) {
+            showStatus(status, "Add photos, audio, or video — not more than one kind.", true);
             return;
           }
           if (photoFiles.length > MAX_THINKING_PHOTOS) {
@@ -2208,7 +1899,6 @@
               blueskyFiles,
               audioFile || null,
               videoFile || null,
-              giphyUrl,
               onProgress
             );
             hideThinkingUploadProgress();
