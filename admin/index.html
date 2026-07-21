@@ -10,6 +10,12 @@
     <link rel="stylesheet" href="/styles.css" />
     <link rel="stylesheet" href="https://cdn.quilljs.com/1.3.7/quill.snow.css" />
     <style>
+      /* Any element with an explicit `display` (flex/block/grid/etc.) below would
+         otherwise defeat the `hidden` attribute, since author CSS `display`
+         outranks the browser's default `[hidden] { display: none }` rule. */
+      [hidden] {
+        display: none !important;
+      }
       .admin-tabs {
         display: flex;
         gap: 0;
@@ -973,7 +979,7 @@
       // client-side). This page is behind Cloudflare Access, but treat the key
       // as public-ish anyway — never put a server/secret Giphy key here.
       // Get one at https://developers.giphy.com/dashboard/.
-      const GIPHY_API_KEY = "YOUR_GIPHY_API_KEY";
+      const GIPHY_API_KEY = "DsPRv7YOJErr9fCJPKeNNrTmVsc5XYeQ";
 
       // ── Session (memory + optional 30-day remember-me on this device) ───────
 
