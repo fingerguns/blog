@@ -4,7 +4,7 @@ import { toSiteMediaUrl } from "./media-url.mjs";
 import { extractYouTubeEmbeds } from "./youtube.mjs";
 import { extractSpotifyEmbeds } from "./spotify.mjs";
 
-const SPOTIFY_MULTI_ITEM_TYPES = new Set(["album", "playlist", "show"]);
+const SPOTIFY_EMBED_HEIGHT = 152;
 
 export function inferMediaType(mediaUrl, mediaType) {
   if (mediaType === "audio" || mediaType === "image" || mediaType === "video") return mediaType;
@@ -62,11 +62,10 @@ function renderYouTubeEmbed({ id, start }) {
 }
 
 function renderSpotifyEmbed({ type, id }) {
-  const height = SPOTIFY_MULTI_ITEM_TYPES.has(type) ? 352 : 152;
   const src = `https://open.spotify.com/embed/${type}/${id}`;
   return (
     `<div class="thinking-spotify thinking-spotify--${type}">` +
-      `<iframe src="${escHtml(src)}" title="Spotify embed" loading="lazy" height="${height}" ` +
+      `<iframe src="${escHtml(src)}" title="Spotify embed" loading="lazy" height="${SPOTIFY_EMBED_HEIGHT}" ` +
         `allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>` +
     `</div>`
   );
