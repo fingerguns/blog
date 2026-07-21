@@ -40,9 +40,11 @@ import { createR2PresignedPutUrl } from "./r2-presign.mjs";
  *                 so micro.blog and downstream podcast/RSS readers render a native player.
  *   Mastodon    — audio and video files are uploaded as native media attachments (up to 40 MB).
  *                 Falls back to a link-in-text post when the file is too large or unavailable.
- *   Bluesky     — MP4 video via native embed when possible; iPhone MOV uses a link card.
+ *   Bluesky     — MP4 and MOV (iPhone) video both play natively via Bluesky's video-
+ *                 processing service (video.bsky.app), which transcodes server-side.
  *                 Audio posts use a link card (Bluesky has no native audio support).
- *                 Video falls back to a link card when native upload or createRecord fails.
+ *                 Video falls back to a link card when native upload, processing, or
+ *                 createRecord fails.
  *   All media   — when a native player is attached, the Thinking permalink is also included in
  *                 the post text (Bluesky cannot combine a link card embed with media embeds).
  */
@@ -53,7 +55,7 @@ const MAX_PHOTO_INPUT_BYTES = 25 * 1024 * 1024;
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 const MAX_BLUESKY_IMAGE_BYTES = 2_000_000;
-const MAX_BLUESKY_VIDEO_BYTES = 50 * 1024 * 1024;
+const MAX_BLUESKY_VIDEO_BYTES = 100 * 1024 * 1024;
 const MAX_MASTODON_MEDIA_BYTES = 40 * 1024 * 1024;
 const MAX_MASTODON_CHARS = 500;
 const MAX_THINKING_PHOTOS = 4;
@@ -489,9 +491,13 @@ function thinkingBlueskyLinkCard(postUrl, text, mediaType) {
   };
 }
 
-/** Bluesky native video embeds only accept MP4; iPhone MOV must use a link card. */
+/**
+ * Bluesky's video-processing service (video.bsky.app) accepts MP4 and MOV
+ * (QuickTime) directly and transcodes server-side. Other formats (e.g. m4v)
+ * still fall back to a link card since they're not in Bluesky's accepted list.
+ */
 function blueskySupportsNativeVideo(mimeType) {
-  return mimeType === "video/mp4";
+  return mimeType === "video/mp4" || mimeType === "video/quicktime";
 }
 
 async function handleThinking(payload, db, cors, env, ctx) {
@@ -619,7 +625,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
           }
         }
 
-        // Try native video only for MP4. iPhone MOV must use a link card on Bluesky.
+        // Try native video for MP4 and MOV — Bluesky's video service transcodes both.
         let blueskyVideo = null;
         if (
           mediaType === "video" &&
@@ -1375,6 +1381,82 @@ async function blueskySession(handle, appPassword) {
   return sessionRes.json();
 }
 
+/**
+ * Bluesky's video-processing service needs a service-auth token whose `aud` is the
+ * account's actual PDS DID (not video.bsky.app). Resolve it from the DID document,
+ * falling back to bsky.social — the host the rest of this file already talks to.
+ */
+async function resolveBlueskyPdsAud(did) {
+  try {
+    if (typeof did === "string" && did.startsWith("did:plc:")) {
+      const res = await fetch(`https://plc.directory/${encodeURIComponent(did)}`);
+      if (res.ok) {
+        const doc = await res.json();
+        const pds = Array.isArray(doc.service)
+          ? doc.service.find((s) => s.id === "#atproto_pds")
+          : null;
+        if (pds?.serviceEndpoint) {
+          const host = new URL(pds.serviceEndpoint).host;
+          if (host) return `did:web:${host}`;
+        }
+      }
+    }
+  } catch {}
+  return "did:web:bsky.social";
+}
+
+async function blueskyServiceAuthToken(accessJwt, aud, lxm, ttlSec = 1800) {
+  const url = new URL("https://bsky.social/xrpc/com.atproto.server.getServiceAuth");
+  url.searchParams.set("aud", aud);
+  url.searchParams.set("lxm", lxm);
+  url.searchParams.set("exp", String(Math.floor(Date.now() / 1000) + ttlSec));
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessJwt}` },
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Bluesky service auth failed (${summarizeApiBody(err) || res.status})`);
+  }
+  const { token } = await res.json();
+  return token;
+}
+
+async function blueskyUploadVideoToService(serviceToken, did, mimeType, bytes, fileName) {
+  const uploadUrl = new URL("https://video.bsky.app/xrpc/app.bsky.video.uploadVideo");
+  uploadUrl.searchParams.set("did", did);
+  uploadUrl.searchParams.set("name", fileName);
+  const res = await fetch(uploadUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${serviceToken}`,
+      "Content-Type": mimeType,
+    },
+    body: bytes,
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok && !data?.blob) {
+    throw new Error(data?.message || `Bluesky video upload failed (HTTP ${res.status}).`);
+  }
+  return data;
+}
+
+async function blueskyPollVideoJob(jobId, deadlineMs = 25000) {
+  const start = Date.now();
+  while (Date.now() - start < deadlineMs) {
+    try {
+      const res = await fetch(
+        `https://video.bsky.app/xrpc/app.bsky.video.getJobStatus?jobId=${encodeURIComponent(jobId)}`
+      );
+      const data = await res.json().catch(() => null);
+      const status = data?.jobStatus;
+      if (status?.blob) return status.blob;
+      if (status?.state === "JOB_STATE_FAILED") return null;
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+  return null;
+}
+
 async function fetchLinkCard(url) {
   try {
     const res = await fetch(url, {
@@ -1494,7 +1576,7 @@ async function postToBluesky(handle, appPassword, content, image = null, linkCar
       images: embedImages,
     };
   } else if (video) {
-    embed = await blueskyVideoEmbed(accessJwt, video);
+    embed = await blueskyVideoEmbed(accessJwt, video, did);
   }
 
   if (!embed && linkCard) {
@@ -1516,20 +1598,29 @@ async function postToBluesky(handle, appPassword, content, image = null, linkCar
   return created.uri || null;
 }
 
-async function blueskyVideoEmbed(accessJwt, video) {
+/**
+ * Uploads video through Bluesky's dedicated video-processing service, which accepts
+ * MP4 and MOV (QuickTime) directly and transcodes server-side. This is what lets
+ * iPhone MOV videos play natively inline instead of falling back to a link card.
+ */
+async function blueskyVideoEmbed(accessJwt, video, did) {
   try {
-    const blobRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessJwt}`,
-        "Content-Type": video.mimeType,
-      },
-      body: video.bytes,
-    });
-    if (!blobRes.ok) {
-      return null;
-    }
-    const { blob } = await blobRes.json();
+    const aud = await resolveBlueskyPdsAud(did);
+    const serviceToken = await blueskyServiceAuthToken(
+      accessJwt,
+      aud,
+      "com.atproto.repo.uploadBlob"
+    );
+    const ext = VIDEO_EXT[video.mimeType] || "mp4";
+    const initial = await blueskyUploadVideoToService(
+      serviceToken,
+      did,
+      video.mimeType,
+      video.bytes,
+      `thinking.${ext}`
+    );
+    const blob = initial?.blob || (initial?.jobId ? await blueskyPollVideoJob(initial.jobId) : null);
+    if (!blob) return null;
     return {
       $type: "app.bsky.embed.video",
       video: blob,
