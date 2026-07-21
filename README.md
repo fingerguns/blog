@@ -158,7 +158,7 @@ When a Thinking post includes audio or video, each platform receives it as a nat
 |----------|-------|-------|
 | **micro.blog** | `audio[]` Micropub property → native player in feed and podcast RSS | `video[]` Micropub property → native player |
 | **Mastodon** | Uploaded as a media attachment (≤ 40 MB) → renders a player in timelines and third-party apps. Async video/audio transcodes are polled via `GET /api/v1/media/:id` until ready before the status posts | Same |
-| **Bluesky** | No native audio support; falls back to a link card pointing to the post | Native only for **MP4** (≤ 50 MB) via `app.bsky.embed.video`; iPhone **MOV** always falls back to a link card, since Bluesky's video embed only accepts MP4. If `createRecord` rejects an uploaded video blob, syndication retries with a link card so the post still goes out |
+| **Bluesky** | No native audio support; falls back to a link card pointing to the post | Native for both **MP4** and iPhone **MOV** (≤ 100 MB) — uploaded to Bluesky's dedicated video-processing service (`video.bsky.app`), which transcodes server-side and is polled for a completed blob (~25s budget). Falls back to a link card if processing times out or fails, or if `createRecord` rejects the embed, so the post still goes out |
 
 For files that exceed the per-platform size limit, or when bytes are unavailable (presigned video uploads over the threshold), syndication falls back to the previous behaviour: a plain-text post with a permalink and an "Audio: " or "Video: " prefix. Multiple photos syndicate to all three platforms (Micro.blog via repeated `photo[]` parts, Mastodon and Bluesky via multiple media attachments/images, up to 4).
 
