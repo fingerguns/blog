@@ -2,6 +2,9 @@ import { escHtml } from "./html.mjs";
 import { linkifyThinkingEscapedHtml } from "./linkify.mjs";
 import { toSiteMediaUrl } from "./media-url.mjs";
 import { extractYouTubeEmbeds } from "./youtube.mjs";
+import { extractSpotifyEmbeds } from "./spotify.mjs";
+
+const SPOTIFY_MULTI_ITEM_TYPES = new Set(["album", "playlist", "show"]);
 
 export function inferMediaType(mediaUrl, mediaType) {
   if (mediaType === "audio" || mediaType === "image" || mediaType === "video") return mediaType;
@@ -58,6 +61,17 @@ function renderYouTubeEmbed({ id, start }) {
   );
 }
 
+function renderSpotifyEmbed({ type, id }) {
+  const height = SPOTIFY_MULTI_ITEM_TYPES.has(type) ? 352 : 152;
+  const src = `https://open.spotify.com/embed/${type}/${id}`;
+  return (
+    `<div class="thinking-spotify thinking-spotify--${type}">` +
+      `<iframe src="${escHtml(src)}" title="Spotify embed" loading="lazy" height="${height}" ` +
+        `allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>` +
+    `</div>`
+  );
+}
+
 export function renderThinkingContentHtml(
   text,
   mediaUrl,
@@ -84,6 +98,9 @@ export function renderThinkingContentHtml(
     }
     for (const embed of extractYouTubeEmbeds(t)) {
       parts.push(renderYouTubeEmbed(embed));
+    }
+    for (const embed of extractSpotifyEmbeds(t)) {
+      parts.push(renderSpotifyEmbed(embed));
     }
   }
   if (resolvedUrl && type === "audio") {

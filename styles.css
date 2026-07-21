@@ -820,6 +820,20 @@ html.thinking-lightbox-open {
   height: 100%;
   border: 0;
 }
+.microblog-body .thinking-spotify,
+.post .body .thinking-spotify {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 0.75rem 0 0;
+}
+.microblog-body .thinking-spotify iframe,
+.post .body .thinking-spotify iframe {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+}
 .post-list .microblog-body a,
 .microblog-body a {
   color: var(--link);
