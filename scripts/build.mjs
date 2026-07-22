@@ -612,13 +612,26 @@ async function openLibraryJson(path) {
   }
 }
 
+// A plain title search ranks by relevance across title+author+etc, so a
+// short/generic title (e.g. "Hill") can confidently match a completely
+// different, more famous book (e.g. "Think and Grow Rich" by Napoleon
+// Hill). Only trust a title-search hit if its own title is basically the
+// same string we searched for.
+const normalizeTitle = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+function titlesMatch(a, b) {
+  const na = normalizeTitle(a);
+  const nb = normalizeTitle(b);
+  return Boolean(na && nb) && (na === nb || na.includes(nb) || nb.includes(na));
+}
+
 // Cover lookup, most precise first:
 // 1. The exact edition record for an ISBN (its own `covers` array) — this is
 //    what the book actually looks like on the shelf, not just "a" cover for
 //    the work, which matters since Open Library often merges translations
 //    and editions of the same work together.
 // 2. A search by ISBN, using whatever cover the matched work happens to have.
-// 3. A plain title search, for books whose Bookshop.org URL has no ISBN.
+// 3. A plain title search, for books whose Bookshop.org URL has no ISBN —
+//    guarded by titlesMatch() since this path isn't exact-key based.
 async function fetchBookCover(title, url) {
   const isbn = /[?&]ean=(\d{9,13})\b/.exec(String(url || ""))?.[1];
   if (isbn) {
@@ -634,10 +647,13 @@ async function fetchBookCover(title, url) {
   }
 
   const byTitle = await openLibraryJson(
-    `/search.json?limit=1&fields=cover_i&q=${encodeURIComponent(title)}`
+    `/search.json?limit=1&fields=cover_i,title&q=${encodeURIComponent(title)}`
   );
-  const titleCoverId = byTitle?.docs?.[0]?.cover_i;
-  return titleCoverId ? `https://covers.openlibrary.org/b/id/${titleCoverId}-L.jpg` : null;
+  const hit = byTitle?.docs?.[0];
+  if (hit?.cover_i && titlesMatch(title, hit.title)) {
+    return `https://covers.openlibrary.org/b/id/${hit.cover_i}-L.jpg`;
+  }
+  return null;
 }
 
 const missingCovers = orderedReading.filter((r) => r.url && !(r.url in readingCoverCache));
