@@ -96,7 +96,7 @@ export async function loadBlogDataFromD1() {
   );
 
   const reading = await d1Query(
-    "SELECT id, ym, title, url, added_at, cover_url FROM reading ORDER BY added_at DESC, id ASC"
+    "SELECT id, ym, title, url, added_at, cover_url, author FROM reading ORDER BY ym DESC, added_at DESC, id DESC"
   );
 
   const linklog = await d1Query(

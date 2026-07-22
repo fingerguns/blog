@@ -94,7 +94,7 @@ async function fetchSectionSamples(db, section) {
   if (section === "Reading") {
     const { results } = await dbAll(
       db,
-      "SELECT title, ym FROM reading ORDER BY added_at DESC LIMIT ?",
+      "SELECT title, ym FROM reading ORDER BY ym DESC, added_at DESC, id DESC LIMIT ?",
       SAMPLE_LIMIT
     );
     return (results || []).map((row) => `${row.ym}: ${row.title}`);

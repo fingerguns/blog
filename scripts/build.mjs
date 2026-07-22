@@ -638,15 +638,17 @@ const renderPostItem = (p, absolute = false) =>
             <a href="${absolute ? `/posts/${escHtml(safeSlug(p.slug))}/` : `posts/${escHtml(safeSlug(p.slug))}/`}">${escHtml(p.title)}</a>
           </li>`;
 
-function sortReadingDesc(a, b) {
-  const aAt = a.added_at ? new Date(a.added_at).getTime() : NaN;
-  const bAt = b.added_at ? new Date(b.added_at).getTime() : NaN;
-  if (Number.isFinite(aAt) && Number.isFinite(bAt) && aAt !== bAt) return bAt - aAt;
-  if (Number.isFinite(aAt) && Number.isFinite(bAt)) return (a.id || 0) - (b.id || 0);
-  return 0;
+function sortReadingByYmDesc(a, b) {
+  const ay = String(a.ym || "");
+  const by = String(b.ym || "");
+  if (ay !== by) return by.localeCompare(ay);
+  const aAt = a.added_at ? new Date(a.added_at).getTime() : 0;
+  const bAt = b.added_at ? new Date(b.added_at).getTime() : 0;
+  if (aAt !== bAt) return bAt - aAt;
+  return (b.id || 0) - (a.id || 0);
 }
 
-const orderedReading = [...(reading || [])].sort(sortReadingDesc);
+const orderedReading = [...(reading || [])].sort(sortReadingByYmDesc);
 const renderReadingItem = (r) =>
   `          <li>
             <span class="post-date">${escHtml(r.ym)}</span>
@@ -1486,7 +1488,7 @@ ${thinkingLightboxScript}
 const readingPageHtml = `${archiveHead("Reading", sectionHeading("Reading", "h1"))}
     <div class="reading-views" data-view="list">
 ${readingViewToggleHtml}
-      <ol class="post-list reading-list" reversed>
+      <ol class="post-list reading-list">
 ${readingAllHtml}
       </ol>
       <div class="reading-grid-wrap">

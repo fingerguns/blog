@@ -2142,7 +2142,7 @@ async function handleListReading(db, cors) {
   try {
     const { results: rows } = await dbAll(
       db,
-      "SELECT id, ym, title, url, added_at, cover_url, author FROM reading ORDER BY added_at DESC"
+      "SELECT id, ym, title, url, added_at, cover_url, author FROM reading ORDER BY ym DESC, added_at DESC, id DESC"
     );
     return json({ ok: true, items: rows || [] }, 200, cors);
   } catch (err) {
