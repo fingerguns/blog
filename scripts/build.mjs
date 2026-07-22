@@ -993,6 +993,7 @@ if(!wrap)return;
 var viewBtns=document.querySelectorAll('.thinking-view-btn');
 var filterBtns=document.querySelectorAll('.thinking-filter-btn');
 var items=document.querySelectorAll('.thinking-grid-item');
+var listEntries=document.querySelectorAll('.microblog-feed .microblog-entry[data-kind]');
 var months=document.querySelectorAll('.thinking-grid-month');
 var kinds=${JSON.stringify(THINKING_GRID_KINDS)};
 var filterKey='thinkingGridFiltersV2';
@@ -1056,6 +1057,7 @@ function applyFilters(){
   var on=anyFilterActive();
   filterBtns.forEach(function(b){var k=b.getAttribute('data-filter');b.setAttribute('aria-pressed',active[k]?'true':'false');});
   items.forEach(function(el){var k=el.getAttribute('data-kind');el.hidden=on&&!active[k];});
+  listEntries.forEach(function(el){var k=el.getAttribute('data-kind');el.hidden=on&&!active[k];});
   months.forEach(function(section){section.hidden=!section.querySelector('.thinking-grid-item:not([hidden])');});
   try{localStorage.setItem(filterKey,JSON.stringify(active));}catch(e){}
   scanGridMedia();
@@ -1208,15 +1210,19 @@ ${thinkingDeleteConfirmScript}
   </body>
 </html>`;
 
-const microblogEntriesHtml = microblogItems.length > 0
-  ? microblogItems.map((item) => {
-      const slug = thinkingSlug(item);
-      return `        <div class="microblog-entry" data-slug="${escHtml(slug)}" data-microblog-url="${escHtml(item.url || "")}">
+const microblogListHtml = (items, spotifyThumbnails = {}) =>
+  items.length > 0
+    ? items
+        .map((item) => {
+          const slug = thinkingSlug(item);
+          const kind = thinkingGridKind(item, spotifyThumbnails);
+          return `        <div class="microblog-entry" data-slug="${escHtml(slug)}" data-kind="${escHtml(kind)}" data-microblog-url="${escHtml(item.url || "")}">
           <div class="microblog-body">${item.content_html}</div>
           <time class="post-date" datetime="${escHtml(item.date_published)}"><a href="/thinking/${escHtml(slug)}/">${escHtml(formatMbDate(item.date_published))}</a></time>
         </div>`;
-    }).join("\n")
-  : `        <p style="color:var(--muted)">No posts yet.</p>`;
+        })
+        .join("\n")
+    : `        <p style="color:var(--muted)">No posts yet.</p>`;
 
 // Grid view: same items, grouped by month, one square thumbnail per post
 // (photo or video frame when present, else a small text-preview card).
@@ -1377,6 +1383,7 @@ if (videoPosterCacheUpdated) {
 }
 
 const thinkingGridHtml = thinkingGridGroupsHtml(microblogItems, spotifyThumbnailCache, videoPosterCache);
+const microblogEntriesHtml = microblogListHtml(microblogItems, spotifyThumbnailCache);
 
 const THINKING_VIEW_ICONS = {
   list: `<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="3" width="16" height="3" rx="1" fill="currentColor"/><rect x="2" y="8.5" width="16" height="3" rx="1" fill="currentColor"/><rect x="2" y="14" width="16" height="3" rx="1" fill="currentColor"/></svg>`,
@@ -1392,7 +1399,7 @@ const THINKING_FILTER_LABELS = {
   text: "Text",
 };
 
-const thinkingGridFiltersHtml = `        <div class="thinking-grid-filters" role="group" aria-label="Filter grid by type">
+const thinkingGridFiltersHtml = `        <div class="thinking-grid-filters" role="group" aria-label="Filter by type">
 ${THINKING_GRID_KINDS.map(
   (kind) =>
     `          <button type="button" class="thinking-filter-btn thinking-filter-btn--${kind}" data-filter="${kind}" aria-pressed="false" aria-label="${THINKING_FILTER_LABELS[kind]}">${THINKING_MEDIA_ICONS[kind]}</button>`

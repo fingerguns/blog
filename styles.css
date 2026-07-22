@@ -444,10 +444,6 @@ h2 {
   flex-wrap: wrap;
   gap: 0.35rem;
 }
-.thinking-views[data-view="list"] .thinking-grid-filters {
-  visibility: hidden;
-  pointer-events: none;
-}
 .thinking-filter-btn {
   display: inline-flex;
   align-items: center;
@@ -814,6 +810,9 @@ h2 {
 .microblog-entry {
   padding: 1.25rem 0;
   border-bottom: 1px solid var(--rule);
+}
+.microblog-entry[hidden] {
+  display: none !important;
 }
 .microblog-entry:first-child { padding-top: 0; }
 .microblog-entry:last-child  { border-bottom: none; }
