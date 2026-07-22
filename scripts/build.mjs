@@ -336,6 +336,37 @@ function monthLabelET(iso) {
   }).format(d);
 }
 
+// Grid thumbnails: which non-photo media (if any) a post's rendered
+// content_html contains, so the text card can show a small icon badge.
+function thinkingMediaKind(html) {
+  const str = String(html || "");
+  if (/class="thinking-video"/.test(str)) return "video";
+  if (/class="thinking-audio"/.test(str)) return "audio";
+  if (/class="thinking-youtube"/.test(str)) return "youtube";
+  if (/class="thinking-spotify/.test(str)) return "spotify";
+  return "";
+}
+
+// Strip media elements (video/audio/embeds) out of content_html before
+// computing a text snippet, so their fallback inner text (e.g. "Video")
+// never leaks into the grid card when there's no caption.
+function stripMediaMarkup(html) {
+  return String(html || "")
+    .replace(/<audio[^>]*>[\s\S]*?<\/audio>/gi, "")
+    .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, "")
+    .replace(/<div class="thinking-youtube">[\s\S]*?<\/div>/gi, "")
+    .replace(/<div class="thinking-spotify[^"]*">[\s\S]*?<\/div>/gi, "");
+}
+
+// Small icon badges for the grid's text-preview cards, indicating the kind
+// of media attached (generic play/mic glyphs; brand marks for YouTube/Spotify).
+const THINKING_MEDIA_ICONS = {
+  video: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" style="fill:var(--text)"/><path d="M9.5 7.5v9l8-4.5-8-4.5z" style="fill:var(--bg)"/></svg>`,
+  audio: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" style="fill:var(--text)"/><path d="M12 6.5a2.25 2.25 0 0 1 2.25 2.25v3a2.25 2.25 0 0 1-4.5 0v-3A2.25 2.25 0 0 1 12 6.5z" style="fill:var(--bg)"/><path d="M8.25 11.75a3.75 3.75 0 0 0 7.5 0M12 15.5v2M10 17.5h4" style="fill:none;stroke:var(--bg);stroke-width:1.1;stroke-linecap:round"/></svg>`,
+  youtube: `<svg viewBox="0 0 28 20" aria-hidden="true"><rect width="28" height="20" rx="5" fill="#FF0000"/><path d="M11 6.2 19 10l-8 3.8V6.2z" fill="#fff"/></svg>`,
+  spotify: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#1DB954"/><path d="M6.5 9.7c3.4-1 7.2-.8 10.1.9M7.3 12.6c2.8-.8 6-.6 8.4.7M8.1 15.4c2.3-.6 4.9-.5 6.8.6" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>`,
+};
+
 function thinkingOgFromItem(item) {
   const description = thinkingSnippet(stripHtml(item.content_html));
   const image = firstImageFromHtml(item.content_html) || defaultOgImage();
@@ -937,9 +968,15 @@ function thinkingGridItemHtml(item) {
   // Cap well above what a thumbnail can show — the box's overflow:hidden
   // does the real clipping, so text fills down to the bottom instead of
   // getting cut off early with an ellipsis.
-  const snippet = thinkingSnippet(stripHtml(item.content_html), 280) || "(No text)";
+  const snippet =
+    thinkingSnippet(stripHtml(stripMediaMarkup(item.content_html)), 280) || "(No text)";
+  const mediaKind = thinkingMediaKind(item.content_html);
+  const iconHtml = mediaKind
+    ? `
+            <span class="thinking-grid-icon thinking-grid-icon--${mediaKind}" aria-hidden="true">${THINKING_MEDIA_ICONS[mediaKind]}</span>`
+    : "";
   return `          <a class="thinking-grid-item thinking-grid-text" href="${href}" aria-label="${escHtml(formatMbDate(item.date_published))}">
-            <span>${escHtml(snippet)}</span>
+            <span class="thinking-grid-text-body">${escHtml(snippet)}</span>${iconHtml}
           </a>`;
 }
 
