@@ -592,7 +592,8 @@ h2 {
 .reading-views[data-view="list"] .reading-grid-wrap { display: none; }
 .reading-views[data-view="grid"] .reading-list { display: none; }
 
-/* Reading grid view — storefront-style catalog, two columns, grouped by month */
+/* Reading grid view — storefront-style catalog, grouped by month. Three
+   columns on desktop, two on mobile (see max-width: 480px below). */
 .reading-grid-month {
   margin: 0 0 2rem;
 }
@@ -606,7 +607,7 @@ h2 {
 }
 .reading-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 1.75rem 1.25rem;
 }
 .reading-grid-item {
@@ -650,6 +651,7 @@ h2 {
 }
 @media (max-width: 480px) {
   .reading-grid {
+    grid-template-columns: repeat(2, 1fr);
     gap: 1.25rem 0.85rem;
   }
   .reading-grid-title {
