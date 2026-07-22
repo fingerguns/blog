@@ -1,9 +1,12 @@
 import {
   DEFAULT_SECTION_HINTS,
+  SECTION_NAMES,
   buildSectionHintPrompt,
   mergeSectionHints,
   normalizeSectionHint,
 } from "../scripts/lib/section-hints.mjs";
+
+export { SECTION_NAMES };
 
 const AI_MODEL = "@cf/meta/llama-3.1-8b-instruct";
 const SAMPLE_LIMIT = 18;
@@ -67,7 +70,13 @@ async function fetchSectionSamples(db, section) {
     return (results || []).map((row) => {
       const text = (row.text || "").trim();
       if (text) return truncate(text);
-      return truncate(stripHtml(row.content_html)) || "(photo)";
+      const html = String(row.content_html || "");
+      if (/class="thinking-video"/.test(html)) return "(video)";
+      if (/class="thinking-audio"/.test(html)) return "(audio)";
+      if (/class="thinking-spotify/.test(html)) return "(Spotify)";
+      if (/class="thinking-youtube"/.test(html)) return "(YouTube)";
+      if (/<img/i.test(html)) return "(photo)";
+      return truncate(stripHtml(html)) || "(media)";
     });
   }
 

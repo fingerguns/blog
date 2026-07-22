@@ -3,7 +3,12 @@ import { escHtml } from "../scripts/lib/html.mjs";
 import { coalesceImageParagraphsHtml } from "../scripts/lib/coalesce-images.mjs";
 import { addHashtagFacets } from "../scripts/lib/linkify.mjs";
 import { renderThinkingContentHtml } from "../scripts/lib/thinking-html.mjs";
-import { scheduleSectionHintRefresh } from "./section-hints.mjs";
+import {
+  scheduleSectionHintRefresh,
+  refreshSectionHint,
+  loadSectionHints,
+  SECTION_NAMES,
+} from "./section-hints.mjs";
 import { serveMedia } from "./media.mjs";
 import { createR2PresignedPutUrl } from "./r2-presign.mjs";
 import { thinkingVideoPosterKey, uploadVideoPosterToR2 } from "./video-poster.mjs";
@@ -164,6 +169,17 @@ export default {
 
     if (action === "verify") {
       return json({ ok: true }, 200, cors);
+    }
+
+    if (action === "refresh-section-hints") {
+      const section =
+        typeof payload.section === "string" ? payload.section.trim() : "";
+      const sections = section && SECTION_NAMES.includes(section) ? [section] : [...SECTION_NAMES];
+      for (const name of sections) {
+        await refreshSectionHint(env, db, name, null);
+      }
+      await triggerRebuild(env);
+      return json({ ok: true, hints: await loadSectionHints(db) }, 200, cors);
     }
 
     if (action === "thinking") {

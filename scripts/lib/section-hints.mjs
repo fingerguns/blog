@@ -2,23 +2,24 @@
 
 export const DEFAULT_SECTION_HINTS = {
   Thinking:
-    "Short notes, photos, and passing thoughts—updated often, with none of the polish of a full essay. You'll find book quotes, travel snapshots, NYC gripes, sports reactions, politics, art, and whatever's on my mind right now. It's the informal layer of the site: loose, opinionated, sometimes funny, sometimes ranty, always in the moment.",
+    "Short notes and media—photos, videos, voice memos, Spotify tracks, and YouTube clips—posted often without essay polish. Browse chronologically or as a grid, and filter by type. Recent threads run through NYC, travel, books, politics, sports, and whatever caught my eye that day: loose, opinionated, sometimes funny, always in the moment.",
   Writing:
     "Longer pieces when I have something to say—a mix of personal essays, small experiments, and the occasional haiku. Topics wander from style and walking to film, routine, building this site, and what it means to pay attention. Less of a diary, more room to think out loud.",
   Reading:
-    "A log of books I'm reading, linked to Bookshop.org and grouped by month. Mostly literary fiction and translated work—the kind of books you'd find on a serious reader's nightstand, not a bestseller list. It's a snapshot of what's open on my desk, not reviews or ratings.",
+    "A storefront-style log of books I'm reading—cover art, title, and author, linked to Bookshop.org and grouped by month. Mostly literary fiction and translated work, not bestseller churn. List or grid view; a snapshot of what's open on my desk, not reviews or ratings.",
   Sharing:
-    "Sharing is a linklog—a running list of links that caught my eye, with no commentary, just the title and the URL, newest first. If you browse it, you'll find a mix that reflects how I actually use the internet: art and design, literature and poetry, architecture, NYC politics, sports, history, film, and the occasional rabbit hole (indie web, style, food, a perfect photo). It's not a news feed or a hot-take column—more a personal signal of what I'm reading, noticing, and think is worth a click, high and low, serious and playful, all in one stream.",
+    "A linklog of URLs that caught my eye—title and link only, newest first. You'll find art and design, literature, architecture, NYC politics, sports, history, film, and the occasional rabbit hole. Not a news feed or hot-take column—more a personal signal of what I'm reading and think is worth a click.",
 };
 
 export const SECTION_NAMES = ["Thinking", "Writing", "Reading", "Sharing"];
 
 export const SECTION_CONTEXT = {
   Thinking:
-    "Informal microblog notes—short posts and photos, not polished essays. Updated often.",
+    "Informal microblog: short text, photos, native video, audio (Voice Memos), Spotify embeds, and YouTube links. Archive has list and grid views with filters by media type. Updated often.",
   Writing: "Longer published essays and posts, including haiku and personal writing.",
-  Reading: "A book log linked to Bookshop.org, grouped by month—not reviews or ratings.",
-  Sharing: "A linklog of URLs with titles only—no commentary on individual links.",
+  Reading:
+    "Book log with cover art, title, and author; Bookshop.org links; grouped by month; list and grid views—not reviews.",
+  Sharing: "Linklog of URLs with titles only—no commentary on individual links.",
 };
 
 export function mergeSectionHints(stored) {
