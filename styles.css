@@ -209,6 +209,15 @@ h2 {
     font-size: 1.35rem;
   }
 
+  .thinking-grid-item {
+    width: 96px;
+    height: 96px;
+  }
+  .thinking-grid-text span {
+    font-size: 0.56rem;
+    -webkit-line-clamp: 6;
+  }
+
   .post-date,
   .meta {
     overflow: hidden;
@@ -388,6 +397,72 @@ h2 {
 .form-status { margin-top: 0.9rem; font-size: 0.9rem; }
 .form-success { color: var(--link); }
 .form-error { color: #c0392b; }
+
+/* Thinking view toggle (list / grid) */
+.thinking-view-toggle {
+  margin: 0 0 1.25rem;
+  text-align: right;
+}
+.thinking-view-toggle a {
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-underline-offset: 0.2em;
+}
+.thinking-view-toggle a:hover {
+  color: var(--link-hover);
+  text-decoration-color: currentColor;
+}
+.thinking-views[data-view="list"] .thinking-grid-wrap { display: none; }
+.thinking-views[data-view="grid"] .microblog-feed { display: none; }
+
+/* Thinking grid view — one thumbnail per post, grouped by month */
+.thinking-grid-month {
+  margin: 0 0 1.75rem;
+}
+.thinking-grid-month-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 0 0 0.6rem;
+}
+.thinking-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.thinking-grid-item {
+  width: 126px;
+  height: 126px;
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  text-decoration: none;
+}
+.thinking-grid-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.thinking-grid-text {
+  background: var(--thinking-delete-bg);
+  padding: 0.4rem;
+}
+.thinking-grid-text span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 8;
+  overflow: hidden;
+  width: 100%;
+  overflow-wrap: break-word;
+  font-size: 0.62rem;
+  line-height: 1.25;
+  color: var(--text);
+}
 
 /* Microblog feed */
 .microblog-feed {

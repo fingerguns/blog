@@ -214,6 +214,24 @@ function thinkingSnippet(text, max = 160) {
   return `${plain.slice(0, max - 1)}…`;
 }
 
+// Grid thumbnails: extract the post's photo (src + alt) from its rendered content_html
+function imageSrcAltFromHtml(html) {
+  const str = String(html || "");
+  const srcM = str.match(/<img[^>]+src=["']([^"']+)["']/i);
+  const altM = str.match(/<img[^>]+alt=["']([^"']*)["']/i);
+  return { src: srcM ? srcM[1] : "", alt: altM ? altM[1] : "" };
+}
+
+// "July 2026" in ET, used to group Thinking grid items by month
+function monthLabelET(iso) {
+  const d = new Date(iso);
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+    timeZone: "America/New_York",
+  }).format(d);
+}
+
 function thinkingOgFromItem(item) {
   const description = thinkingSnippet(stripHtml(item.content_html));
   const image = firstImageFromHtml(item.content_html) || defaultOgImage();
@@ -633,6 +651,8 @@ ${portraitPhotoToggleScript}
 </html>
 `;
 
+const thinkingViewToggleScript = `    <script>(function(){var wrap=document.querySelector('.thinking-views');var btn=document.getElementById('thinking-view-toggle');if(!wrap||!btn)return;function set(v){wrap.setAttribute('data-view',v);btn.textContent=v==='grid'?'List view':'Grid view';localStorage.setItem('thinkingView',v);}set(localStorage.getItem('thinkingView')||'list');btn.addEventListener('click',function(e){e.preventDefault();set(wrap.getAttribute('data-view')==='grid'?'list':'grid');});}());</script>`;
+
 const thinkingArchiveFoot = `      <footer class="site-footer">
         <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><a href="#" class="theme-toggle" id="theme-toggle"></a></p>
         <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
@@ -640,6 +660,7 @@ const thinkingArchiveFoot = `      <footer class="site-footer">
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
 ${portraitPhotoToggleScript}
+${thinkingViewToggleScript}
 ${thinkingDeleteLinkScript}
   </body>
 </html>
@@ -761,10 +782,66 @@ const microblogEntriesHtml = microblogItems.length > 0
     }).join("\n")
   : `        <p style="color:var(--muted)">No posts yet.</p>`;
 
+// Grid view: same items, grouped by month, one square thumbnail per post
+// (post photo when present, else a small text-preview card).
+function thinkingGridItemHtml(item) {
+  const slug = thinkingSlug(item);
+  const href = `/thinking/${escHtml(slug)}/`;
+  const { src, alt } = imageSrcAltFromHtml(item.content_html);
+  if (src) {
+    return `          <a class="thinking-grid-item thinking-grid-photo" href="${href}" aria-label="${escHtml(formatMbDate(item.date_published))}">
+            <img src="${escHtml(src)}" alt="${escHtml(alt || "Photo")}" loading="lazy" decoding="async" />
+          </a>`;
+  }
+  // Cap well above what a thumbnail can show — the box's overflow:hidden
+  // does the real clipping, so text fills down to the bottom instead of
+  // getting cut off early with an ellipsis.
+  const snippet = thinkingSnippet(stripHtml(item.content_html), 280) || "(No text)";
+  return `          <a class="thinking-grid-item thinking-grid-text" href="${href}" aria-label="${escHtml(formatMbDate(item.date_published))}">
+            <span>${escHtml(snippet)}</span>
+          </a>`;
+}
+
+function thinkingGridGroupsHtml(items) {
+  if (items.length === 0) {
+    return `      <p style="color:var(--muted)">No posts yet.</p>`;
+  }
+  const groups = [];
+  for (const item of items) {
+    const label = monthLabelET(item.date_published);
+    const current = groups[groups.length - 1];
+    if (current && current.label === label) {
+      current.items.push(item);
+    } else {
+      groups.push({ label, items: [item] });
+    }
+  }
+  return groups
+    .map(
+      (g) => `      <section class="thinking-grid-month">
+        <h2 class="thinking-grid-month-label">${escHtml(g.label)}</h2>
+        <div class="thinking-grid">
+${g.items.map(thinkingGridItemHtml).join("\n")}
+        </div>
+      </section>`
+    )
+    .join("\n");
+}
+
+const thinkingGridHtml = thinkingGridGroupsHtml(microblogItems);
+
+const thinkingViewToggleHtml = `      <p class="thinking-view-toggle"><a href="#" id="thinking-view-toggle">Grid view</a></p>`;
+
 const microblogPageHtml = `${archiveHead("Thinking")}
+    <div class="thinking-views" data-view="list">
+${thinkingViewToggleHtml}
       <div class="microblog-feed">
 ${microblogEntriesHtml}
       </div>
+      <div class="thinking-grid-wrap">
+${thinkingGridHtml}
+      </div>
+    </div>
 ${thinkingArchiveFoot}`;
 
 const archiveUrls = [
