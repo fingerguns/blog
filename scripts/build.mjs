@@ -996,14 +996,12 @@ var items=document.querySelectorAll('.thinking-grid-item');
 var listEntries=document.querySelectorAll('.microblog-feed .microblog-entry[data-kind]');
 var months=document.querySelectorAll('.thinking-grid-month');
 var kinds=${JSON.stringify(THINKING_GRID_KINDS)};
-var filterKey='thinkingGridFiltersV2';
 var gridMediaObs=null;
 var mediaQueue=[];
 var mediaInflight=0;
 var MEDIA_MAX=4;
 function defaultFilters(){var all={};kinds.forEach(function(k){all[k]=false;});return all;}
-function loadFilters(){try{var saved=JSON.parse(localStorage.getItem(filterKey)||'null');if(saved&&typeof saved==='object')return saved;}catch(e){}return defaultFilters();}
-var active=loadFilters();
+var active=defaultFilters();
 function anyFilterActive(){return kinds.some(function(k){return active[k];});}
 function drainMediaQueue(){
   if(wrap.getAttribute('data-view')!=='grid')return;
@@ -1059,7 +1057,6 @@ function applyFilters(){
   items.forEach(function(el){var k=el.getAttribute('data-kind');el.hidden=on&&!active[k];});
   listEntries.forEach(function(el){var k=el.getAttribute('data-kind');el.hidden=on&&!active[k];});
   months.forEach(function(section){section.hidden=!section.querySelector('.thinking-grid-item:not([hidden])');});
-  try{localStorage.setItem(filterKey,JSON.stringify(active));}catch(e){}
   scanGridMedia();
 }
 function setView(v){
