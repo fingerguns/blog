@@ -1022,7 +1022,7 @@ function scanGridMedia(){
 function applyFilters(){
   var on=anyFilterActive();
   filterBtns.forEach(function(b){var k=b.getAttribute('data-filter');b.setAttribute('aria-pressed',active[k]?'true':'false');});
-  items.forEach(function(el){var k=el.getAttribute('data-kind');el.hidden=!on||!active[k];});
+  items.forEach(function(el){var k=el.getAttribute('data-kind');el.hidden=on&&!active[k];});
   months.forEach(function(section){section.hidden=!section.querySelector('.thinking-grid-item:not([hidden])');});
   try{localStorage.setItem(filterKey,JSON.stringify(active));}catch(e){}
   scanGridMedia();
