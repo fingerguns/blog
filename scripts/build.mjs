@@ -656,7 +656,12 @@ async function fetchBookCover(title, url) {
   return null;
 }
 
-const missingCovers = orderedReading.filter((r) => r.url && !(r.url in readingCoverCache));
+// Entries with a manually-chosen cover_url (picked in the admin from the
+// Open Library / Apple Books / Google Books candidates) skip the automatic
+// lookup entirely — that choice always wins.
+const missingCovers = orderedReading.filter(
+  (r) => r.url && !r.cover_url && !(r.url in readingCoverCache)
+);
 if (missingCovers.length > 0) {
   console.log(`Looking up ${missingCovers.length} book cover(s) via Open Library…`);
   let fetchedAny = false;
@@ -1121,7 +1126,7 @@ function readingMonthLabel(ym) {
 }
 
 function readingGridItemHtml(r) {
-  const cover = readingCoverCache[r.url];
+  const cover = r.cover_url || readingCoverCache[r.url];
   const coverInner = cover
     ? `<img src="${escHtml(cover)}" alt="${escHtml(r.title)}" loading="lazy" decoding="async" />`
     : `<span class="reading-grid-cover-fallback">${escHtml(r.title)}</span>`;

@@ -400,6 +400,82 @@
       }
       .draft-item-delete:hover { color: #b44; }
       [data-theme="dark"] .draft-item-delete:hover { color: #e88; }
+      .cover-picker {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.65rem;
+        margin: 0.6rem 0 1.1rem;
+      }
+      .cover-picker-option {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.3rem;
+        width: 5.5rem;
+        padding: 0.35rem;
+        border: 2px solid transparent;
+        border-radius: 0.35rem;
+        background: none;
+        cursor: pointer;
+        font: inherit;
+        color: var(--text);
+        text-align: center;
+      }
+      .cover-picker-option:hover { border-color: var(--rule); }
+      .cover-picker-option[aria-pressed="true"] { border-color: var(--text); }
+      .cover-picker-option img {
+        width: 100%;
+        aspect-ratio: 2 / 3;
+        object-fit: cover;
+        display: block;
+        border: 1px solid var(--rule);
+        border-radius: 0.2rem;
+      }
+      .cover-picker-empty-box {
+        width: 100%;
+        aspect-ratio: 2 / 3;
+        border: 1px dashed var(--rule);
+        border-radius: 0.2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        color: var(--muted);
+      }
+      .cover-picker-label {
+        font-size: 0.66rem;
+        line-height: 1.25;
+        color: var(--muted);
+        overflow-wrap: anywhere;
+      }
+      .reading-item-thumb {
+        width: 2rem;
+        height: 3rem;
+        object-fit: cover;
+        border: 1px solid var(--rule);
+        border-radius: 0.15rem;
+        flex-shrink: 0;
+        display: block;
+      }
+      .reading-item-thumb-empty {
+        width: 2rem;
+        height: 3rem;
+        border: 1px dashed var(--rule);
+        border-radius: 0.15rem;
+        flex-shrink: 0;
+      }
+      .reading-item-cover-btn {
+        font: inherit;
+        font-size: 0.78rem;
+        color: var(--muted);
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+        flex-shrink: 0;
+        text-decoration: none;
+      }
+      .reading-item-cover-btn:hover { color: var(--link-hover); }
       .thinking-archive-heading {
         font-size: 1rem;
         font-weight: 600;
@@ -783,6 +859,10 @@
           <label for="r-ym">Month (YYYY-MM)</label>
           <input id="r-ym" type="text" pattern="\d{4}-\d{2}" placeholder="2026-05" />
           <p class="admin-hint" style="margin-top:-0.9rem">Defaults to the current month if left blank.</p>
+
+          <button type="button" id="r-find-cover">Find cover art</button>
+          <p class="admin-hint" style="margin-top:0.5rem">Checks Open Library, Apple Books, and Google Books — pick whichever looks right, or none.</p>
+          <div id="r-cover-picker" class="cover-picker" hidden></div>
 
           <button type="submit" id="r-submit">Add Book</button>
           <p class="admin-status" id="r-status" hidden></p>
@@ -2457,12 +2537,96 @@
         if (loadSession()) refreshDraftList();
       })();
 
+      // ── Reading cover picker (shared by the add form and the archive list) ──
+
+      async function fetchCoverCandidates(title, url) {
+        var data = await callAPI({ action: "reading-cover-candidates", title: title, url: url });
+        return data.candidates || [];
+      }
+
+      // Renders candidate thumbnails plus a "No cover" option into `container`;
+      // calls onSelect(url|null) when the admin clicks one.
+      function renderCoverPicker(container, candidates, onSelect) {
+        container.innerHTML = "";
+        container.hidden = false;
+
+        function makeOption(url, label, sub) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "cover-picker-option";
+          btn.setAttribute("aria-pressed", "false");
+
+          if (url) {
+            var img = document.createElement("img");
+            img.src = url;
+            img.alt = label;
+            btn.appendChild(img);
+          } else {
+            var box = document.createElement("div");
+            box.className = "cover-picker-empty-box";
+            box.textContent = "None";
+            btn.appendChild(box);
+          }
+
+          var span = document.createElement("span");
+          span.className = "cover-picker-label";
+          span.textContent = sub ? label + " — " + sub : label;
+          btn.appendChild(span);
+
+          btn.addEventListener("click", function () {
+            Array.prototype.forEach.call(
+              container.querySelectorAll(".cover-picker-option"),
+              function (b) { b.setAttribute("aria-pressed", "false"); }
+            );
+            btn.setAttribute("aria-pressed", "true");
+            onSelect(url);
+          });
+          return btn;
+        }
+
+        if (!candidates.length) {
+          var none = document.createElement("p");
+          none.className = "admin-hint";
+          none.style.margin = "0 0 0.6rem";
+          none.textContent = "No cover art found from any source.";
+          container.appendChild(none);
+        }
+        candidates.forEach(function (c) {
+          container.appendChild(makeOption(c.url, c.source, c.author || c.title));
+        });
+        container.appendChild(makeOption(null, "No cover"));
+      }
+
       // ── Reading form ───────────────────────────────────────────────────────
 
       (function () {
         var form = document.getElementById("reading-form");
         var status = document.getElementById("r-status");
         var submit = document.getElementById("r-submit");
+        var findBtn = document.getElementById("r-find-cover");
+        var picker = document.getElementById("r-cover-picker");
+        var selectedCoverUrl = null;
+
+        findBtn.addEventListener("click", async function () {
+          var title = document.getElementById("r-title").value.trim();
+          var url = document.getElementById("r-url").value.trim();
+          if (!title) {
+            showStatus(status, "Enter a title first.", true);
+            return;
+          }
+          findBtn.disabled = true;
+          findBtn.textContent = "Finding covers…";
+          try {
+            var candidates = await fetchCoverCandidates(title, url);
+            selectedCoverUrl = null;
+            renderCoverPicker(picker, candidates, function (u) { selectedCoverUrl = u; });
+          } catch (err) {
+            showStatus(status, err.message, true);
+          } finally {
+            findBtn.disabled = false;
+            findBtn.textContent = "Find cover art";
+          }
+        });
 
         form.addEventListener("submit", async function (e) {
           e.preventDefault();
@@ -2474,12 +2638,16 @@
               title: document.getElementById("r-title").value,
               url: document.getElementById("r-url").value,
               ym: document.getElementById("r-ym").value,
+              cover_url: selectedCoverUrl,
             });
             var rFmt = formatSyndicationStatus(data, "Added. Site will rebuild shortly.");
             showStatus(status, rFmt.text, false, !rFmt.warn, rFmt.warn);
             document.getElementById("r-title").value = "";
             document.getElementById("r-url").value = "";
             document.getElementById("r-ym").value = "";
+            selectedCoverUrl = null;
+            picker.hidden = true;
+            picker.innerHTML = "";
             loadReadingArchive();
           } catch (err) {
             showStatus(status, err.message, true);
@@ -2510,9 +2678,26 @@
           }
           items.forEach(function (item) {
             var li = document.createElement("li");
+            li.style.flexWrap = "wrap";
+            li.style.alignItems = "center";
+
+            var row = document.createElement("div");
+            row.style.display = "flex";
+            row.style.alignItems = "center";
+            row.style.gap = "0.75rem";
+            row.style.flex = "1";
+            row.style.minWidth = "0";
+
+            var thumb = item.cover_url ? document.createElement("img") : document.createElement("div");
+            thumb.className = item.cover_url ? "reading-item-thumb" : "reading-item-thumb-empty";
+            if (item.cover_url) {
+              thumb.src = item.cover_url;
+              thumb.alt = "";
+            }
 
             var main = document.createElement("div");
             main.className = "draft-item-main";
+            main.style.cursor = "default";
 
             var titleEl = document.createElement("div");
             titleEl.className = "draft-item-title";
@@ -2524,6 +2709,18 @@
 
             main.appendChild(titleEl);
             main.appendChild(dateEl);
+            row.appendChild(thumb);
+            row.appendChild(main);
+
+            var actions = document.createElement("div");
+            actions.style.display = "flex";
+            actions.style.gap = "0.9rem";
+            actions.style.flexShrink = "0";
+
+            var coverBtn = document.createElement("button");
+            coverBtn.type = "button";
+            coverBtn.className = "reading-item-cover-btn";
+            coverBtn.textContent = "Change cover";
 
             var del = document.createElement("button");
             del.type = "button";
@@ -2548,8 +2745,50 @@
               }
             });
 
-            li.appendChild(main);
-            li.appendChild(del);
+            actions.appendChild(coverBtn);
+            actions.appendChild(del);
+
+            var pickerRow = document.createElement("div");
+            pickerRow.className = "cover-picker";
+            pickerRow.style.flexBasis = "100%";
+            pickerRow.hidden = true;
+
+            coverBtn.addEventListener("click", async function () {
+              if (!pickerRow.hidden) {
+                pickerRow.hidden = true;
+                pickerRow.innerHTML = "";
+                return;
+              }
+              coverBtn.disabled = true;
+              coverBtn.textContent = "Finding…";
+              try {
+                var candidates = await fetchCoverCandidates(item.title, item.url);
+                renderCoverPicker(pickerRow, candidates, async function (u) {
+                  try {
+                    await callAPI({ action: "update-reading-cover", id: item.id, cover_url: u });
+                    item.cover_url = u;
+                    var newThumb = u ? document.createElement("img") : document.createElement("div");
+                    newThumb.className = u ? "reading-item-thumb" : "reading-item-thumb-empty";
+                    if (u) { newThumb.src = u; newThumb.alt = ""; }
+                    thumb.replaceWith(newThumb);
+                    thumb = newThumb;
+                    pickerRow.hidden = true;
+                    pickerRow.innerHTML = "";
+                  } catch (err) {
+                    if (status) showStatus(status, err.message || "Could not update cover", true);
+                  }
+                });
+              } catch (err) {
+                if (status) showStatus(status, err.message || "Could not fetch cover candidates", true);
+              } finally {
+                coverBtn.disabled = false;
+                coverBtn.textContent = "Change cover";
+              }
+            });
+
+            li.appendChild(row);
+            li.appendChild(actions);
+            li.appendChild(pickerRow);
             list.appendChild(li);
           });
         } catch (err) {

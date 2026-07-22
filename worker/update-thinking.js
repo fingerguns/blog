@@ -193,6 +193,14 @@ export default {
       return handleDeleteReading(payload, db, cors, env, ctx);
     }
 
+    if (action === "reading-cover-candidates") {
+      return handleReadingCoverCandidates(payload, cors, env);
+    }
+
+    if (action === "update-reading-cover") {
+      return handleUpdateReadingCover(payload, db, cors, env);
+    }
+
     if (action === "sharing") {
       return handleSharing(payload, db, cors, env, ctx);
     }
@@ -2040,7 +2048,7 @@ async function handlePost(body, db, cors, env, ctx) {
 // ─── Reading ──────────────────────────────────────────────────────────────────
 
 async function handleReading(body, db, cors, env, ctx) {
-  const { title, url, ym } = body;
+  const { title, url, ym, cover_url } = body;
 
   if (typeof title !== "string" || !title.trim()) {
     return json({ error: "Missing title" }, 400, cors);
@@ -2055,16 +2063,22 @@ async function handleReading(body, db, cors, env, ctx) {
       ? ym.trim()
       : now.toISOString().slice(0, 7);
 
-  const entry = { ym: month, title: title.trim(), url: url.trim() };
+  const entry = {
+    ym: month,
+    title: title.trim(),
+    url: url.trim(),
+    coverUrl: typeof cover_url === "string" && cover_url.trim() ? cover_url.trim() : null,
+  };
 
   try {
     await dbRun(
       db,
-      "INSERT INTO reading (ym, title, url, added_at) VALUES (?, ?, ?, ?)",
+      "INSERT INTO reading (ym, title, url, added_at, cover_url) VALUES (?, ?, ?, ?, ?)",
       entry.ym,
       entry.title,
       entry.url,
-      now.toISOString()
+      now.toISOString(),
+      entry.coverUrl
     );
 
     const { microblogWarning, blueskyWarning, mastodonWarning } = await syndicateText(
@@ -2085,7 +2099,7 @@ async function handleListReading(db, cors) {
   try {
     const { results: rows } = await dbAll(
       db,
-      "SELECT id, ym, title, url, added_at FROM reading ORDER BY added_at DESC"
+      "SELECT id, ym, title, url, added_at, cover_url FROM reading ORDER BY added_at DESC"
     );
     return json({ ok: true, items: rows || [] }, 200, cors);
   } catch (err) {
@@ -2113,6 +2127,149 @@ async function handleDeleteReading(payload, db, cors, env, ctx) {
     return json({ ok: true }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Delete failed" }, 500, cors);
+  }
+}
+
+// Book cover candidates: hit Open Library, Apple Books, and Google Books in
+// parallel by ISBN (pulled from the Bookshop.org URL's `ean=` param when
+// present, else a title search) and return whatever each finds so the admin
+// can pick the best one. A plain title search ranks by relevance across
+// title+author+etc, so a short/generic title can confidently match a
+// completely different, more famous book — only trust a title-search hit if
+// its own title basically matches what we searched for.
+const normalizeBookTitle = (s) =>
+  String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+function bookTitlesMatch(a, b) {
+  const na = normalizeBookTitle(a);
+  const nb = normalizeBookTitle(b);
+  return Boolean(na && nb) && (na === nb || na.includes(nb) || nb.includes(na));
+}
+
+function isbnFromBookshopUrl(url) {
+  return /[?&]ean=(\d{9,13})\b/.exec(String(url || ""))?.[1] || null;
+}
+
+async function openLibraryCoverCandidate(isbn, title) {
+  try {
+    if (isbn) {
+      const res = await fetch(`https://openlibrary.org/isbn/${isbn}.json`);
+      if (res.ok) {
+        const data = await res.json();
+        const coverId = data?.covers?.find((id) => id > 0);
+        if (coverId) return `https://covers.openlibrary.org/b/id/${coverId}-L.jpg`;
+      }
+    }
+    const q = isbn ? `isbn:${isbn}` : title;
+    const res2 = await fetch(
+      `https://openlibrary.org/search.json?limit=1&fields=cover_i,title&q=${encodeURIComponent(q)}`
+    );
+    if (res2.ok) {
+      const data2 = await res2.json();
+      const hit = data2?.docs?.[0];
+      if (hit?.cover_i && (isbn || bookTitlesMatch(title, hit.title))) {
+        return `https://covers.openlibrary.org/b/id/${hit.cover_i}-L.jpg`;
+      }
+    }
+  } catch {
+    /* ignore — this source just won't offer a candidate */
+  }
+  return null;
+}
+
+// Titles collide across completely unrelated books often enough (e.g. two
+// different novels both called "The Murderess") that a title match alone
+// doesn't guarantee the right book — so every candidate carries whatever
+// author name its source cheaply provides, letting the admin's picker UI
+// show it as a sanity check alongside the cover image itself.
+async function itunesCoverCandidate(isbn, title) {
+  try {
+    const url = isbn
+      ? `https://itunes.apple.com/lookup?isbn=${isbn}&entity=ebook`
+      : `https://itunes.apple.com/search?entity=ebook&limit=1&term=${encodeURIComponent(title)}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const hit = data?.results?.[0];
+    const art = hit?.artworkUrl100;
+    if (!art) return null;
+    if (!isbn && !bookTitlesMatch(title, hit.trackName)) return null;
+    return {
+      url: art.replace(/\d+x\d+bb\.(jpg|png)$/, "600x900bb.$1"),
+      title: hit.trackName || null,
+      author: hit.artistName || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function googleBooksCoverCandidate(isbn, title, apiKey) {
+  if (!apiKey) return null;
+  try {
+    const q = isbn ? `isbn:${isbn}` : `intitle:${title}`;
+    const res = await fetch(
+      `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&key=${apiKey}`
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const hit = data?.items?.[0];
+    const info = hit?.volumeInfo;
+    const img = info?.imageLinks?.thumbnail || info?.imageLinks?.smallThumbnail;
+    if (!img) return null;
+    if (!isbn && !bookTitlesMatch(title, info?.title)) return null;
+    return {
+      url: img.replace(/^http:/, "https:").replace(/&zoom=\d/, "&zoom=2"),
+      title: info?.title || null,
+      author: info?.authors?.[0] || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function handleReadingCoverCandidates(body, cors, env) {
+  const { title, url } = body;
+  if (typeof title !== "string" || !title.trim()) {
+    return json({ error: "Missing title" }, 400, cors);
+  }
+  const isbn = isbnFromBookshopUrl(url);
+
+  const [openlibrary, itunes, google] = await Promise.all([
+    openLibraryCoverCandidate(isbn, title.trim()),
+    itunesCoverCandidate(isbn, title.trim()),
+    googleBooksCoverCandidate(isbn, title.trim(), env.GOOGLE_BOOKS_API_KEY),
+  ]);
+
+  const candidates = [];
+  if (openlibrary) candidates.push({ source: "Open Library", url: openlibrary, title: null, author: null });
+  if (itunes) candidates.push({ source: "Apple Books", ...itunes });
+  if (google) candidates.push({ source: "Google Books", ...google });
+
+  return json({ ok: true, candidates }, 200, cors);
+}
+
+async function handleUpdateReadingCover(payload, db, cors, env) {
+  const { id } = payload;
+  if (!id || typeof id !== "number") {
+    return json({ error: "Missing or invalid id" }, 400, cors);
+  }
+  const coverUrl =
+    typeof payload.cover_url === "string" && payload.cover_url.trim()
+      ? payload.cover_url.trim()
+      : null;
+
+  try {
+    const existing = await dbFirst(db, "SELECT id FROM reading WHERE id = ?", id);
+    if (!existing) {
+      return json({ error: "Reading entry not found" }, 404, cors);
+    }
+
+    await dbRun(db, "UPDATE reading SET cover_url = ? WHERE id = ?", coverUrl, id);
+    await triggerRebuild(env);
+
+    return json({ ok: true }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Update failed" }, 500, cors);
   }
 }
 
