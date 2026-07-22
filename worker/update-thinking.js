@@ -3,6 +3,9 @@ import { escHtml } from "../scripts/lib/html.mjs";
 import { coalesceImageParagraphsHtml } from "../scripts/lib/coalesce-images.mjs";
 import { addHashtagFacets } from "../scripts/lib/linkify.mjs";
 import { renderThinkingContentHtml } from "../scripts/lib/thinking-html.mjs";
+import { scheduleSectionHintRefresh } from "./section-hints.mjs";
+import { serveMedia } from "./media.mjs";
+import { createR2PresignedPutUrl } from "./r2-presign.mjs";
 
 /**
  * Cloudflare Worker: admin API for rommy.blog
@@ -19,22 +22,64 @@ import { renderThinkingContentHtml } from "../scripts/lib/thinking-html.mjs";
  *   MASTODON_INSTANCE     — Mastodon instance URL, default https://mas.to (optional)
  *   GITHUB_TOKEN          — optional fallback to trigger GitHub workflow_dispatch
  *
- * R2 (photos on THINKING):
+ * Direct video upload (presigned PUT to R2 — optional):
+ *   R2_ACCOUNT_ID         — Cloudflare account ID
+ *   R2_ACCESS_KEY_ID      — R2 S3 API token access key
+ *   R2_SECRET_ACCESS_KEY    — R2 S3 API token secret
+ *   Apply bucket CORS: wrangler r2 bucket cors set rommy-blog-media --file=r2-cors.json
+ *
+ * Workers AI (section hover tooltips — auto-regenerated on content changes):
+ *   Enable Workers AI in Cloudflare dashboard; [ai] binding in wrangler.toml
+ *
+ * R2 (photos, audio, video on THINKING):
  *   Enable R2 in Cloudflare dashboard, then: wrangler r2 bucket create rommy-blog-media
  *   Enable public access on the bucket and set MEDIA_PUBLIC_URL in wrangler.toml [vars]
+ *
+ * Syndication of audio/video (Thinking posts):
+ *   micro.blog  — audio and video URLs are passed via Micropub `audio[]` / `video[]` properties,
+ *                 so micro.blog and downstream podcast/RSS readers render a native player.
+ *   Mastodon    — audio and video files are uploaded as native media attachments (up to 40 MB).
+ *                 Falls back to a link-in-text post when the file is too large or unavailable.
+ *   Bluesky     — MP4 and MOV (iPhone) video both play natively via Bluesky's video-
+ *                 processing service (video.bsky.app), which transcodes server-side.
+ *                 Audio posts use a link card (Bluesky has no native audio support).
+ *                 Video falls back to a link card when native upload, processing, or
+ *                 createRecord fails.
+ *   All media   — when a native player is attached, the Thinking permalink is also included in
+ *                 the post text (Bluesky cannot combine a link card embed with media embeds).
  */
 
 const SITE_URL = "https://rommy.blog";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_PHOTO_INPUT_BYTES = 25 * 1024 * 1024;
+const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 const MAX_BLUESKY_IMAGE_BYTES = 2_000_000;
+const MAX_BLUESKY_VIDEO_BYTES = 100 * 1024 * 1024;
+const MAX_MASTODON_MEDIA_BYTES = 40 * 1024 * 1024;
 const MAX_MASTODON_CHARS = 500;
+const MAX_THINKING_PHOTOS = 4;
 const DEFAULT_MASTODON_INSTANCE = "https://mas.to";
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const ALLOWED_AUDIO_TYPES = new Set(["audio/mp4", "audio/x-m4a", "audio/m4a", "audio/mpeg", "audio/mp3"]);
+const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/x-m4v"]);
 const IMAGE_EXT = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
   "image/gif": "gif",
+};
+const AUDIO_EXT = {
+  "audio/mp4": "m4a",
+  "audio/x-m4a": "m4a",
+  "audio/m4a": "m4a",
+  "audio/mpeg": "mp3",
+  "audio/mp3": "mp3",
+};
+const VIDEO_EXT = {
+  "video/mp4": "mp4",
+  "video/quicktime": "mov",
+  "video/x-m4v": "m4v",
 };
 const SITE_TITLE = "rommy.blog";
 const SITE_AUTHOR = "Rommy Ghaly";
@@ -47,6 +92,11 @@ const AUTH_LOCKOUT_SEC = 15 * 60;
 
 export default {
   async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    if (url.pathname.startsWith("/media/")) {
+      return serveMedia(request, env);
+    }
+
     const allowedOrigins = (env.ALLOWED_ORIGINS || "https://rommy.blog")
       .split(",")
       .map((s) => s.trim())
@@ -62,7 +112,9 @@ export default {
     };
 
     if (request.method === "OPTIONS") {
-      return new Response(null, { headers: cors });
+      return new Response(null, {
+        headers: { ...cors, "Cache-Control": "no-store" },
+      });
     }
 
     if (request.method !== "POST") {
@@ -114,7 +166,11 @@ export default {
     }
 
     if (action === "thinking") {
-      return handleThinking(payload, db, cors, env);
+      return handleThinking(payload, db, cors, env, ctx);
+    }
+
+    if (action === "thinking-video-upload-url") {
+      return handleThinkingVideoUploadUrl(payload, cors, env);
     }
 
     if (action === "list-thinking") {
@@ -122,15 +178,23 @@ export default {
     }
 
     if (action === "post") {
-      return handlePost(payload, db, cors, env);
+      return handlePost(payload, db, cors, env, ctx);
     }
 
     if (action === "reading") {
-      return handleReading(payload, db, cors, env);
+      return handleReading(payload, db, cors, env, ctx);
+    }
+
+    if (action === "list-reading") {
+      return handleListReading(db, cors);
+    }
+
+    if (action === "delete-reading") {
+      return handleDeleteReading(payload, db, cors, env, ctx);
     }
 
     if (action === "sharing") {
-      return handleSharing(payload, db, cors, env);
+      return handleSharing(payload, db, cors, env, ctx);
     }
 
     if (action === "upload-media") {
@@ -162,15 +226,15 @@ export default {
     }
 
     if (action === "edit-post") {
-      return handleEditPost(payload, db, cors, env);
+      return handleEditPost(payload, db, cors, env, ctx);
     }
 
     if (action === "delete-post") {
-      return handleDeletePost(payload, db, cors, env);
+      return handleDeletePost(payload, db, cors, env, ctx);
     }
 
     if (action === "delete-thinking") {
-      return handleDeleteThinking(payload, db, cors, env);
+      return handleDeleteThinking(payload, db, cors, env, ctx);
     }
 
     return json({ error: "Unknown action" }, 400, cors);
@@ -343,23 +407,37 @@ async function parseRequest(request) {
   const ct = request.headers.get("Content-Type") || "";
   if (ct.includes("multipart/form-data")) {
     const fd = await request.formData();
-    const photo = fd.get("photo");
-    const photoBluesky = fd.get("photo_bluesky");
+    const photoEntries = fd
+      .getAll("photo")
+      .concat(fd.getAll("photo[]"))
+      .filter(
+        (f) => f && typeof f === "object" && "arrayBuffer" in f && f.size > 0
+      );
+    const blueskyEntries = fd
+      .getAll("photo_bluesky")
+      .concat(fd.getAll("photo_bluesky[]"))
+      .filter(
+        (f) => f && typeof f === "object" && "arrayBuffer" in f && f.size > 0
+      );
+    const audio = fd.get("audio");
+    const video = fd.get("video");
     return {
       password: fd.get("password"),
       action: fd.get("action"),
       folder: String(fd.get("folder") || "writing"),
       text: String(fd.get("text") || ""),
-      photo:
-        photo && typeof photo === "object" && "arrayBuffer" in photo && photo.size > 0
-          ? photo
+      photos: photoEntries.slice(0, MAX_THINKING_PHOTOS),
+      photo_bluesky_list: blueskyEntries.slice(0, MAX_THINKING_PHOTOS),
+      // Back-compat single fields for other actions (e.g. upload-photo)
+      photo: photoEntries[0] || null,
+      photo_bluesky: blueskyEntries[0] || null,
+      audio:
+        audio && typeof audio === "object" && "arrayBuffer" in audio && audio.size > 0
+          ? audio
           : null,
-      photo_bluesky:
-        photoBluesky &&
-        typeof photoBluesky === "object" &&
-        "arrayBuffer" in photoBluesky &&
-        photoBluesky.size > 0
-          ? photoBluesky
+      video:
+        video && typeof video === "object" && "arrayBuffer" in video && video.size > 0
+          ? video
           : null,
     };
   }
@@ -368,12 +446,86 @@ async function parseRequest(request) {
 
 // ─── Thinking ────────────────────────────────────────────────────────────────
 
-async function handleThinking(payload, db, cors, env) {
-  const text = typeof payload.text === "string" ? payload.text.trim() : "";
-  const photo = payload.photo || null;
+function isLinkOnlyThinkingMedia(mediaType) {
+  return mediaType === "audio" || mediaType === "video";
+}
 
-  if (!text && !photo) {
-    return json({ error: "Add text or a photo" }, 400, cors);
+function thinkingSyndicationPrefix(mediaType) {
+  if (mediaType === "video") return "Video: ";
+  if (mediaType === "audio") return "Audio: ";
+  return "";
+}
+
+function thinkingLinkSyndicationText(text, postUrl, mediaType) {
+  const prefix = thinkingSyndicationPrefix(mediaType);
+  if (text) return `${prefix}${text}\n\n${postUrl}`;
+  return `${prefix}${postUrl}`;
+}
+
+/** Append the Thinking permalink when a native media attachment is also present. */
+function thinkingSyndicationTextWithPermalink(text, postUrl) {
+  const t = (text || "").trim();
+  if (t.includes(postUrl)) return t;
+  if (t) return `${t}\n\n${postUrl}`;
+  return postUrl;
+}
+
+function thinkingBlueskySyndicationText(text, postUrl, mediaType) {
+  const prefix = thinkingSyndicationPrefix(mediaType);
+  if (text) return `${prefix}${text}`;
+  return `${prefix}${postUrl}`;
+}
+
+function thinkingMediaLabel(mediaType) {
+  if (mediaType === "video") return "Video";
+  if (mediaType === "audio") return "Audio";
+  return "Note";
+}
+
+function thinkingBlueskyLinkCard(postUrl, text, mediaType) {
+  return {
+    uri: postUrl,
+    title: text.slice(0, 100).trim() || thinkingMediaLabel(mediaType),
+    description: `${mediaType === "video" ? "Video" : "Audio"} on rommy.blog`,
+    thumb: null,
+  };
+}
+
+/**
+ * Bluesky's video-processing service (video.bsky.app) accepts MP4 and MOV
+ * (QuickTime) directly and transcodes server-side. Other formats (e.g. m4v)
+ * still fall back to a link card since they're not in Bluesky's accepted list.
+ */
+function blueskySupportsNativeVideo(mimeType) {
+  return mimeType === "video/mp4" || mimeType === "video/quicktime";
+}
+
+async function handleThinking(payload, db, cors, env, ctx) {
+  const text = typeof payload.text === "string" ? payload.text.trim() : "";
+  const photos = Array.isArray(payload.photos)
+    ? payload.photos.filter(Boolean).slice(0, MAX_THINKING_PHOTOS)
+    : payload.photo
+      ? [payload.photo]
+      : [];
+  const photoBlueskyList = Array.isArray(payload.photo_bluesky_list)
+    ? payload.photo_bluesky_list.filter(Boolean).slice(0, MAX_THINKING_PHOTOS)
+    : payload.photo_bluesky
+      ? [payload.photo_bluesky]
+      : [];
+  const audio = payload.audio || null;
+  const video = payload.video || null;
+  const videoKey =
+    typeof payload.video_key === "string" ? payload.video_key.trim() : "";
+  const hasPhotos = photos.length > 0;
+
+  if (!text && !hasPhotos && !audio && !video && !videoKey) {
+    return json({ error: "Add text, a photo, audio, or video" }, 400, cors);
+  }
+  if ([hasPhotos, audio, video, videoKey].filter(Boolean).length > 1) {
+    return json({ error: "Add photos, audio, or video — not more than one kind" }, 400, cors);
+  }
+  if (photos.length > MAX_THINKING_PHOTOS) {
+    return json({ error: `At most ${MAX_THINKING_PHOTOS} photos per post` }, 400, cors);
   }
   if (text.length > 2000) {
     return json({ error: "Text must be 2000 characters or fewer" }, 400, cors);
@@ -381,32 +533,70 @@ async function handleThinking(payload, db, cors, env) {
   // Bluesky cross-post truncates at 300; admin shows a soft 300-char guide.
 
   try {
-    let mediaUrl = null;
-    let mediaAlt = text.slice(0, 1000) || "";
-    let uploadedForBluesky = null;
-    let blueskyCompressed = false;
-
-    if (photo) {
-      const uploaded = await uploadPhotoToR2(env, photo, "thinking");
-      mediaUrl = uploaded.url;
-      mediaAlt = text.slice(0, 1000) || "Photo";
-      uploadedForBluesky = {
-        bytes: uploaded.bytes,
-        mimeType: uploaded.mimeType,
-        alt: mediaAlt,
-        aspectRatio: uploaded.aspectRatio,
-      };
-    }
-
     const now = new Date();
     const nowIso = now.toISOString();
     const slug = thinkingSlugFromDate(now);
+    const postUrl = `${SITE_URL}/thinking/${slug}/`;
+
+    let mediaUrl = null;
+    let mediaUrls = [];
+    let mediaAlt = text.slice(0, 1000) || "";
+    let mediaType = "";
+    let uploadedPhotos = [];
+    let blueskyCompressed = false;
+    let syndicationPhotos = [];
+    // syndicationMedia holds R2 upload metadata for audio/video syndication.
+    let syndicationMedia = null;
+
+    if (hasPhotos) {
+      for (const photo of photos) {
+        const uploaded = await uploadPhotoToR2(env, photo, "thinking");
+        uploadedPhotos.push(uploaded);
+        syndicationPhotos.push(syndicationPhotoFromUpload(uploaded));
+      }
+      mediaUrls = uploadedPhotos.map((u) => u.url);
+      mediaUrl = mediaUrls[0];
+      mediaAlt = text.slice(0, 1000) || "Photo";
+      mediaType = "image";
+    } else if (audio) {
+      const uploaded = await uploadAudioToR2(env, audio);
+      mediaUrl = uploaded.url;
+      mediaAlt = text.slice(0, 1000) || "Audio";
+      mediaType = "audio";
+      syndicationMedia = { url: mediaUrl, bytes: uploaded.bytes, mimeType: uploaded.mimeType, key: uploaded.key, size: uploaded.bytes?.byteLength ?? 0, mediaType: "audio", alt: mediaAlt };
+    } else if (video) {
+      const uploaded = await uploadVideoToR2(env, video);
+      mediaUrl = uploaded.url;
+      mediaAlt = text.slice(0, 1000) || "Video";
+      mediaType = "video";
+      syndicationMedia = { url: mediaUrl, bytes: uploaded.bytes, mimeType: uploaded.mimeType, key: uploaded.key, size: uploaded.bytes?.byteLength ?? 0, mediaType: "video", alt: mediaAlt };
+    } else if (videoKey) {
+      const uploaded = await finalizeVideoFromR2(env, videoKey, payload.video_mime);
+      mediaUrl = uploaded.url;
+      mediaAlt = text.slice(0, 1000) || "Video";
+      mediaType = "video";
+      // bytes is null for presigned uploads; we'll fetch from R2 when needed.
+      syndicationMedia = { url: mediaUrl, bytes: null, mimeType: uploaded.mimeType, key: uploaded.key, size: uploaded.size ?? 0, mediaType: "video", alt: mediaAlt };
+    }
 
     let microblogUrl = null;
     let microblogWarning = null;
     if (env.MICROBLOG_TOKEN) {
       try {
-        microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, text, photo);
+        const mbText = mediaType
+          ? thinkingSyndicationTextWithPermalink(text, postUrl)
+          : text;
+        if (mediaType === "audio") {
+          // Pass the hosted audio URL via Micropub so micro.blog renders a player.
+          microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, mbText, null, mediaUrl, null);
+        } else if (mediaType === "video") {
+          // Pass the hosted video URL via Micropub so micro.blog renders a player.
+          microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, mbText, null, null, mediaUrl);
+        } else if (mediaType === "image") {
+          microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, mbText, syndicationPhotos);
+        } else {
+          microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, text);
+        }
       } catch (mbErr) {
         microblogWarning = formatServiceWarning("micro.blog", mbErr.message);
       }
@@ -416,17 +606,44 @@ async function handleThinking(payload, db, cors, env) {
     let blueskyWarning = null;
     if (env.BLUESKY_HANDLE && env.BLUESKY_APP_PASSWORD) {
       try {
-        let blueskyImage = null;
-        if (uploadedForBluesky) {
-          const prepared = await prepareBlueskyImage(
-            uploadedForBluesky,
-            payload.photo_bluesky
-          );
-          blueskyImage = prepared.image;
-          blueskyCompressed = prepared.compressed;
+        let blueskyImages = null;
+        if (uploadedPhotos.length) {
+          blueskyImages = [];
+          for (let i = 0; i < uploadedPhotos.length; i++) {
+            const uploaded = uploadedPhotos[i];
+            const prepared = await prepareBlueskyImage(
+              {
+                bytes: uploaded.bytes,
+                mimeType: uploaded.mimeType,
+                alt: mediaAlt,
+                aspectRatio: uploaded.aspectRatio,
+              },
+              photoBlueskyList[i] || null
+            );
+            blueskyImages.push(prepared.image);
+            if (prepared.compressed) blueskyCompressed = true;
+          }
         }
+
+        // Try native video for MP4 and MOV — Bluesky's video service transcodes both.
+        let blueskyVideo = null;
+        if (
+          mediaType === "video" &&
+          syndicationMedia &&
+          blueskySupportsNativeVideo(syndicationMedia.mimeType)
+        ) {
+          const videoBytes = await getMediaBytesForSyndication(env, syndicationMedia, MAX_BLUESKY_VIDEO_BYTES);
+          if (videoBytes) {
+            blueskyVideo = { bytes: videoBytes, mimeType: syndicationMedia.mimeType, alt: mediaAlt };
+          }
+        }
+
+        // Always prepare a link card for audio/video so Bluesky still posts when native
+        // upload fails (MOV, Worker timeout, or createRecord rejecting the video embed).
         let blueskyLinkCard = null;
-        if (!blueskyImage && [...text].length > 300) {
+        if (isLinkOnlyThinkingMedia(mediaType)) {
+          blueskyLinkCard = thinkingBlueskyLinkCard(postUrl, text, mediaType);
+        } else if (!blueskyImages && [...text].length > 300) {
           const urlMatch = text.match(/https?:\/\/[^\s]+/);
           if (urlMatch) {
             const extractedUrl = urlMatch[0].replace(/[.,;:!?)"']+$/, "");
@@ -434,19 +651,30 @@ async function handleThinking(payload, db, cors, env) {
           }
           if (!blueskyLinkCard) {
             blueskyLinkCard = {
-              uri: `${SITE_URL}/thinking/${slug}/`,
+              uri: postUrl,
               title: text.slice(0, 100).trim(),
               description: text.length > 100 ? text.slice(100, 280).trim() : "",
               thumb: null,
             };
           }
         }
+
+        // Text: link-card fallback for audio (and oversized video); permalink in text when
+        // a native image/video embed is present (Bluesky allows only one embed per post).
+        const blueskyText =
+          isLinkOnlyThinkingMedia(mediaType) && !blueskyVideo
+            ? thinkingBlueskySyndicationText(text, postUrl, mediaType)
+            : mediaType
+              ? thinkingSyndicationTextWithPermalink(text, postUrl)
+              : text;
+
         blueskyUri = await postToBluesky(
           env.BLUESKY_HANDLE,
           env.BLUESKY_APP_PASSWORD,
-          text,
-          blueskyImage,
-          blueskyLinkCard
+          blueskyText,
+          blueskyImages,
+          blueskyLinkCard,
+          blueskyVideo
         );
       } catch (bsErr) {
         blueskyWarning = formatServiceWarning("Bluesky", bsErr.message);
@@ -458,24 +686,56 @@ async function handleThinking(payload, db, cors, env) {
     if (env.MASTODON_ACCESS_TOKEN) {
       const mastodonInstance = (env.MASTODON_INSTANCE || DEFAULT_MASTODON_INSTANCE).replace(/\/$/, "");
       try {
-        const mastodonImage = uploadedForBluesky
-          ? { bytes: uploadedForBluesky.bytes, mimeType: uploadedForBluesky.mimeType, alt: uploadedForBluesky.alt }
-          : null;
-        mastodonUrl = await postToMastodon(mastodonInstance, env.MASTODON_ACCESS_TOKEN, text, mastodonImage);
+        let mastodonMedia = null;
+        let mastodonText;
+
+        if (mediaType === "image" && uploadedPhotos.length) {
+          mastodonMedia = uploadedPhotos.map((u) => ({
+            bytes: u.bytes,
+            mimeType: u.mimeType,
+            alt: mediaAlt,
+            mediaType: "image",
+          }));
+          mastodonText = thinkingSyndicationTextWithPermalink(text, postUrl);
+        } else if ((mediaType === "audio" || mediaType === "video") && syndicationMedia) {
+          const mediaBytes = await getMediaBytesForSyndication(env, syndicationMedia, MAX_MASTODON_MEDIA_BYTES);
+          if (mediaBytes) {
+            mastodonMedia = { bytes: mediaBytes, mimeType: syndicationMedia.mimeType, alt: mediaAlt, mediaType };
+            mastodonText = thinkingSyndicationTextWithPermalink(text, postUrl);
+          } else {
+            // File too large or unavailable; fall back to link-in-text.
+            mastodonText = thinkingLinkSyndicationText(text, postUrl, mediaType);
+          }
+        } else {
+          mastodonText = text;
+        }
+
+        mastodonUrl = await postToMastodon(mastodonInstance, env.MASTODON_ACCESS_TOKEN, mastodonText, mastodonMedia);
       } catch (msErr) {
         mastodonWarning = formatServiceWarning("Mastodon", msErr.message);
       }
     }
 
-    const contentHtml = renderThinkingContentHtml(text, mediaUrl, mediaAlt);
+    const mediaUrlsJson =
+      mediaType === "image" && mediaUrls.length > 1 ? JSON.stringify(mediaUrls) : null;
+    const contentHtml = renderThinkingContentHtml(
+      text,
+      mediaUrl,
+      mediaAlt,
+      mediaType,
+      SITE_URL,
+      { mediaUrls: mediaType === "image" ? mediaUrls : [] }
+    );
     await dbRun(
       db,
-      `INSERT INTO thinking_posts (slug, text, media_url, media_alt, content_html, datetime, microblog_url, bluesky_uri, mastodon_uri, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO thinking_posts (slug, text, media_url, media_alt, media_type, media_urls, content_html, datetime, microblog_url, bluesky_uri, mastodon_uri, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(slug) DO UPDATE SET
          text = excluded.text,
          media_url = excluded.media_url,
          media_alt = excluded.media_alt,
+         media_type = excluded.media_type,
+         media_urls = excluded.media_urls,
          content_html = excluded.content_html,
          microblog_url = COALESCE(excluded.microblog_url, thinking_posts.microblog_url),
          bluesky_uri = COALESCE(excluded.bluesky_uri, thinking_posts.bluesky_uri),
@@ -485,6 +745,8 @@ async function handleThinking(payload, db, cors, env) {
       text,
       mediaUrl,
       mediaAlt,
+      mediaType || null,
+      mediaUrlsJson,
       contentHtml,
       nowIso,
       microblogUrl,
@@ -494,12 +756,14 @@ async function handleThinking(payload, db, cors, env) {
     );
 
     await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Thinking", triggerRebuild);
 
     return json(
       {
         ok: true,
         text,
         mediaUrl,
+        mediaUrls: mediaUrls.length ? mediaUrls : undefined,
         microblogWarning,
         blueskyWarning,
         blueskyCompressed,
@@ -516,7 +780,7 @@ async function handleThinking(payload, db, cors, env) {
 async function handleListThinking(db, cors) {
   const { results: rows } = await dbAll(
     db,
-    `SELECT slug, text, content_html, datetime, microblog_url
+    `SELECT slug, text, content_html, media_type, datetime, microblog_url
      FROM thinking_posts
      ORDER BY datetime DESC
      LIMIT 50`
@@ -533,6 +797,8 @@ async function handleListThinking(db, cors) {
 function thinkingArchiveLabel(row) {
   const text = (row.text || "").trim();
   if (text) return text;
+  if (row.media_type === "audio") return "Audio note";
+  if (row.media_type === "video") return "Video note";
   const plain = String(row.content_html || "")
     .replace(/<img[^>]*>/gi, "")
     .replace(/<[^>]+>/g, " ")
@@ -582,7 +848,66 @@ async function prepareBlueskyImage(image, compressedFile = null) {
   }
 }
 
+async function compressImageUnderByteLimit(bytes, mimeType, maxBytes) {
+  if (bytes.byteLength <= maxBytes) {
+    return {
+      bytes,
+      mimeType,
+      aspectRatio: await imageAspectRatio(bytes, mimeType),
+      compressed: false,
+    };
+  }
+
+  if (mimeType === "image/gif") {
+    throw new Error("GIF must be 5 MB or smaller.");
+  }
+
+  if (typeof OffscreenCanvas === "undefined") {
+    throw new Error("Photo processing is unavailable in this environment.");
+  }
+
+  const blob = new Blob([bytes], { type: mimeType });
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(blob);
+  } catch {
+    throw new Error("Could not process this photo. Try exporting as JPEG and uploading again.");
+  }
+
+  try {
+    let w = bitmap.width;
+    let h = bitmap.height;
+    const qualities = [0.92, 0.85, 0.78, 0.72, 0.65, 0.58, 0.5, 0.42];
+
+    while (w >= 1 && h >= 1) {
+      for (const quality of qualities) {
+        const out = await encodeJpegFromBitmap(bitmap, w, h, quality);
+        if (out.byteLength <= maxBytes) {
+          return {
+            bytes: out,
+            mimeType: "image/jpeg",
+            aspectRatio: { width: w, height: h },
+            compressed: true,
+          };
+        }
+      }
+      if (w === 1 && h === 1) break;
+      w = Math.max(1, Math.round(w * 0.9));
+      h = Math.max(1, Math.round(h * 0.9));
+    }
+
+    throw new Error("Could not compress photo under 5 MB.");
+  } finally {
+    bitmap.close();
+  }
+}
+
 async function compressImageForBluesky(bytes, mimeType) {
+  // Canvas re-encoding would flatten an animated GIF to a static frame; fail
+  // instead so the caller falls back to skipping the Bluesky image cleanly.
+  if (mimeType === "image/gif") {
+    throw new Error("GIF is too large for Bluesky.");
+  }
   if (typeof OffscreenCanvas === "undefined") {
     throw new Error("OffscreenCanvas unavailable");
   }
@@ -629,6 +954,34 @@ async function encodeJpegFromBitmap(bitmap, width, height, quality) {
   ctx.drawImage(bitmap, 0, 0, width, height);
   const outBlob = await canvas.convertToBlob({ type: "image/jpeg", quality });
   return outBlob.arrayBuffer();
+}
+
+function syndicationPhotoFromUpload(uploaded) {
+  const ext = IMAGE_EXT[uploaded.mimeType] || "jpg";
+  return new File([uploaded.bytes], `photo.${ext}`, { type: uploaded.mimeType });
+}
+
+/**
+ * Returns bytes for a media file that was already uploaded to R2.
+ * If `uploaded.bytes` is already in memory, returns those directly.
+ * Otherwise fetches from R2 (only if size is within `maxBytes`).
+ * Returns null if bytes aren't available or the file is too large.
+ */
+async function getMediaBytesForSyndication(env, uploaded, maxBytes) {
+  if (uploaded.bytes) {
+    const len = uploaded.bytes.byteLength ?? uploaded.bytes.length ?? 0;
+    return len <= maxBytes ? uploaded.bytes : null;
+  }
+  if (!uploaded.key || !env.MEDIA) return null;
+  const size = uploaded.size || 0;
+  if (size > maxBytes) return null;
+  try {
+    const obj = await env.MEDIA.get(uploaded.key);
+    if (!obj) return null;
+    return obj.arrayBuffer();
+  } catch {
+    return null;
+  }
 }
 
 function blueskyImageError(byteLength, status, body) {
@@ -687,26 +1040,231 @@ async function uploadPhotoToR2(env, file, folder = "writing") {
   if (!ALLOWED_IMAGE_TYPES.has(mimeType)) {
     throw new Error("Photo must be JPEG, PNG, WebP, or GIF.");
   }
-  if (file.size > MAX_IMAGE_BYTES) {
-    throw new Error("Photo must be 5 MB or smaller for rommy.blog.");
+  if (file.size > MAX_PHOTO_INPUT_BYTES) {
+    throw new Error("Photo must be 25 MB or smaller.");
+  }
+
+  const rawBytes = await file.arrayBuffer();
+  const processed = await compressImageUnderByteLimit(rawBytes, mimeType, MAX_IMAGE_BYTES);
+  const bytes = processed.bytes;
+  const outMime = processed.mimeType;
+  const aspectRatio = processed.aspectRatio;
+
+  const ext = IMAGE_EXT[outMime] || "jpg";
+  const prefix = folder === "thinking" ? "thinking" : "writing";
+  const key = `${prefix}/${toDateStr(new Date())}/${crypto.randomUUID()}.${ext}`;
+
+  await env.MEDIA.put(key, bytes, {
+    httpMetadata: { contentType: outMime },
+  });
+
+  return {
+    url: `${publicBase}/${key}`,
+    bytes,
+    mimeType: outMime,
+    aspectRatio,
+  };
+}
+
+function resolveAudioMime(file) {
+  const type = (file.type || "").toLowerCase().split(";")[0].trim();
+  if (type && ALLOWED_AUDIO_TYPES.has(type)) return type;
+  const name = String(file.name || "").toLowerCase();
+  if (name.endsWith(".m4a")) return "audio/mp4";
+  if (name.endsWith(".mp3")) return "audio/mpeg";
+  if (name.endsWith(".aac")) return "audio/mp4";
+  return type || "";
+}
+
+async function uploadAudioToR2(env, file) {
+  if (!env.MEDIA) {
+    throw new Error("Audio storage is not configured (R2).");
+  }
+  const publicBase = (env.MEDIA_PUBLIC_URL || "").replace(/\/$/, "");
+  if (!publicBase) {
+    throw new Error("Audio storage is missing a public URL (MEDIA_PUBLIC_URL).");
+  }
+
+  const mimeType = resolveAudioMime(file);
+  if (!mimeType || !ALLOWED_AUDIO_TYPES.has(mimeType)) {
+    throw new Error("Audio must be M4A (Voice Memos) or MP3.");
+  }
+  if (file.size > MAX_AUDIO_BYTES) {
+    throw new Error("Audio must be 25 MB or smaller.");
   }
 
   const bytes = await file.arrayBuffer();
-  const ext = IMAGE_EXT[mimeType] || "jpg";
-  const prefix = folder === "thinking" ? "thinking" : "writing";
-  const key = `${prefix}/${toDateStr(new Date())}/${crypto.randomUUID()}.${ext}`;
+  const ext = AUDIO_EXT[mimeType] || "m4a";
+  const key = `thinking/audio/${toDateStr(new Date())}/${crypto.randomUUID()}.${ext}`;
 
   await env.MEDIA.put(key, bytes, {
     httpMetadata: { contentType: mimeType },
   });
 
-  const aspectRatio = await imageAspectRatio(bytes, mimeType);
+  return {
+    url: `${publicBase}/${key}`,
+    bytes,
+    mimeType,
+    key,
+  };
+}
+
+function resolveVideoMime(file) {
+  const type = (file.type || "").toLowerCase().split(";")[0].trim();
+  if (type && ALLOWED_VIDEO_TYPES.has(type)) return type;
+  const name = String(file.name || "").toLowerCase();
+  if (name.endsWith(".mp4")) return "video/mp4";
+  if (name.endsWith(".mov")) return "video/quicktime";
+  if (name.endsWith(".m4v")) return "video/x-m4v";
+  return type || "";
+}
+
+function resolveVideoMimeFromMeta(mimeType, fileName) {
+  const type = (mimeType || "").toLowerCase().split(";")[0].trim();
+  if (type && ALLOWED_VIDEO_TYPES.has(type)) return type;
+  const name = String(fileName || "").toLowerCase();
+  if (name.endsWith(".mp4")) return "video/mp4";
+  if (name.endsWith(".mov")) return "video/quicktime";
+  if (name.endsWith(".m4v")) return "video/x-m4v";
+  return type || "";
+}
+
+function isValidThinkingVideoKey(key) {
+  return /^thinking\/video\/\d{4}-\d{2}-\d{2}\/[0-9a-f-]{36}\.(mp4|mov|m4v)$/i.test(
+    key
+  );
+}
+
+function r2PresignConfigured(env) {
+  return !!(
+    env.R2_ACCOUNT_ID &&
+    env.R2_ACCESS_KEY_ID &&
+    env.R2_SECRET_ACCESS_KEY &&
+    env.MEDIA
+  );
+}
+
+async function handleThinkingVideoUploadUrl(payload, cors, env) {
+  if (!r2PresignConfigured(env)) {
+    return json({ error: "Direct video upload is not configured." }, 503, cors);
+  }
+
+  const mimeType = resolveVideoMimeFromMeta(payload.mimeType, payload.fileName);
+  const size = Number(payload.size);
+
+  if (!mimeType || !ALLOWED_VIDEO_TYPES.has(mimeType)) {
+    return json({ error: "Video must be MP4 or MOV (iPhone)." }, 400, cors);
+  }
+  if (!Number.isFinite(size) || size <= 0 || size > MAX_VIDEO_BYTES) {
+    return json({ error: "Video must be 100 MB or smaller." }, 400, cors);
+  }
+
+  const bucket = env.R2_BUCKET_NAME || "rommy-blog-media";
+  const publicBase = (env.MEDIA_PUBLIC_URL || "").replace(/\/$/, "");
+  if (!publicBase) {
+    return json({ error: "Video storage is missing a public URL (MEDIA_PUBLIC_URL)." }, 500, cors);
+  }
+
+  const ext = VIDEO_EXT[mimeType] || "mp4";
+  const key = `thinking/video/${toDateStr(new Date())}/${crypto.randomUUID()}.${ext}`;
+
+  let uploadUrl;
+  try {
+    uploadUrl = await createR2PresignedPutUrl({
+      accountId: env.R2_ACCOUNT_ID,
+      bucket,
+      key,
+      accessKeyId: env.R2_ACCESS_KEY_ID,
+      secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+      mimeType,
+    });
+  } catch (err) {
+    return json(
+      { error: err.message || "Could not create upload URL." },
+      500,
+      cors
+    );
+  }
+
+  return json(
+    {
+      ok: true,
+      uploadUrl,
+      key,
+      mediaUrl: `${publicBase}/${key}`,
+      mimeType,
+    },
+    200,
+    cors
+  );
+}
+
+async function finalizeVideoFromR2(env, key, expectedMime) {
+  if (!env.MEDIA) {
+    throw new Error("Video storage is not configured (R2).");
+  }
+  const publicBase = (env.MEDIA_PUBLIC_URL || "").replace(/\/$/, "");
+  if (!publicBase) {
+    throw new Error("Video storage is missing a public URL (MEDIA_PUBLIC_URL).");
+  }
+  if (!isValidThinkingVideoKey(key)) {
+    throw new Error("Invalid video upload.");
+  }
+
+  const head = await env.MEDIA.head(key);
+  if (!head) {
+    throw new Error("Video upload not found. Try uploading again.");
+  }
+  if (head.size > MAX_VIDEO_BYTES) {
+    throw new Error("Video must be 100 MB or smaller.");
+  }
+
+  const mimeType =
+    resolveVideoMimeFromMeta(expectedMime, key) ||
+    (head.httpMetadata?.contentType || "").toLowerCase().split(";")[0].trim();
+  if (!mimeType || !ALLOWED_VIDEO_TYPES.has(mimeType)) {
+    throw new Error("Video must be MP4 or MOV (iPhone).");
+  }
+
+  return {
+    url: `${publicBase}/${key}`,
+    bytes: null,
+    mimeType,
+    key,
+    size: head.size,
+  };
+}
+
+async function uploadVideoToR2(env, file) {
+  if (!env.MEDIA) {
+    throw new Error("Video storage is not configured (R2).");
+  }
+  const publicBase = (env.MEDIA_PUBLIC_URL || "").replace(/\/$/, "");
+  if (!publicBase) {
+    throw new Error("Video storage is missing a public URL (MEDIA_PUBLIC_URL).");
+  }
+
+  const mimeType = resolveVideoMime(file);
+  if (!mimeType || !ALLOWED_VIDEO_TYPES.has(mimeType)) {
+    throw new Error("Video must be MP4 or MOV (iPhone).");
+  }
+  if (file.size > MAX_VIDEO_BYTES) {
+    throw new Error("Video must be 100 MB or smaller.");
+  }
+
+  const bytes = await file.arrayBuffer();
+  const ext = VIDEO_EXT[mimeType] || "mp4";
+  const key = `thinking/video/${toDateStr(new Date())}/${crypto.randomUUID()}.${ext}`;
+
+  await env.MEDIA.put(key, bytes, {
+    httpMetadata: { contentType: mimeType },
+  });
 
   return {
     url: `${publicBase}/${key}`,
     bytes,
     mimeType,
-    aspectRatio,
+    key,
   };
 }
 
@@ -722,19 +1280,50 @@ async function imageAspectRatio(bytes, mimeType) {
   }
 }
 
-async function postToMicroblog(token, content, photoFile = null) {
-  if (photoFile) {
-    const mimeType = photoFile.type || "image/jpeg";
-    const bytes = await photoFile.arrayBuffer();
+async function postToMicroblog(token, content, photoFiles = null, audioUrl = null, videoUrl = null) {
+  const photos = Array.isArray(photoFiles)
+    ? photoFiles.filter(Boolean)
+    : photoFiles
+      ? [photoFiles]
+      : [];
+
+  if (photos.length) {
     const fd = new FormData();
     fd.append("h", "entry");
     if (content) fd.append("content", content);
-    fd.append(
-      "photo",
-      new Blob([bytes], { type: mimeType }),
-      `photo.${IMAGE_EXT[mimeType] || "jpg"}`
-    );
+    for (let i = 0; i < photos.length; i++) {
+      const photoFile = photos[i];
+      const mimeType = photoFile.type || "image/jpeg";
+      const bytes = await photoFile.arrayBuffer();
+      fd.append(
+        "photo[]",
+        new Blob([bytes], { type: mimeType }),
+        `photo${i + 1}.${IMAGE_EXT[mimeType] || "jpg"}`
+      );
+    }
 
+    const res = await fetch("https://micro.blog/micropub", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(
+        `micropub request failed (${res.status})${summarizeApiBody(err) ? ": " + summarizeApiBody(err) : ""}`
+      );
+    }
+    return micropubPostUrl(res);
+  }
+
+  // Pass hosted audio or video URL via Micropub properties so micro.blog
+  // renders a native player in the feed rather than a plain link.
+  if (audioUrl || videoUrl) {
+    const fd = new FormData();
+    fd.append("h", "entry");
+    if (content) fd.append("content", content);
+    if (audioUrl) fd.append("audio[]", audioUrl);
+    if (videoUrl) fd.append("video[]", videoUrl);
     const res = await fetch("https://micro.blog/micropub", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
@@ -792,6 +1381,82 @@ async function blueskySession(handle, appPassword) {
   return sessionRes.json();
 }
 
+/**
+ * Bluesky's video-processing service needs a service-auth token whose `aud` is the
+ * account's actual PDS DID (not video.bsky.app). Resolve it from the DID document,
+ * falling back to bsky.social — the host the rest of this file already talks to.
+ */
+async function resolveBlueskyPdsAud(did) {
+  try {
+    if (typeof did === "string" && did.startsWith("did:plc:")) {
+      const res = await fetch(`https://plc.directory/${encodeURIComponent(did)}`);
+      if (res.ok) {
+        const doc = await res.json();
+        const pds = Array.isArray(doc.service)
+          ? doc.service.find((s) => s.id === "#atproto_pds")
+          : null;
+        if (pds?.serviceEndpoint) {
+          const host = new URL(pds.serviceEndpoint).host;
+          if (host) return `did:web:${host}`;
+        }
+      }
+    }
+  } catch {}
+  return "did:web:bsky.social";
+}
+
+async function blueskyServiceAuthToken(accessJwt, aud, lxm, ttlSec = 1800) {
+  const url = new URL("https://bsky.social/xrpc/com.atproto.server.getServiceAuth");
+  url.searchParams.set("aud", aud);
+  url.searchParams.set("lxm", lxm);
+  url.searchParams.set("exp", String(Math.floor(Date.now() / 1000) + ttlSec));
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessJwt}` },
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Bluesky service auth failed (${summarizeApiBody(err) || res.status})`);
+  }
+  const { token } = await res.json();
+  return token;
+}
+
+async function blueskyUploadVideoToService(serviceToken, did, mimeType, bytes, fileName) {
+  const uploadUrl = new URL("https://video.bsky.app/xrpc/app.bsky.video.uploadVideo");
+  uploadUrl.searchParams.set("did", did);
+  uploadUrl.searchParams.set("name", fileName);
+  const res = await fetch(uploadUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${serviceToken}`,
+      "Content-Type": mimeType,
+    },
+    body: bytes,
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok && !data?.blob) {
+    throw new Error(data?.message || `Bluesky video upload failed (HTTP ${res.status}).`);
+  }
+  return data;
+}
+
+async function blueskyPollVideoJob(jobId, deadlineMs = 25000) {
+  const start = Date.now();
+  while (Date.now() - start < deadlineMs) {
+    try {
+      const res = await fetch(
+        `https://video.bsky.app/xrpc/app.bsky.video.getJobStatus?jobId=${encodeURIComponent(jobId)}`
+      );
+      const data = await res.json().catch(() => null);
+      const status = data?.jobStatus;
+      if (status?.blob) return status.blob;
+      if (status?.state === "JOB_STATE_FAILED") return null;
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+  return null;
+}
+
 async function fetchLinkCard(url) {
   try {
     const res = await fetch(url, {
@@ -837,7 +1502,7 @@ async function fetchLinkCard(url) {
   }
 }
 
-async function postToBluesky(handle, appPassword, content, image = null, linkCard = null) {
+async function postToBluesky(handle, appPassword, content, image = null, linkCard = null, video = null) {
   const { accessJwt, did } = await blueskySession(handle, appPassword);
 
   const LINK_URL = `${SITE_URL}/thinking/`;
@@ -880,61 +1545,121 @@ async function postToBluesky(handle, appPassword, content, image = null, linkCar
 
   addHashtagFacets(text, facets, enc);
 
-  let embed;
-  if (image) {
-    const byteLength = image.bytes?.byteLength ?? 0;
+  const images = Array.isArray(image) ? image.filter(Boolean) : image ? [image] : [];
 
-    const blobRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessJwt}`,
-        "Content-Type": image.mimeType,
-      },
-      body: image.bytes,
-    });
-    if (!blobRes.ok) {
-      const err = await blobRes.text();
-      throw new Error(blueskyImageError(byteLength, blobRes.status, err));
+  let embed;
+  if (images.length) {
+    const embedImages = [];
+    for (const img of images.slice(0, MAX_THINKING_PHOTOS)) {
+      const byteLength = img.bytes?.byteLength ?? 0;
+      const blobRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessJwt}`,
+          "Content-Type": img.mimeType,
+        },
+        body: img.bytes,
+      });
+      if (!blobRes.ok) {
+        const err = await blobRes.text();
+        throw new Error(blueskyImageError(byteLength, blobRes.status, err));
+      }
+      const { blob } = await blobRes.json();
+      embedImages.push({
+        alt: img.alt || "",
+        image: blob,
+        aspectRatio: img.aspectRatio,
+      });
     }
-    const { blob } = await blobRes.json();
     embed = {
       $type: "app.bsky.embed.images",
-      images: [
-        {
-          alt: image.alt || "",
-          image: blob,
-          aspectRatio: image.aspectRatio,
-        },
-      ],
+      images: embedImages,
     };
-  } else if (linkCard) {
-    let thumb = null;
-    if (linkCard.thumb) {
-      try {
-        const thumbRes = await fetch(linkCard.thumb);
-        if (thumbRes.ok) {
-          const thumbBytes = await thumbRes.arrayBuffer();
-          const thumbMime = (thumbRes.headers.get("content-type") || "image/jpeg").split(";")[0];
-          const blobRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${accessJwt}`, "Content-Type": thumbMime },
-            body: thumbBytes,
-          });
-          if (blobRes.ok) ({ blob: thumb } = await blobRes.json());
-        }
-      } catch {}
-    }
-    embed = {
-      $type: "app.bsky.embed.external",
-      external: {
-        uri: linkCard.uri,
-        title: linkCard.title,
-        description: linkCard.description,
-        ...(thumb ? { thumb } : {}),
-      },
-    };
+  } else if (video) {
+    embed = await blueskyVideoEmbed(accessJwt, video, did);
   }
 
+  if (!embed && linkCard) {
+    embed = await blueskyExternalEmbed(accessJwt, linkCard);
+  }
+
+  let created;
+  try {
+    created = await blueskyCreatePost(accessJwt, did, text, facets, embed);
+  } catch (err) {
+    // Native video embed can fail at createRecord (e.g. unprocessed blob). Retry link card.
+    if (video && linkCard && embed?.$type === "app.bsky.embed.video") {
+      const fallbackEmbed = await blueskyExternalEmbed(accessJwt, linkCard);
+      created = await blueskyCreatePost(accessJwt, did, text, facets, fallbackEmbed);
+    } else {
+      throw err;
+    }
+  }
+  return created.uri || null;
+}
+
+/**
+ * Uploads video through Bluesky's dedicated video-processing service, which accepts
+ * MP4 and MOV (QuickTime) directly and transcodes server-side. This is what lets
+ * iPhone MOV videos play natively inline instead of falling back to a link card.
+ */
+async function blueskyVideoEmbed(accessJwt, video, did) {
+  try {
+    const aud = await resolveBlueskyPdsAud(did);
+    const serviceToken = await blueskyServiceAuthToken(
+      accessJwt,
+      aud,
+      "com.atproto.repo.uploadBlob"
+    );
+    const ext = VIDEO_EXT[video.mimeType] || "mp4";
+    const initial = await blueskyUploadVideoToService(
+      serviceToken,
+      did,
+      video.mimeType,
+      video.bytes,
+      `thinking.${ext}`
+    );
+    const blob = initial?.blob || (initial?.jobId ? await blueskyPollVideoJob(initial.jobId) : null);
+    if (!blob) return null;
+    return {
+      $type: "app.bsky.embed.video",
+      video: blob,
+      alt: video.alt || "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function blueskyExternalEmbed(accessJwt, linkCard) {
+  let thumb = null;
+  if (linkCard.thumb) {
+    try {
+      const thumbRes = await fetch(linkCard.thumb);
+      if (thumbRes.ok) {
+        const thumbBytes = await thumbRes.arrayBuffer();
+        const thumbMime = (thumbRes.headers.get("content-type") || "image/jpeg").split(";")[0];
+        const blobRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessJwt}`, "Content-Type": thumbMime },
+          body: thumbBytes,
+        });
+        if (blobRes.ok) ({ blob: thumb } = await blobRes.json());
+      }
+    } catch {}
+  }
+  return {
+    $type: "app.bsky.embed.external",
+    external: {
+      uri: linkCard.uri,
+      title: linkCard.title,
+      description: linkCard.description,
+      ...(thumb ? { thumb } : {}),
+    },
+  };
+}
+
+async function blueskyCreatePost(accessJwt, did, text, facets, embed) {
   const record = {
     $type: "app.bsky.feed.post",
     text,
@@ -963,8 +1688,7 @@ async function postToBluesky(handle, appPassword, content, image = null, linkCar
         : `Post failed (HTTP ${postRes.status}).`
     );
   }
-  const created = await postRes.json();
-  return created.uri || null;
+  return postRes.json();
 }
 
 async function syndicateText(env, content, linkUrl = null) {
@@ -1045,16 +1769,24 @@ async function deleteFromBluesky(handle, appPassword, uri) {
   }
 }
 
-async function postToMastodon(instanceUrl, accessToken, content, image = null) {
-  let mediaId = null;
-  if (image) {
+/**
+ * Post a status to Mastodon, optionally attaching media file(s).
+ * `media` may be a single { bytes, mimeType, alt, mediaType } or an array (images, max 4).
+ */
+async function postToMastodon(instanceUrl, accessToken, content, media = null) {
+  const mediaItems = Array.isArray(media) ? media.filter(Boolean) : media ? [media] : [];
+  const mediaIds = [];
+
+  for (const item of mediaItems.slice(0, MAX_THINKING_PHOTOS)) {
+    if (!item.bytes) continue;
+    const mt = item.mediaType || "image";
+    const ext =
+      mt === "audio" ? (AUDIO_EXT[item.mimeType] || "m4a") :
+      mt === "video" ? (VIDEO_EXT[item.mimeType] || "mp4") :
+      (IMAGE_EXT[item.mimeType] || "jpg");
     const fd = new FormData();
-    fd.append(
-      "file",
-      new Blob([image.bytes], { type: image.mimeType }),
-      `photo.${IMAGE_EXT[image.mimeType] || "jpg"}`
-    );
-    if (image.alt) fd.append("description", image.alt.slice(0, 1500));
+    fd.append("file", new Blob([item.bytes], { type: item.mimeType }), `media.${ext}`);
+    if (item.alt) fd.append("description", item.alt.slice(0, 1500));
     const mediaRes = await fetch(`${instanceUrl}/api/v1/media`, {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -1067,7 +1799,31 @@ async function postToMastodon(instanceUrl, accessToken, content, image = null) {
       );
     }
     const mediaData = await mediaRes.json();
-    mediaId = mediaData.id;
+    const mediaId = mediaData.id;
+
+    // Mastodon returns 202 for video/audio uploads that require async transcoding.
+    // Poll GET /api/v1/media/:id until `url` is non-null before posting the status,
+    // otherwise the status API returns 422 "Media not processed".
+    if (mediaRes.status === 202) {
+      const POLL_INTERVAL_MS = 2000;
+      const POLL_TIMEOUT_MS = 25000;
+      const deadline = Date.now() + POLL_TIMEOUT_MS;
+      let ready = !!mediaData.url;
+      while (!ready && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+        const pollRes = await fetch(`${instanceUrl}/api/v1/media/${encodeURIComponent(mediaId)}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (pollRes.ok) {
+          const pollData = await pollRes.json();
+          ready = !!pollData.url;
+        }
+      }
+      if (!ready) {
+        throw new Error("Media processing timed out — video was not ready in time.");
+      }
+    }
+    mediaIds.push(mediaId);
   }
 
   const chars = [...content];
@@ -1079,7 +1835,7 @@ async function postToMastodon(instanceUrl, accessToken, content, image = null) {
   }
 
   const body = { status };
-  if (mediaId) body.media_ids = [mediaId];
+  if (mediaIds.length) body.media_ids = mediaIds;
 
   const res = await fetch(`${instanceUrl}/api/v1/statuses`, {
     method: "POST",
@@ -1113,7 +1869,7 @@ async function deleteFromMastodon(instanceUrl, accessToken, statusUrl) {
   }
 }
 
-async function handleDeleteThinking(payload, db, cors, env) {
+async function handleDeleteThinking(payload, db, cors, env, ctx) {
   const rawSlug = payload.slug;
   if (typeof rawSlug !== "string" || !rawSlug.trim()) {
     return json({ error: "Missing slug" }, 400, cors);
@@ -1186,6 +1942,7 @@ async function handleDeleteThinking(payload, db, cors, env) {
     await dbRun(db, "DELETE FROM thinking_posts WHERE slug = ?", slug);
 
     await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Thinking", triggerRebuild);
 
     return json(
       {
@@ -1207,7 +1964,7 @@ async function handleDeleteThinking(payload, db, cors, env) {
 
 // ─── New Post ─────────────────────────────────────────────────────────────────
 
-async function handlePost(body, db, cors, env) {
+async function handlePost(body, db, cors, env, ctx) {
   const { title, summary } = body;
   const rawBody = typeof body.body === "string" ? body.body.trim() : null;
   const paragraphs = Array.isArray(body.paragraphs) ? body.paragraphs : null;
@@ -1267,11 +2024,12 @@ async function handlePost(body, db, cors, env) {
     const postUrl = `${SITE_URL}/posts/${slug}/`;
     const { microblogWarning, blueskyWarning, mastodonWarning } = await syndicateText(
       env,
-      `New post: ${postUrl}`,
+      `New post: ${cleanTitle}\n\n${postUrl}`,
       postUrl
     );
 
     await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Writing", triggerRebuild);
 
     return json({ ok: true, slug, url: postUrl, microblogWarning, blueskyWarning, mastodonWarning }, 200, cors);
   } catch (err) {
@@ -1281,7 +2039,7 @@ async function handlePost(body, db, cors, env) {
 
 // ─── Reading ──────────────────────────────────────────────────────────────────
 
-async function handleReading(body, db, cors, env) {
+async function handleReading(body, db, cors, env, ctx) {
   const { title, url, ym } = body;
 
   if (typeof title !== "string" || !title.trim()) {
@@ -1311,20 +2069,56 @@ async function handleReading(body, db, cors, env) {
 
     const { microblogWarning, blueskyWarning, mastodonWarning } = await syndicateText(
       env,
-      `Now reading: ${entry.url}`,
+      `Now reading: ${entry.title}\n\n${entry.url}`,
       entry.url
     );
 
     await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Reading", triggerRebuild);
     return json({ ok: true, entry, microblogWarning, blueskyWarning, mastodonWarning }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
   }
 }
 
+async function handleListReading(db, cors) {
+  try {
+    const { results: rows } = await dbAll(
+      db,
+      "SELECT id, ym, title, url, added_at FROM reading ORDER BY added_at DESC"
+    );
+    return json({ ok: true, items: rows || [] }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Could not list reading entries" }, 500, cors);
+  }
+}
+
+async function handleDeleteReading(payload, db, cors, env, ctx) {
+  const id = payload.id;
+  if (!id || typeof id !== "number") {
+    return json({ error: "Missing or invalid id" }, 400, cors);
+  }
+
+  try {
+    const existing = await dbFirst(db, "SELECT id FROM reading WHERE id = ?", id);
+    if (!existing) {
+      return json({ error: "Reading entry not found" }, 404, cors);
+    }
+
+    await dbRun(db, "DELETE FROM reading WHERE id = ?", id);
+
+    await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Reading", triggerRebuild);
+
+    return json({ ok: true }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Delete failed" }, 500, cors);
+  }
+}
+
 // ─── Sharing ──────────────────────────────────────────────────────────────────
 
-async function handleSharing(body, db, cors, env) {
+async function handleSharing(body, db, cors, env, ctx) {
   const { title, url } = body;
 
   if (typeof title !== "string" || !title.trim()) {
@@ -1362,6 +2156,7 @@ async function handleSharing(body, db, cors, env) {
     );
 
     await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Sharing", triggerRebuild);
     return json({ ok: true, entry, microblogWarning, blueskyWarning, mastodonWarning }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
@@ -1405,7 +2200,7 @@ async function handleFetchPost(body, db, cors) {
 
 // ─── Edit Post ────────────────────────────────────────────────────────────────
 
-async function handleEditPost(body, db, cors, env) {
+async function handleEditPost(body, db, cors, env, ctx) {
   const { slug, title, summary } = body;
   const rawBody = typeof body.body === "string" ? body.body.trim() : null;
 
@@ -1452,6 +2247,7 @@ async function handleEditPost(body, db, cors, env) {
     );
 
     await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Writing", triggerRebuild);
 
     return json({ ok: true, url: `${SITE_URL}/posts/${cleanSlug}/` }, 200, cors);
   } catch (err) {
@@ -1461,7 +2257,7 @@ async function handleEditPost(body, db, cors, env) {
 
 // ─── Delete Post ──────────────────────────────────────────────────────────────
 
-async function handleDeletePost(body, db, cors, env) {
+async function handleDeletePost(body, db, cors, env, ctx) {
   const { slug } = body;
   if (typeof slug !== "string" || !slug.trim()) {
     return json({ error: "Missing slug" }, 400, cors);
@@ -1479,6 +2275,7 @@ async function handleDeletePost(body, db, cors, env) {
     await dbRun(db, "DELETE FROM posts WHERE slug = ?", cleanSlug);
 
     await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Writing", triggerRebuild);
 
     return json({ ok: true }, 200, cors);
   } catch (err) {
@@ -1643,7 +2440,12 @@ async function handleFetchTitle(body, cors) {
 function json(data, status, cors, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...cors, "Content-Type": "application/json", ...extraHeaders },
+    headers: {
+      ...cors,
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      ...extraHeaders,
+    },
   });
 }
 

@@ -10,6 +10,12 @@
     <link rel="stylesheet" href="/styles.css" />
     <link rel="stylesheet" href="https://cdn.quilljs.com/1.3.7/quill.snow.css" />
     <style>
+      /* Any element with an explicit `display` (flex/block/grid/etc.) below would
+         otherwise defeat the `hidden` attribute, since author CSS `display`
+         outranks the browser's default `[hidden] { display: none }` rule. */
+      [hidden] {
+        display: none !important;
+      }
       .admin-tabs {
         display: flex;
         gap: 0;
@@ -171,12 +177,69 @@
         margin: 0 0 1.25rem;
         border-radius: 4px;
       }
+      .thinking-photo-previews {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+        margin: 0 0 1.25rem;
+        max-width: 28rem;
+      }
+      .thinking-photo-previews img {
+        display: block;
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        object-fit: cover;
+        object-position: center;
+        border-radius: 4px;
+      }
+      .thinking-audio-preview {
+        display: block;
+        width: 100%;
+        max-width: 28rem;
+        margin: 0 0 1.25rem;
+      }
+      .thinking-video-preview {
+        display: block;
+        width: 100%;
+        max-width: 28rem;
+        margin: 0 0 1.25rem;
+        border-radius: 4px;
+        background: var(--bg);
+      }
+      .thinking-upload-progress {
+        margin: 0 0 1.25rem;
+      }
+      .thinking-upload-progress progress {
+        display: block;
+        width: 100%;
+        max-width: 28rem;
+        height: 0.45rem;
+        border: none;
+        border-radius: 2px;
+        overflow: hidden;
+        accent-color: var(--text);
+      }
+      .thinking-upload-progress-label {
+        font-size: 0.75rem;
+        color: var(--muted);
+        margin: 0.4rem 0 0;
+        line-height: 1.45;
+      }
       .thinking-meta-row {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 1rem;
         margin: 0 0 1.25rem;
+        flex-wrap: wrap;
+      }
+      .thinking-media-pickers {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 1rem;
+        flex: 1;
+        min-width: 0;
       }
       .thinking-photo-upload {
         position: relative;
@@ -577,34 +640,79 @@
 
         <form class="admin-form" id="thinking-form">
           <label for="t-text">Thought</label>
-          <textarea id="t-text" placeholder="What's on your mind? (optional if you add a photo)"></textarea>
+          <textarea id="t-text" placeholder="What's on your mind? (optional if you add photos, audio, or video)"></textarea>
 
           <div class="thinking-meta-row">
+            <div class="thinking-media-pickers">
             <div class="thinking-photo-upload">
               <input
                 id="t-photo"
                 class="thinking-photo-input"
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/gif"
+                multiple
               />
               <div class="thinking-photo-picker">
-                <label for="t-photo" class="thinking-photo-icon-btn" title="Add photo" aria-label="Add photo">
+                <label for="t-photo" class="thinking-photo-icon-btn" title="Add photos (up to 4)" aria-label="Add photos (up to 4)">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
                     <rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"></rect>
                     <circle cx="9" cy="9" r="2" fill="currentColor"></circle>
                     <path fill="currentColor" d="M6 18h12l-4.5-6-2.5 3-2-2.5L6 18z"></path>
                   </svg>
                 </label>
-                <span id="t-photo-name" class="thinking-photo-name">No file chosen</span>
+                <span id="t-photo-name" class="thinking-photo-name">No photos</span>
               </div>
+            </div>
+            <div class="thinking-photo-upload">
+              <input
+                id="t-audio"
+                class="thinking-photo-input"
+                type="file"
+                accept="audio/mp4,audio/x-m4a,audio/m4a,audio/mpeg,.m4a,.mp3"
+              />
+              <div class="thinking-photo-picker">
+                <label for="t-audio" class="thinking-photo-icon-btn" title="Add audio (Voice Memos)" aria-label="Add audio">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="2"></rect>
+                    <path fill="none" stroke="currentColor" stroke-width="2" d="M5 11a7 7 0 0 0 14 0"></path>
+                    <path fill="none" stroke="currentColor" stroke-width="2" d="M12 18v3"></path>
+                  </svg>
+                </label>
+                <span id="t-audio-name" class="thinking-photo-name">No audio</span>
+              </div>
+            </div>
+            <div class="thinking-photo-upload">
+              <input
+                id="t-video"
+                class="thinking-photo-input"
+                type="file"
+                accept="video/mp4,video/quicktime,video/x-m4v,.mp4,.mov,.m4v"
+              />
+              <div class="thinking-photo-picker">
+                <label for="t-video" class="thinking-photo-icon-btn" title="Add video (MP4 or iPhone MOV)" aria-label="Add video">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="3" y="6" width="13" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"></rect>
+                    <path fill="currentColor" d="M16 10.5l5-3v9l-5-3v-3z"></path>
+                  </svg>
+                </label>
+                <span id="t-video-name" class="thinking-photo-name">No video</span>
+              </div>
+            </div>
             </div>
             <p id="t-char-count" class="thinking-char-count" aria-live="polite">0 / 300</p>
           </div>
           <p id="t-photo-warn" hidden></p>
+          <div id="t-photo-previews" class="thinking-photo-previews" hidden></div>
           <img id="t-photo-preview" class="thinking-photo-preview" alt="" hidden />
-          <button type="button" class="admin-secondary-btn" id="t-photo-remove" hidden>Remove photo</button>
+          <audio id="t-audio-preview" class="thinking-audio-preview" controls hidden></audio>
+          <video id="t-video-preview" class="thinking-video-preview" controls playsinline hidden></video>
+          <button type="button" class="admin-secondary-btn" id="t-media-remove" hidden>Remove media</button>
 
           <button type="submit" id="t-submit">Save</button>
+          <div id="t-upload-progress" class="thinking-upload-progress" hidden>
+            <progress id="t-upload-progress-bar" max="100" value="0"></progress>
+            <p id="t-upload-progress-label" class="thinking-upload-progress-label"></p>
+          </div>
           <p class="admin-status" id="t-status" hidden></p>
         </form>
 
@@ -679,6 +787,12 @@
           <button type="submit" id="r-submit">Add Book</button>
           <p class="admin-status" id="r-status" hidden></p>
         </form>
+
+        <div id="reading-archive-admin" hidden>
+          <h3 class="thinking-archive-heading">All entries</h3>
+          <ul class="drafts-list" id="reading-archive-list"></ul>
+          <p class="admin-status" id="reading-archive-status" hidden></p>
+        </div>
       </div>
 
       <!-- ── SHARING ──────────────────────────────── -->
@@ -795,10 +909,14 @@
             ? "<strong>Signed in.</strong> Remembered on this device for up to 30 days, or until you sign out."
             : "<strong>Signed in.</strong> Until you sign out or close this tab.";
         }
-        if (signedIn) loadThinkingArchive();
-        else {
+        if (signedIn) {
+          loadThinkingArchive();
+          loadReadingArchive();
+        } else {
           var archiveWrap = document.getElementById("thinking-archive-admin");
           if (archiveWrap) archiveWrap.hidden = true;
+          var readingWrap = document.getElementById("reading-archive-admin");
+          if (readingWrap) readingWrap.hidden = true;
         }
       }
 
@@ -866,6 +984,7 @@
             tab.classList.add("active");
             document.getElementById("tab-" + target).classList.add("active");
             if (target === "thinking") loadThinkingArchive();
+            if (target === "reading") loadReadingArchive();
           });
         });
       })();
@@ -925,8 +1044,139 @@
           "admin-status" + (isErr ? " err" : isWarn ? " warn" : isOk ? " ok" : "");
       }
 
+      function thinkingUploadShowsProgress(videoFile, audioFile, photoFile) {
+        if (videoFile) return true;
+        if (audioFile && audioFile.size > 500 * 1024) return true;
+        if (photoFile && photoFile.size > 500 * 1024) return true;
+        return false;
+      }
+
+      function setThinkingUploadProgress(visible, pct, label) {
+        var wrap = document.getElementById("t-upload-progress");
+        var bar = document.getElementById("t-upload-progress-bar");
+        var lab = document.getElementById("t-upload-progress-label");
+        if (!wrap) return;
+        wrap.hidden = !visible;
+        if (bar) {
+          if (pct == null) bar.removeAttribute("value");
+          else bar.value = pct;
+        }
+        if (lab) lab.textContent = label || "";
+      }
+
+      function hideThinkingUploadProgress() {
+        setThinkingUploadProgress(false, 0, "");
+      }
+
+      function postThinkingMultipart(fd, onProgress) {
+        return new Promise(function (resolve, reject) {
+          var xhr = new XMLHttpRequest();
+          xhr.open("POST", API_URL);
+          xhr.upload.onprogress = function (e) {
+            if (!onProgress) return;
+            if (e.lengthComputable && e.total > 0) {
+              var pct = Math.min(100, Math.round((e.loaded / e.total) * 100));
+              onProgress(pct, "upload", e.loaded, e.total);
+            } else {
+              onProgress(null, "upload", e.loaded, 0);
+            }
+          };
+          xhr.onload = function () {
+            if (onProgress) onProgress(100, "processing");
+            var data;
+            try {
+              data = JSON.parse(xhr.responseText || "{}");
+            } catch (parseErr) {
+              reject(new Error("Could not parse API response."));
+              return;
+            }
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(data);
+              return;
+            }
+            reject(new Error(data.error || "Request failed"));
+          };
+          xhr.onerror = function () {
+            reject(new Error("Upload failed — check your connection and try again."));
+          };
+          xhr.onabort = function () {
+            reject(new Error("Upload cancelled."));
+          };
+          xhr.send(fd);
+        });
+      }
+
+      function putFileToPresignedUrl(url, file, contentType, onProgress) {
+        return new Promise(function (resolve, reject) {
+          var xhr = new XMLHttpRequest();
+          xhr.open("PUT", url);
+          xhr.setRequestHeader(
+            "Content-Type",
+            contentType || file.type || "application/octet-stream"
+          );
+          xhr.upload.onprogress = function (e) {
+            if (!onProgress) return;
+            if (e.lengthComputable && e.total > 0) {
+              var pct = Math.min(100, Math.round((e.loaded / e.total) * 100));
+              onProgress(pct, "upload", e.loaded, e.total);
+            } else {
+              onProgress(null, "upload", e.loaded, 0);
+            }
+          };
+          xhr.onload = function () {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve();
+              return;
+            }
+            reject(
+              new Error(
+                "Direct upload failed (HTTP " + xhr.status + "). Try again."
+              )
+            );
+          };
+          xhr.onerror = function () {
+            reject(new Error("Direct upload failed — check your connection."));
+          };
+          xhr.onabort = function () {
+            reject(new Error("Upload cancelled."));
+          };
+          xhr.send(file);
+        });
+      }
+
+      function resolveVideoMimeForUpload(file) {
+        var type = (file.type || "").toLowerCase().split(";")[0].trim();
+        var name = (file.name || "").toLowerCase();
+        if (type === "video/mp4" || type === "video/quicktime" || type === "video/x-m4v") {
+          return type;
+        }
+        if (name.endsWith(".mp4")) return "video/mp4";
+        if (name.endsWith(".mov")) return "video/quicktime";
+        if (name.endsWith(".m4v")) return "video/x-m4v";
+        return type || "video/mp4";
+      }
+
       var MAX_PHOTO_SITE = 5 * 1024 * 1024;
       var MAX_PHOTO_BLUESKY = 2 * 1024 * 1024;
+      var MAX_PHOTO_INPUT = 25 * 1024 * 1024;
+      var MAX_VIDEO_INPUT = 100 * 1024 * 1024;
+
+      function isAllowedThinkingVideo(file) {
+        var type = (file.type || "").toLowerCase().split(";")[0].trim();
+        var name = (file.name || "").toLowerCase();
+        if (
+          type === "video/mp4" ||
+          type === "video/quicktime" ||
+          type === "video/x-m4v"
+        ) {
+          return true;
+        }
+        return (
+          name.endsWith(".mp4") ||
+          name.endsWith(".mov") ||
+          name.endsWith(".m4v")
+        );
+      }
 
       function formatBytes(n) {
         if (n < 1024 * 1024) return Math.round(n / 1024) + " KB";
@@ -952,6 +1202,13 @@
       function compressPhotoForBluesky(file) {
         return new Promise(function (resolve, reject) {
           if (file.size <= MAX_PHOTO_BLUESKY) {
+            resolve(null);
+            return;
+          }
+          if (file.type === "image/gif") {
+            // Canvas re-encoding would flatten the animation to a static frame.
+            // Let the worker decide: it either sends the original GIF (if under
+            // Bluesky's limit) or skips the Bluesky attachment with a warning.
             resolve(null);
             return;
           }
@@ -1007,6 +1264,73 @@
           img.onerror = function () {
             URL.revokeObjectURL(objectUrl);
             reject(new Error("Could not read this photo for Bluesky compression."));
+          };
+          img.src = objectUrl;
+        });
+      }
+
+      function compressPhotoForSite(file) {
+        return new Promise(function (resolve, reject) {
+          if (file.size <= MAX_PHOTO_SITE) {
+            resolve(file);
+            return;
+          }
+          if (file.size > MAX_PHOTO_INPUT) {
+            reject(
+              new Error("Photo must be 25 MB or smaller (yours is " + formatBytes(file.size) + ").")
+            );
+            return;
+          }
+          if (file.type === "image/gif") {
+            reject(
+              new Error("GIF must be 5 MB or smaller (yours is " + formatBytes(file.size) + ").")
+            );
+            return;
+          }
+          var objectUrl = URL.createObjectURL(file);
+          var img = new Image();
+          img.onload = function () {
+            URL.revokeObjectURL(objectUrl);
+            var w = img.naturalWidth;
+            var h = img.naturalHeight;
+            var canvas = document.createElement("canvas");
+            var qualities = [0.92, 0.85, 0.78, 0.72, 0.65, 0.58, 0.5, 0.42];
+
+            function tryEncode(wi, hi, qi) {
+              canvas.width = wi;
+              canvas.height = hi;
+              var ctx = canvas.getContext("2d");
+              ctx.drawImage(img, 0, 0, wi, hi);
+              if (qi >= qualities.length) {
+                if (wi <= 1 && hi <= 1) {
+                  reject(new Error("Could not compress this photo under 5 MB."));
+                  return;
+                }
+                tryEncode(Math.max(1, Math.round(wi * 0.9)), Math.max(1, Math.round(hi * 0.9)), 0);
+                return;
+              }
+              canvas.toBlob(
+                function (blob) {
+                  if (!blob) {
+                    tryEncode(wi, hi, qi + 1);
+                    return;
+                  }
+                  if (blob.size <= MAX_PHOTO_SITE) {
+                    resolve(new File([blob], "photo.jpg", { type: "image/jpeg" }));
+                    return;
+                  }
+                  tryEncode(wi, hi, qi + 1);
+                },
+                "image/jpeg",
+                qualities[qi]
+              );
+            }
+
+            tryEncode(w, h, 0);
+          };
+          img.onerror = function () {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error("Could not read this photo."));
           };
           img.src = objectUrl;
         });
@@ -1112,25 +1436,92 @@
         }
       }
 
-      async function callThinkingAPI(text, photoFile, blueskyPhotoFile) {
+      async function callThinkingVideoAPI(text, videoFile, onProgress) {
         var pw = loadSession();
         if (!pw) throw new Error("You need to be signed in. Go to the Login tab.");
-        var res;
-        if (photoFile) {
+
+        var mimeType = resolveVideoMimeForUpload(videoFile);
+        var initRes = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            password: pw,
+            action: "thinking-video-upload-url",
+            mimeType: mimeType,
+            fileName: videoFile.name,
+            size: videoFile.size,
+          }),
+        });
+        var init = await initRes.json();
+        if (!initRes.ok) {
+          if (
+            initRes.status === 503 ||
+            (init.error && init.error.indexOf("not configured") !== -1)
+          ) {
+            var fd = new FormData();
+            fd.append("password", pw);
+            fd.append("action", "thinking");
+            fd.append("text", text);
+            fd.append("video", videoFile);
+            if (onProgress) return postThinkingMultipart(fd, onProgress);
+            var fallbackRes = await fetch(API_URL, { method: "POST", body: fd });
+            var fallbackData = await fallbackRes.json();
+            if (!fallbackRes.ok) throw new Error(fallbackData.error || "Request failed");
+            return fallbackData;
+          }
+          throw new Error(init.error || "Request failed");
+        }
+
+        await putFileToPresignedUrl(init.uploadUrl, videoFile, init.mimeType, onProgress);
+        if (onProgress) onProgress(100, "processing");
+
+        var finRes = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            password: pw,
+            action: "thinking",
+            text: text,
+            video_key: init.key,
+            video_mime: init.mimeType,
+          }),
+        });
+        var data = await finRes.json();
+        if (!finRes.ok) throw new Error(data.error || "Request failed");
+        return data;
+      }
+
+      async function callThinkingAPI(text, photoFiles, blueskyPhotoFiles, audioFile, videoFile, onProgress) {
+        var pw = loadSession();
+        if (!pw) throw new Error("You need to be signed in. Go to the Login tab.");
+        if (videoFile) {
+          return callThinkingVideoAPI(text, videoFile, onProgress);
+        }
+        var photos = Array.isArray(photoFiles) ? photoFiles.filter(Boolean) : photoFiles ? [photoFiles] : [];
+        var blueskyPhotos = Array.isArray(blueskyPhotoFiles)
+          ? blueskyPhotoFiles.filter(Boolean)
+          : blueskyPhotoFiles
+            ? [blueskyPhotoFiles]
+            : [];
+        if (photos.length || audioFile) {
           var fd = new FormData();
           fd.append("password", pw);
           fd.append("action", "thinking");
           fd.append("text", text);
-          fd.append("photo", photoFile);
-          if (blueskyPhotoFile) fd.append("photo_bluesky", blueskyPhotoFile);
-          res = await fetch(API_URL, { method: "POST", body: fd });
-        } else {
-          res = await fetch(API_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ password: pw, action: "thinking", text: text }),
-          });
+          for (var i = 0; i < photos.length; i++) fd.append("photo", photos[i]);
+          for (var j = 0; j < blueskyPhotos.length; j++) fd.append("photo_bluesky", blueskyPhotos[j]);
+          if (audioFile) fd.append("audio", audioFile);
+          if (onProgress) return postThinkingMultipart(fd, onProgress);
+          var res = await fetch(API_URL, { method: "POST", body: fd });
+          var data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Request failed");
+          return data;
         }
+        var res = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: pw, action: "thinking", text: text }),
+        });
         var data = await res.json();
         if (!res.ok) throw new Error(data.error || "Request failed");
         return data;
@@ -1138,16 +1529,78 @@
 
       (function () {
         var THINKING_SOFT_MAX = 300;
+        var MAX_THINKING_PHOTOS = 4;
         var form = document.getElementById("thinking-form");
         var status = document.getElementById("t-status");
         var submit = document.getElementById("t-submit");
         var textInput = document.getElementById("t-text");
         var charCount = document.getElementById("t-char-count");
         var photoInput = document.getElementById("t-photo");
+        var audioInput = document.getElementById("t-audio");
+        var videoInput = document.getElementById("t-video");
         var preview = document.getElementById("t-photo-preview");
+        var photoPreviews = document.getElementById("t-photo-previews");
+        var audioPreview = document.getElementById("t-audio-preview");
+        var videoPreview = document.getElementById("t-video-preview");
         var photoWarn = document.getElementById("t-photo-warn");
-        var photoRemove = document.getElementById("t-photo-remove");
+        var mediaRemove = document.getElementById("t-media-remove");
         var photoName = document.getElementById("t-photo-name");
+        var audioName = document.getElementById("t-audio-name");
+        var videoName = document.getElementById("t-video-name");
+        var photoPreviewUrls = [];
+
+        function selectedPhotoFiles() {
+          if (!photoInput.files || !photoInput.files.length) return [];
+          return Array.prototype.slice.call(photoInput.files, 0, MAX_THINKING_PHOTOS);
+        }
+
+        function anyThinkingMediaSelected() {
+          return !!(
+            selectedPhotoFiles().length ||
+            (audioInput.files && audioInput.files[0]) ||
+            (videoInput.files && videoInput.files[0])
+          );
+        }
+
+        function revokePhotoPreviewUrls() {
+          photoPreviewUrls.forEach(function (u) {
+            URL.revokeObjectURL(u);
+          });
+          photoPreviewUrls = [];
+        }
+
+        function clearPhotoPreviews() {
+          revokePhotoPreviewUrls();
+          if (photoPreviews) {
+            photoPreviews.innerHTML = "";
+            photoPreviews.hidden = true;
+          }
+          if (preview) {
+            preview.hidden = true;
+            preview.removeAttribute("src");
+          }
+        }
+
+        function renderPhotoPreviews(files) {
+          clearPhotoPreviews();
+          if (!files.length || !photoPreviews) return;
+          files.forEach(function (file) {
+            var url = URL.createObjectURL(file);
+            photoPreviewUrls.push(url);
+            var img = document.createElement("img");
+            img.src = url;
+            img.alt = file.name || "Photo preview";
+            photoPreviews.appendChild(img);
+          });
+          photoPreviews.hidden = false;
+        }
+
+        function revokeVideoPreviewUrl() {
+          if (videoPreview._objectUrl) {
+            URL.revokeObjectURL(videoPreview._objectUrl);
+            videoPreview._objectUrl = null;
+          }
+        }
 
         function updateThinkingCharCount() {
           if (!charCount || !textInput) return;
@@ -1161,39 +1614,101 @@
           updateThinkingCharCount();
         }
 
-        function clearThinkingPhoto() {
+        function clearThinkingMedia() {
           photoInput.value = "";
-          preview.hidden = true;
-          preview.removeAttribute("src");
-          photoRemove.hidden = true;
+          audioInput.value = "";
+          videoInput.value = "";
+          clearPhotoPreviews();
+          audioPreview.hidden = true;
+          audioPreview.removeAttribute("src");
+          if (audioPreview._objectUrl) {
+            URL.revokeObjectURL(audioPreview._objectUrl);
+            audioPreview._objectUrl = null;
+          }
+          videoPreview.hidden = true;
+          videoPreview.removeAttribute("src");
+          revokeVideoPreviewUrl();
+          mediaRemove.hidden = true;
           photoWarn.hidden = true;
           photoWarn.textContent = "";
-          if (photoName) photoName.textContent = "No file chosen";
+          if (photoName) photoName.textContent = "No photos";
+          if (audioName) audioName.textContent = "No audio";
+          if (videoName) videoName.textContent = "No video";
         }
 
-        photoRemove.addEventListener("click", clearThinkingPhoto);
+        function clearPhotoSelection() {
+          photoInput.value = "";
+          clearPhotoPreviews();
+          if (photoName) photoName.textContent = "No photos";
+        }
+
+        function clearAudioSelection() {
+          audioInput.value = "";
+          audioPreview.hidden = true;
+          audioPreview.removeAttribute("src");
+          if (audioPreview._objectUrl) {
+            URL.revokeObjectURL(audioPreview._objectUrl);
+            audioPreview._objectUrl = null;
+          }
+          if (audioName) audioName.textContent = "No audio";
+        }
+
+        function clearVideoSelection() {
+          videoInput.value = "";
+          videoPreview.hidden = true;
+          videoPreview.removeAttribute("src");
+          revokeVideoPreviewUrl();
+          if (videoName) videoName.textContent = "No video";
+        }
+
+        mediaRemove.addEventListener("click", clearThinkingMedia);
 
         photoInput.addEventListener("change", function () {
-          var file = photoInput.files && photoInput.files[0];
-          if (!file) {
-            clearThinkingPhoto();
+          var allFiles = photoInput.files ? Array.prototype.slice.call(photoInput.files) : [];
+          if (!allFiles.length) {
+            clearPhotoSelection();
+            if (!anyThinkingMediaSelected()) mediaRemove.hidden = true;
             return;
           }
-          preview.src = URL.createObjectURL(file);
-          preview.hidden = false;
-          photoRemove.hidden = false;
-          if (photoName) photoName.textContent = file.name;
-          if (file.size > MAX_PHOTO_SITE) {
+          clearAudioSelection();
+          clearVideoSelection();
+          var files = allFiles.slice(0, MAX_THINKING_PHOTOS);
+          renderPhotoPreviews(files);
+          audioPreview.hidden = true;
+          videoPreview.hidden = true;
+          mediaRemove.hidden = false;
+          if (photoName) {
+            photoName.textContent =
+              files.length === 1
+                ? files[0].name
+                : files.length + " photos" + (allFiles.length > MAX_THINKING_PHOTOS ? " (max 4)" : "");
+          }
+          if (audioName) audioName.textContent = "No audio";
+          if (videoName) videoName.textContent = "No video";
+          var tooBig = files.find(function (f) {
+            return f.size > MAX_PHOTO_INPUT;
+          });
+          var needsSiteCompress = files.some(function (f) {
+            return f.size > MAX_PHOTO_SITE;
+          });
+          var needsBluesky = files.some(function (f) {
+            return f.size > MAX_PHOTO_BLUESKY;
+          });
+          if (allFiles.length > MAX_THINKING_PHOTOS) {
             photoWarn.textContent =
-              "rommy.blog: This file is " +
-              formatBytes(file.size) +
-              " (max 5 MB). Choose a smaller photo.";
+              "Only the first " + MAX_THINKING_PHOTOS + " photos will be uploaded.";
             photoWarn.hidden = false;
-          } else if (file.size > MAX_PHOTO_BLUESKY) {
+          } else if (tooBig) {
             photoWarn.textContent =
-              "Bluesky: This file is " +
-              formatBytes(file.size) +
-              ". A compressed copy will be sent to Bluesky; rommy.blog and micro.blog keep the original.";
+              "A file is " + formatBytes(tooBig.size) + " (max 25 MB each).";
+            photoWarn.hidden = false;
+          } else if (needsSiteCompress) {
+            photoWarn.textContent =
+              "One or more photos are over 5 MB — they will be compressed on upload.";
+            photoWarn.hidden = false;
+          } else if (needsBluesky) {
+            photoWarn.textContent =
+              "Bluesky: one or more photos exceed 2 MB. Compressed copies will be sent to Bluesky; rommy.blog and micro.blog keep the originals.";
             photoWarn.hidden = false;
           } else {
             photoWarn.hidden = true;
@@ -1201,42 +1716,200 @@
           }
         });
 
+        audioInput.addEventListener("change", function () {
+          var file = audioInput.files && audioInput.files[0];
+          if (!file) {
+            clearAudioSelection();
+            if (!anyThinkingMediaSelected()) mediaRemove.hidden = true;
+            return;
+          }
+          clearPhotoSelection();
+          clearVideoSelection();
+          preview.hidden = true;
+          if (audioPreview._objectUrl) URL.revokeObjectURL(audioPreview._objectUrl);
+          audioPreview._objectUrl = URL.createObjectURL(file);
+          audioPreview.src = audioPreview._objectUrl;
+          audioPreview.hidden = false;
+          videoPreview.hidden = true;
+          mediaRemove.hidden = false;
+          if (audioName) audioName.textContent = file.name;
+          if (photoName) photoName.textContent = "No photos";
+          if (videoName) videoName.textContent = "No video";
+          if (file.size > MAX_PHOTO_INPUT) {
+            photoWarn.textContent =
+              "This file is " + formatBytes(file.size) + " (max 25 MB).";
+            photoWarn.hidden = false;
+          } else {
+            photoWarn.textContent =
+              "Audio plays on rommy.blog; Bluesky, Mastodon, and Micro.blog get a link only.";
+            photoWarn.hidden = false;
+          }
+        });
+
+        videoInput.addEventListener("change", function () {
+          var file = videoInput.files && videoInput.files[0];
+          if (!file) {
+            clearVideoSelection();
+            if (!anyThinkingMediaSelected()) mediaRemove.hidden = true;
+            return;
+          }
+          clearPhotoSelection();
+          clearAudioSelection();
+          if (!isAllowedThinkingVideo(file)) {
+            clearVideoSelection();
+            photoWarn.textContent = "Use MP4 or MOV (iPhone camera / Photos).";
+            photoWarn.hidden = false;
+            return;
+          }
+          if (preview) preview.hidden = true;
+          audioPreview.hidden = true;
+          revokeVideoPreviewUrl();
+          videoPreview._objectUrl = URL.createObjectURL(file);
+          videoPreview.src = videoPreview._objectUrl;
+          videoPreview.hidden = false;
+          mediaRemove.hidden = false;
+          if (videoName) videoName.textContent = file.name;
+          if (photoName) photoName.textContent = "No photos";
+          if (audioName) audioName.textContent = "No audio";
+          if (file.size > MAX_VIDEO_INPUT) {
+            photoWarn.textContent =
+              "This file is " + formatBytes(file.size) + " (max 100 MB).";
+            photoWarn.hidden = false;
+          } else {
+            photoWarn.textContent =
+              "MP4 or MOV from iPhone. Plays on rommy.blog; syndication sends text and a link to the post.";
+            photoWarn.hidden = false;
+          }
+        });
+
         form.addEventListener("submit", async function (e) {
           e.preventDefault();
           var text = textInput.value.trim();
-          var file = photoInput.files && photoInput.files[0];
-          if (!text && !file) {
-            showStatus(status, "Add text or a photo.", true);
+          var photoFiles = selectedPhotoFiles();
+          var audioFile = audioInput.files && audioInput.files[0];
+          var videoFile = videoInput.files && videoInput.files[0];
+          if (!text && !photoFiles.length && !audioFile && !videoFile) {
+            showStatus(status, "Add text, photos, audio, or video.", true);
             return;
           }
-          if (file && file.size > MAX_PHOTO_SITE) {
+          if ([photoFiles.length > 0, audioFile, videoFile].filter(Boolean).length > 1) {
+            showStatus(status, "Add photos, audio, or video — not more than one kind.", true);
+            return;
+          }
+          if (photoFiles.length > MAX_THINKING_PHOTOS) {
+            showStatus(status, "At most " + MAX_THINKING_PHOTOS + " photos per post.", true);
+            return;
+          }
+          var oversizedPhoto = photoFiles.find(function (f) {
+            return f.size > MAX_PHOTO_INPUT;
+          });
+          if (oversizedPhoto) {
             showStatus(
               status,
-              "rommy.blog: Photo must be 5 MB or smaller (yours is " + formatBytes(file.size) + ").",
+              "Each photo must be 25 MB or smaller (one is " + formatBytes(oversizedPhoto.size) + ").",
+              true
+            );
+            return;
+          }
+          if (audioFile && audioFile.size > MAX_PHOTO_INPUT) {
+            showStatus(
+              status,
+              "Audio must be 25 MB or smaller (yours is " + formatBytes(audioFile.size) + ").",
+              true
+            );
+            return;
+          }
+          if (videoFile && !isAllowedThinkingVideo(videoFile)) {
+            showStatus(status, "Video must be MP4 or MOV (iPhone).", true);
+            return;
+          }
+          if (videoFile && videoFile.size > MAX_VIDEO_INPUT) {
+            showStatus(
+              status,
+              "Video must be 100 MB or smaller (yours is " + formatBytes(videoFile.size) + ").",
               true
             );
             return;
           }
           submit.disabled = true;
-          showStatus(status, "Saving to rommy.blog…", false);
+          var largestPhoto = photoFiles.reduce(function (max, f) {
+            return !max || f.size > max.size ? f : max;
+          }, null);
+          var useProgress = thinkingUploadShowsProgress(videoFile, audioFile, largestPhoto);
+          if (useProgress) {
+            status.hidden = true;
+            setThinkingUploadProgress(
+              true,
+              0,
+              videoFile
+                ? "Uploading video… 0%. Keep this page open."
+                : "Uploading… 0%. Keep this page open."
+            );
+          } else {
+            hideThinkingUploadProgress();
+            showStatus(status, "Saving to rommy.blog…", false);
+          }
           try {
-            var blueskyFile = null;
-            if (file) {
-              showStatus(status, "Preparing photo…", false);
-              blueskyFile = await compressPhotoForBluesky(file);
+            var blueskyFiles = [];
+            var sitePhotos = photoFiles.slice();
+            if (sitePhotos.length) {
+              if (!useProgress) showStatus(status, "Preparing photos…", false);
+              for (var pi = 0; pi < sitePhotos.length; pi++) {
+                sitePhotos[pi] = await compressPhotoForSite(sitePhotos[pi]);
+                blueskyFiles.push(await compressPhotoForBluesky(sitePhotos[pi]));
+              }
             }
+            var onProgress = useProgress
+              ? function (pct, phase, loaded, total) {
+                  if (phase === "processing") {
+                    setThinkingUploadProgress(
+                      true,
+                      100,
+                      "Publishing — syndicating and rebuilding. Your post will appear on rommy.blog shortly."
+                    );
+                    return;
+                  }
+                  var label =
+                    videoFile
+                      ? "Uploading video"
+                      : audioFile
+                        ? "Uploading audio"
+                        : "Uploading photo" + (sitePhotos.length > 1 ? "s" : "");
+                  if (pct == null) {
+                    setThinkingUploadProgress(
+                      true,
+                      null,
+                      label +
+                        "… " +
+                        formatBytes(loaded) +
+                        " sent. Keep this page open."
+                    );
+                  } else {
+                    setThinkingUploadProgress(
+                      true,
+                      pct,
+                      label + "… " + pct + "%. Keep this page open."
+                    );
+                  }
+                }
+              : null;
             var result = await callThinkingAPI(
               textInput.value,
-              file || null,
-              blueskyFile
+              sitePhotos,
+              blueskyFiles,
+              audioFile || null,
+              videoFile || null,
+              onProgress
             );
+            hideThinkingUploadProgress();
             var out = formatThinkingSaveStatus(result);
             showStatus(status, out.text, false, !out.warn, out.warn);
             textInput.value = "";
             updateThinkingCharCount();
-            clearThinkingPhoto();
+            clearThinkingMedia();
             loadThinkingArchive();
           } catch (err) {
+            hideThinkingUploadProgress();
             var errMsg = err.message || "Request failed";
             if (!/^rommy\.blog:|^micro\.blog:|^Bluesky:/i.test(errMsg)) {
               errMsg = "rommy.blog: " + errMsg;
@@ -1308,9 +1981,10 @@
       async function uploadMediaFile(file, folder) {
         var pw = loadSession();
         if (!pw) throw new Error("You need to be signed in. Go to the Login tab.");
-        if (file.size > MAX_PHOTO_SITE) {
-          throw new Error("Photo must be 5 MB or smaller (yours is " + formatBytes(file.size) + ").");
+        if (file.size > MAX_PHOTO_INPUT) {
+          throw new Error("Photo must be 25 MB or smaller (yours is " + formatBytes(file.size) + ").");
         }
+        file = await compressPhotoForSite(file);
         var fd = new FormData();
         fd.append("password", pw);
         fd.append("action", "upload-media");
@@ -1806,6 +2480,7 @@
             document.getElementById("r-title").value = "";
             document.getElementById("r-url").value = "";
             document.getElementById("r-ym").value = "";
+            loadReadingArchive();
           } catch (err) {
             showStatus(status, err.message, true);
           } finally {
@@ -1813,6 +2488,75 @@
           }
         });
       })();
+
+      // ── Reading archive ────────────────────────────────────────────────────
+
+      async function loadReadingArchive() {
+        var wrap = document.getElementById("reading-archive-admin");
+        var list = document.getElementById("reading-archive-list");
+        var status = document.getElementById("reading-archive-status");
+        if (!wrap || !list) return;
+        if (!loadSession()) { wrap.hidden = true; return; }
+        wrap.hidden = false;
+        list.innerHTML = '<li><span class="admin-hint">Loading…</span></li>';
+        if (status) status.hidden = true;
+        try {
+          var data = await callAPI({ action: "list-reading" });
+          var items = data.items || [];
+          list.innerHTML = "";
+          if (!items.length) {
+            list.innerHTML = '<li><span class="admin-hint">No entries yet.</span></li>';
+            return;
+          }
+          items.forEach(function (item) {
+            var li = document.createElement("li");
+
+            var main = document.createElement("div");
+            main.className = "draft-item-main";
+
+            var titleEl = document.createElement("div");
+            titleEl.className = "draft-item-title";
+            titleEl.textContent = item.title;
+
+            var dateEl = document.createElement("div");
+            dateEl.className = "draft-item-date";
+            dateEl.textContent = item.ym + (item.added_at ? " · added " + item.added_at.slice(0, 10) : "");
+
+            main.appendChild(titleEl);
+            main.appendChild(dateEl);
+
+            var del = document.createElement("button");
+            del.type = "button";
+            del.className = "draft-item-delete";
+            del.textContent = "Delete";
+            del.addEventListener("click", async function () {
+              if (!confirm('Delete "' + item.title + '"?')) return;
+              del.disabled = true;
+              try {
+                await callAPI({ action: "delete-reading", id: item.id });
+                li.remove();
+                if (!list.children.length) {
+                  list.innerHTML = '<li><span class="admin-hint">No entries yet.</span></li>';
+                }
+              } catch (err) {
+                del.disabled = false;
+                if (status) {
+                  showStatus(status, err.message || "Delete failed", true);
+                } else {
+                  alert(err.message || "Delete failed");
+                }
+              }
+            });
+
+            li.appendChild(main);
+            li.appendChild(del);
+            list.appendChild(li);
+          });
+        } catch (err) {
+          list.innerHTML = "";
+          if (status) showStatus(status, err.message || "Could not load entries", true);
+        }
+      }
 
       // ── Sharing form ───────────────────────────────────────────────────────
 

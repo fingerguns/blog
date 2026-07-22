@@ -9,13 +9,14 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { d1Configured, loadBlogDataFromD1 } from "./d1-client.mjs";
 import { escHtml, escXml } from "./lib/html.mjs";
+import { mergeSectionHints } from "./lib/section-hints.mjs";
 import { renderThinkingContentHtml } from "./lib/thinking-html.mjs";
 import { thinkingSlugFromIso } from "./lib/thinking-slug.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
 const outDir = join(root, process.env.BUILD_OUT_DIR || "dist");
-const cssV = new Date().toISOString().slice(0, 10);
+const cssV = `${new Date().toISOString().slice(0, 10)}-${Date.now().toString(36)}`;
 
 let data;
 if (d1Configured()) {
@@ -26,7 +27,9 @@ if (d1Configured()) {
   data = JSON.parse(readFileSync(join(root, "data/posts.json"), "utf8"));
 }
 
-const { site, thinking, thinkingPosts = [], posts, reading, linklog, links, optionalColophon } = data;
+const { site, thinking, thinkingPosts = [], posts, reading, linklog, links, optionalColophon, sectionHints } = data;
+
+const SECTION_HINTS = mergeSectionHints(sectionHints);
 
 const base = site.url.replace(/\/$/, "");
 const toSortableMs = (p) => {
@@ -50,7 +53,108 @@ const GA_ID = "G-L1CC5F3DP8";
 const gaSnippet = `    <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_ID}"></script>
     <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}');</script>`;
 
-const portraitPhotoToggleScript = `    <script>(function(){function init(){document.querySelectorAll(".microblog-body img, .post .body img").forEach(function(img){if(img.dataset.portraitInit)return;function setup(){var w=img.naturalWidth,h=img.naturalHeight;if(!w||!h)return;img.dataset.portraitInit="1";if(h<=w)return;img.classList.add("photo-portrait");img.setAttribute("role","button");img.setAttribute("tabindex","0");img.setAttribute("aria-expanded","false");img.title="Click to enlarge";function toggle(){var ex=img.classList.toggle("photo-expanded");img.setAttribute("aria-expanded",ex?"true":"false");}img.addEventListener("click",toggle);img.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle();}});}if(img.complete)setup();else img.addEventListener("load",setup,{once:true});});}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();}());</script>`;
+const portraitPhotoToggleScript = `    <script>(function(){function init(){document.querySelectorAll(".post .body img:not(.thinking-photo)").forEach(function(img){if(img.dataset.portraitInit)return;function setup(){var w=img.naturalWidth,h=img.naturalHeight;if(!w||!h)return;img.dataset.portraitInit="1";if(h<=w)return;img.classList.add("photo-portrait");img.setAttribute("role","button");img.setAttribute("tabindex","0");img.setAttribute("aria-expanded","false");img.title="Click to enlarge";function toggle(){var ex=img.classList.toggle("photo-expanded");img.setAttribute("aria-expanded",ex?"true":"false");}img.addEventListener("click",toggle);img.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle();}});}if(img.complete)setup();else img.addEventListener("load",setup,{once:true});});}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();}());</script>`;
+
+const thinkingLightboxScript = `    <script>(function(){
+  var overlay=null,imgEl=null,counterEl=null,urls=[],index=0;
+  var touchX=0,touchY=0,touchT=0,swiping=false;
+  var SWIPE_MIN=40;
+  function ensure(){
+    if(overlay)return;
+    overlay=document.createElement("div");
+    overlay.className="thinking-lightbox";
+    overlay.hidden=true;
+    overlay.setAttribute("role","dialog");
+    overlay.setAttribute("aria-modal","true");
+    overlay.setAttribute("aria-label","Photo gallery");
+    overlay.innerHTML='<button type="button" class="thinking-lightbox-close" aria-label="Close">&times;</button><button type="button" class="thinking-lightbox-prev" aria-label="Previous photo">‹</button><figure class="thinking-lightbox-figure"><img alt="" draggable="false" /><figcaption class="thinking-lightbox-counter"></figcaption></figure><button type="button" class="thinking-lightbox-next" aria-label="Next photo">›</button>';
+    document.body.appendChild(overlay);
+    imgEl=overlay.querySelector("img");
+    counterEl=overlay.querySelector(".thinking-lightbox-counter");
+    overlay.querySelector(".thinking-lightbox-close").addEventListener("click",close);
+    overlay.querySelector(".thinking-lightbox-prev").addEventListener("click",function(e){e.stopPropagation();show(index-1);});
+    overlay.querySelector(".thinking-lightbox-next").addEventListener("click",function(e){e.stopPropagation();show(index+1);});
+    overlay.addEventListener("click",function(e){if(e.target===overlay)close();});
+    document.addEventListener("keydown",function(e){
+      if(overlay.hidden)return;
+      if(e.key==="Escape")close();
+      else if(e.key==="ArrowLeft")show(index-1);
+      else if(e.key==="ArrowRight")show(index+1);
+    });
+    overlay.addEventListener("touchstart",function(e){
+      if(overlay.hidden||urls.length<2||!e.touches||!e.touches.length)return;
+      touchX=e.touches[0].clientX;
+      touchY=e.touches[0].clientY;
+      touchT=Date.now();
+      swiping=true;
+    },{passive:true});
+    overlay.addEventListener("touchmove",function(e){
+      if(!swiping||!e.touches||!e.touches.length)return;
+      var dx=e.touches[0].clientX-touchX;
+      var dy=e.touches[0].clientY-touchY;
+      if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>12){
+        if(e.cancelable)e.preventDefault();
+      }
+    },{passive:false});
+    overlay.addEventListener("touchend",function(e){
+      if(!swiping)return;
+      swiping=false;
+      if(urls.length<2)return;
+      var t=e.changedTouches&&e.changedTouches[0];
+      if(!t)return;
+      var dx=t.clientX-touchX;
+      var dy=t.clientY-touchY;
+      var dt=Date.now()-touchT;
+      if(Math.abs(dx)<SWIPE_MIN||Math.abs(dx)<Math.abs(dy))return;
+      if(dt>800&&Math.abs(dx)<80)return;
+      if(dx<0)show(index+1);
+      else show(index-1);
+    },{passive:true});
+    overlay.addEventListener("touchcancel",function(){swiping=false;},{passive:true});
+  }
+  function show(i){
+    if(!urls.length)return;
+    index=(i+urls.length)%urls.length;
+    imgEl.src=urls[index];
+    counterEl.textContent=urls.length>1?(index+1)+" / "+urls.length:"";
+    overlay.classList.toggle("thinking-lightbox--multi",urls.length>1);
+  }
+  function open(list,start){
+    ensure();
+    urls=list;
+    show(start||0);
+    overlay.hidden=false;
+    document.documentElement.classList.add("thinking-lightbox-open");
+  }
+  function close(){
+    if(!overlay||overlay.hidden)return;
+    overlay.hidden=true;
+    imgEl.removeAttribute("src");
+    document.documentElement.classList.remove("thinking-lightbox-open");
+  }
+  function collectUrls(root){
+    return Array.prototype.map.call(root.querySelectorAll("img.thinking-photo"),function(img){return img.currentSrc||img.src;}).filter(Boolean);
+  }
+  function onActivate(btn){
+    var grid=btn.closest("[data-gallery], .thinking-photo-grid");
+    var single=btn.classList.contains("thinking-photo-tile--single")?btn:null;
+    var root=grid||single;
+    if(!root)return;
+    var list=collectUrls(root);
+    if(!list.length)return;
+    var start=parseInt(btn.getAttribute("data-gallery-index")||"0",10)||0;
+    open(list,start);
+  }
+  function init(){
+    document.addEventListener("click",function(e){
+      var btn=e.target.closest(".thinking-photo-tile");
+      if(!btn)return;
+      e.preventDefault();
+      onActivate(btn);
+    });
+  }
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
+}());</script>`;
 
 const thinkingDeleteLinkScript = `    <script>(function(){
       var SESSION_KEY="admin_session";
@@ -238,8 +342,15 @@ function thinkingOgFromItem(item) {
   return { description, image };
 }
 
-function thinkingContentHtmlFromRow(p) {
-  const fromSource = renderThinkingContentHtml(p.text, p.media_url, p.media_alt);
+function thinkingContentHtmlFromRow(p, options = {}) {
+  const fromSource = renderThinkingContentHtml(
+    p.text,
+    p.media_url,
+    p.media_alt,
+    p.media_type,
+    base,
+    { ...options, mediaUrls: p.media_urls || [] }
+  );
   if (fromSource) return fromSource;
   return p.content_html || "";
 }
@@ -248,14 +359,22 @@ function renderThinkingHtml(thinking) {
   const inner = renderThinkingContentHtml(
     thinking?.text,
     thinking?.media_url,
-    thinking?.media_alt
+    thinking?.media_alt,
+    thinking?.media_type,
+    base,
+    { mediaUrls: thinking?.media_urls || [] }
   );
   if (!inner) return "";
   return `<div class="microblog-body">${inner}</div>`;
 }
 
 function hasThinking(thinking) {
-  return !!(thinking && ((thinking.text || "").trim() || thinking.media_url));
+  return !!(
+    thinking &&
+    ((thinking.text || "").trim() ||
+      thinking.media_url ||
+      (Array.isArray(thinking.media_urls) && thinking.media_urls.length))
+  );
 }
 
 function toIsoZ(p) {
@@ -366,6 +485,7 @@ ${gaSnippet}
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
 ${portraitPhotoToggleScript}
+${thinkingLightboxScript}
   </body>
 </html>
 `;
@@ -384,6 +504,7 @@ const microblogItems = thinkingPosts.map((p) => ({
   content_html: thinkingContentHtmlFromRow(p),
   date_published: p.datetime,
   url: p.microblog_url || "",
+  media_type: p.media_type || "",
 }));
 
 // Changelog from git log
@@ -435,6 +556,12 @@ const renderLinklogItem = (l) =>
             <a href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer">${escHtml(stripHashtags(l.title))}</a>
           </li>`;
 
+const sectionHeading = (label, tag, id) => {
+  const hint = SECTION_HINTS[label];
+  const idAttr = id ? ` id="${id}"` : "";
+  return `<${tag}${idAttr}><span class="section-hint" tabindex="0" aria-label="About ${escHtml(label)}">${escHtml(label)}<span class="section-hint-tip" role="tooltip">${escHtml(hint)}</span></span></${tag}>`;
+};
+
 // Homepage lists (capped at MAX_PER_SECTION)
 const postListHtml = ordered.slice(0, MAX_PER_SECTION).map((p) => renderPostItem(p)).join("\n");
 const hasMorePosts = ordered.length > MAX_PER_SECTION;
@@ -473,7 +600,7 @@ const subtitleHtml = descriptionText ? `      <p class="lead">${escHtml(descript
 
 const thinkingSection = hasThinking(thinking)
   ? `      <section aria-labelledby="now-heading">
-        <h2 id="now-heading">Thinking</h2>
+        ${sectionHeading("Thinking", "h2", "now-heading")}
         <ol class="post-list">
           <li>
             ${renderThinkingHtml(thinking)}
@@ -529,7 +656,7 @@ ${subtitleHtml}
 ${thinkingSection}
 
       <section aria-labelledby="posts-heading">
-        <h2 id="posts-heading">Writing</h2>
+        ${sectionHeading("Writing", "h2", "posts-heading")}
         <ol class="post-list" reversed>
 ${postListHtml}
         </ol>
@@ -537,7 +664,7 @@ ${postListHtml}
       </section>
 
       <section aria-labelledby="reading-heading">
-        <h2 id="reading-heading">Reading</h2>
+        ${sectionHeading("Reading", "h2", "reading-heading")}
         <ol class="post-list" reversed>
 ${readingHtml}
         </ol>
@@ -545,7 +672,7 @@ ${readingHtml}
       </section>
 
       <section aria-labelledby="linklog-heading">
-        <h2 id="linklog-heading">Sharing</h2>
+        ${sectionHeading("Sharing", "h2", "linklog-heading")}
         <ol class="post-list" reversed>
 ${linklogHtml}
         </ol>
@@ -567,6 +694,7 @@ ${linksHtml}
 ${colophonSection}    </main>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
 ${portraitPhotoToggleScript}
+${thinkingLightboxScript}
   </body>
 </html>
 `;
@@ -609,7 +737,7 @@ Sitemap: ${base}/sitemap.xml
 `;
 
 // Archive pages
-const archiveHead = (title) => `<!DOCTYPE html>
+const archiveHead = (title, headingHtml) => `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -637,7 +765,7 @@ ${gaSnippet}
   <body>
     <article class="post">
       <a class="post-back" href="/">←</a>
-      <h1>${escHtml(title)}</h1>`;
+      ${headingHtml ?? `<h1>${escHtml(title)}</h1>`}`;
 
 const archiveFoot = `      <footer class="site-footer">
         <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><a href="#" class="theme-toggle" id="theme-toggle"></a></p>
@@ -646,6 +774,7 @@ const archiveFoot = `      <footer class="site-footer">
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
 ${portraitPhotoToggleScript}
+${thinkingLightboxScript}
     <script>(function(){var BATCH=10;var list=document.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++)items[i].hidden=true;var shown=BATCH;var sentinel=document.createElement('div');document.body.appendChild(sentinel);var obs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++)items[i].hidden=false;shown=next;if(shown>=items.length)obs.disconnect();},{rootMargin:'0px'});obs.observe(sentinel);}());</script>
   </body>
 </html>
@@ -661,24 +790,25 @@ const thinkingArchiveFoot = `      <footer class="site-footer">
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
 ${portraitPhotoToggleScript}
 ${thinkingViewToggleScript}
+${thinkingLightboxScript}
 ${thinkingDeleteLinkScript}
   </body>
 </html>
 `;
 
-const writingPageHtml = `${archiveHead("Writing")}
+const writingPageHtml = `${archiveHead("Writing", sectionHeading("Writing", "h1"))}
       <ol class="post-list" reversed>
 ${postListAllHtml}
       </ol>
 ${archiveFoot}`;
 
-const readingPageHtml = `${archiveHead("Reading")}
+const readingPageHtml = `${archiveHead("Reading", sectionHeading("Reading", "h1"))}
       <ol class="post-list" reversed>
 ${readingAllHtml}
       </ol>
 ${archiveFoot}`;
 
-const sharingPageHtml = `${archiveHead("Sharing")}
+const sharingPageHtml = `${archiveHead("Sharing", sectionHeading("Sharing", "h1"))}
       <ol class="post-list" reversed>
 ${linklogAllHtml}
       </ol>
@@ -695,7 +825,7 @@ ${hasThinking(thinking) ? `        <h2>Thinking</h2>
 ` : ""}${currentBook ? `        <h2>Reading</h2>
         <p><a href="${escHtml(currentBook.url)}" target="_blank" rel="noopener">${escHtml(currentBook.title)}</a></p>
 ` : ""}        <h2>Working</h2>
-        <p>Data by day. Writing when I can. Walking a lot.</p>
+        <p>On summer holiday in Sifnos.</p>
         <h2>Living</h2>
         <p>Brooklyn, NY.</p>
       </div>
@@ -733,6 +863,16 @@ const formatMbDate = (iso) => {
 };
 const thinkingSlug = (item) => item._slug || thinkingSlugFromIso(item.date_published);
 
+function thinkingPostCrumb(iso) {
+  const dateLabel = formatMbDate(iso);
+  return `      <nav class="thinking-crumb" aria-label="Breadcrumb">
+        <h1 class="site-title"><a href="/">${escHtml(site.title)}</a></h1>
+        <div class="thinking-crumb-trail">
+          <h2 class="thinking-crumb-heading"><a href="/thinking/">Thinking</a></h2><span class="thinking-crumb-meta"><span class="thinking-crumb-sep" aria-hidden="true"> // </span><time class="thinking-crumb-date" datetime="${escHtml(iso)}" aria-current="page">${escHtml(dateLabel)}</time></span>
+        </div>
+      </nav>`;
+}
+
 const thinkingPostHead = (iso, item, slug) => {
   const pageTitle = `${formatMbDate(iso)} — ${site.title}`;
   const pageUrl = `${base}/thinking/${slug}/`;
@@ -757,7 +897,7 @@ ${gaSnippet}
   </head>
   <body>
     <article class="post microblog-entry" data-slug="${escHtml(slug)}" data-microblog-url="${escHtml(item.url || "")}">
-      <a class="post-back" href="/thinking/">←</a>`;
+${thinkingPostCrumb(iso)}`;
 };
 
 const thinkingPostFoot = `      <footer class="site-footer">
@@ -767,6 +907,7 @@ const thinkingPostFoot = `      <footer class="site-footer">
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
 ${portraitPhotoToggleScript}
+${thinkingLightboxScript}
 ${thinkingDeleteLinkScript}
 ${thinkingDeleteConfirmScript}
   </body>
@@ -832,7 +973,7 @@ const thinkingGridHtml = thinkingGridGroupsHtml(microblogItems);
 
 const thinkingViewToggleHtml = `      <p class="thinking-view-toggle"><a href="#" id="thinking-view-toggle">Grid view</a></p>`;
 
-const microblogPageHtml = `${archiveHead("Thinking")}
+const microblogPageHtml = `${archiveHead("Thinking", sectionHeading("Thinking", "h1"))}
     <div class="thinking-views" data-view="list">
 ${thinkingViewToggleHtml}
       <div class="microblog-feed">
@@ -905,12 +1046,15 @@ writeFileSync(join(outDir, "changelog/index.html"), changelogPageHtml, "utf8");
 mkdirSync(join(outDir, "thinking"), { recursive: true });
 writeFileSync(join(outDir, "thinking/index.html"), microblogPageHtml, "utf8");
 
-// Individual thinking post pages
+// Individual thinking post pages — preload video on detail pages for faster playback start
 for (const item of microblogItems) {
   const slug = thinkingSlug(item);
+  const row = thinkingPosts.find((p) => p.slug === slug);
+  const detailContent = row
+    ? thinkingContentHtmlFromRow(row, { videoPreload: "auto" })
+    : item.content_html;
   const postHtml = `${thinkingPostHead(item.date_published, item, slug)}
-      <div class="microblog-body" style="margin-top:1.5rem">${item.content_html}</div>
-      <time class="post-date" style="display:block;margin-top:0.75rem" datetime="${escHtml(item.date_published)}">${escHtml(formatMbDate(item.date_published))}</time>
+      <div class="microblog-body">${detailContent}</div>
 ${thinkingDeletePanelHtml}
 ${thinkingPostFoot}`;
   mkdirSync(join(outDir, "thinking", slug), { recursive: true });

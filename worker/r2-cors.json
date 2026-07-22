@@ -1,0 +1,18 @@
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": [
+          "https://rommy.blog",
+          "https://rommy-blog.pages.dev",
+          "http://localhost:8799",
+          "http://127.0.0.1:8799"
+        ],
+        "methods": ["GET", "HEAD", "PUT"],
+        "headers": ["Content-Type", "Content-Length"]
+      },
+      "exposeHeaders": ["ETag"],
+      "maxAgeSeconds": 3600
+    }
+  ]
+}

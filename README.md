@@ -8,14 +8,16 @@ Built with [Cursor](https://cursor.com). See the [colophon](https://rommy.blog/c
 
 - **Static site** — HTML, CSS, Atom feed, sitemap; no runtime npm dependencies on Pages
 - **Content in D1** — Writing posts, drafts, Reading, Sharing, and the homepage Thinking blurb
-- **Media in R2** — Photos for Thinking and Writing (public bucket)
+- **Media in R2** — Photos (up to 4 per Thinking post), audio, and video for Thinking; photos for Writing (public bucket)
+- **Photo gallery** — 2–4 Thinking photos render as a cropped, equal-size 2×2 grid; click opens a full-viewport lightbox with prev/next, keyboard arrows, and infinite swipe on mobile
 - **Admin** — Password-protected UI at `/admin/` (Thinking, Writing, Reading, Sharing, Login)
-- **Cross-posting** — Thinking can publish to [Micro.blog](https://micro.blog) (Micropub) and [Bluesky](https://bsky.app) when configured
-- **Comments** — [Remark42](https://remark42.com) on Writing posts (`comments.rommy.blog`)
+- **Cross-posting** — Thinking can publish to [Micro.blog](https://micro.blog) (Micropub), [Bluesky](https://bsky.app), and [Mastodon](https://joinmastodon.org) when configured; photos, audio, and video render as native attachments/players in each feed (see [Audio & Video Syndication](#audio--video-syndication) below), with the Thinking permalink included in the syndicated text alongside native media
+- **Comments** — [Webmentions](https://webmention.io) on Writing posts: incoming likes, reposts, and replies are received by webmention.io and rendered client-side; [Bridgy](https://brid.gy) bridges Mastodon replies/boosts back in
 - **Writing editor** — [Quill](https://quilljs.com/) with image upload, text wrap (left / right / center / full), drafts, and post version history
 - **Social previews** — Open Graph / Twitter meta on Writing and Thinking permalinks (first in-post image when available)
-- **Plain links in Thinking** — URLs in notes are normal hyperlinks on the site (no on-site unfurl cards)
+- **Plain links in Thinking** — URLs in notes are normal hyperlinks on the site (no on-site unfurl cards), except YouTube links, which render as a native, playable embed below the note
 - **Changelog** — Generated from Git history at build time
+- **Colophon** — [`/colophon/`](https://rommy.blog/colophon/) describes how the site is built, with an optional toggle to read it in the style of Walt Whitman
 
 ## Architecture
 
@@ -27,7 +29,7 @@ Admin (Pages) → Worker API → D1 (write) + R2 (photos)
 Pages build → D1 HTTP API (read) → scripts/build.mjs → dist/ → rommy.blog
 ```
 
-The Thinking **archive** and permalink pages are built from the `thinking_posts` table in D1 at deploy time (same source as the homepage blurb). Slugs use US Eastern time. External links in Thinking are not unfurled at build time — only basic `<a>` tags in the HTML.
+The Thinking **archive** and permalink pages are built from the `thinking_posts` table in D1 at deploy time (same source as the homepage blurb). Slugs use US Eastern time. External links in Thinking are rendered as basic `<a>` tags — no on-site unfurl cards — with one exception: YouTube links (`youtube.com/watch`, `/shorts/`, `/live/`, `youtu.be`) also get a responsive `youtube-nocookie.com` iframe embed appended after the note text (see `scripts/lib/youtube.mjs`), so videos play natively on rommy.blog without leaving the page. A `t=`/`start=` timestamp on the URL is carried into the embed's start time.
 
 Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on their own platforms when you include links there.
 
@@ -37,11 +39,11 @@ Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on the
 |------|---------|
 | `admin/` | Admin UI (static HTML + JS) |
 | `scripts/build.mjs` | Regenerates site into `dist/` |
-| `scripts/lib/` | Shared HTML, slug, thinking, and Remark42 helpers (build + Worker) |
+| `scripts/lib/` | Shared HTML, slug, thinking, linkify, media-URL, and YouTube-embed helpers (build + Worker) |
 | `scripts/d1-client.mjs` | D1 queries for local/Pages builds |
 | `build-pages.mjs` | Cloudflare Pages entrypoint (git unshallow + build) |
 | `worker/` | Cloudflare Worker (`update-thinking.js`) — admin API |
-| `remark42/` | Remark42 server config, theme CSS, Docker / Fly deploy |
+| `remark42/` | Legacy Remark42 server config, theme CSS, Docker / Fly deploy — unused now that Writing comments run on Webmentions, kept for reference |
 | `data/posts.json` | Legacy fallback if D1 env vars are not set |
 | `styles.css` | Site styles (light/dark) |
 | `about/`, `admin/`, `colophon/`, `contact/` | Hand-authored static pages (copied into `dist/` at build) |
@@ -71,7 +73,7 @@ Reads from D1 when these env vars are set:
 
 Without them, the build falls back to `data/posts.json`.
 
-**Remark42** (Writing comments): see [`remark42/README.md`](remark42/README.md). Embed is on by default (`REMARK42_HOST=https://comments.rommy.blog`); set `REMARK42_DISABLED=1` to omit.
+**Comments** on Writing posts use [Webmentions](https://webmention.io) — no server or env vars required. Each post page emits a `<link rel="webmention">` tag and fetches `https://webmention.io/api/mentions.jf2` client-side to render likes/reposts as avatars and replies as comments. [Bridgy](https://brid.gy) forwards Mastodon replies and boosts into webmention.io so they show up too.
 
 To preview the admin UI locally against the Worker:
 
@@ -110,6 +112,8 @@ See [`worker/README.md`](worker/README.md) for D1 schema, secrets, and deploy st
 | `MICROBLOG_TOKEN` | No | Micropub for Thinking |
 | `BLUESKY_HANDLE` | No | Bluesky cross-post |
 | `BLUESKY_APP_PASSWORD` | No | Bluesky cross-post |
+| `MASTODON_ACCESS_TOKEN` | No | Mastodon cross-post |
+| `MASTODON_INSTANCE` | No | Mastodon instance URL (default `https://mas.to`) |
 | `GITHUB_TOKEN` | No | Fallback rebuild trigger |
 
 **Bindings** (in `worker/wrangler.toml`): D1 `rommy-blog-db`, R2 `rommy-blog-media`, plus `MEDIA_PUBLIC_URL` for public image URLs.
@@ -140,9 +144,25 @@ wrangler deploy
 
 ## Photos
 
-- Up to **5 MB** on rommy.blog and Micro.blog (JPEG, PNG, WebP, GIF)
-- Bluesky gets a compressed JPEG when the original is over **2 MB**
-- Portrait images on the site default to half width; click to expand/collapse
+- Up to **4 photos** per Thinking post (mutually exclusive with audio/video); each is compressed independently
+- Up to **5 MB** per photo on rommy.blog and Micro.blog (JPEG, PNG, WebP, GIF)
+- Bluesky gets a compressed JPEG per photo when the original is over **2 MB**
+- **Thinking gallery:** 1 photo renders full width; 2–4 photos render as an equal-size, cropped 2×2 grid at the blog's content width (no letterboxing). Clicking any photo opens a same-page lightbox — full-viewport width, prev/next buttons, `←`/`→`/`Esc`, and swipe-to-navigate on mobile, wrapping at both ends — used identically on the homepage, `/thinking/` archive, and permalinks. On phones (including landscape orientation), lightbox photos render edge-to-edge with no corner rounding
+- On Writing posts, portrait-oriented photos default to half width; click to expand/collapse
+
+## Audio & Video Syndication
+
+When a Thinking post includes audio or video, each platform receives it as a native, playable attachment rather than a plain link, and the Thinking permalink is appended to the syndicated text alongside it:
+
+| Platform | Audio | Video |
+|----------|-------|-------|
+| **micro.blog** | `audio[]` Micropub property → native player in feed and podcast RSS | `video[]` Micropub property → native player |
+| **Mastodon** | Uploaded as a media attachment (≤ 40 MB) → renders a player in timelines and third-party apps. Async video/audio transcodes are polled via `GET /api/v1/media/:id` until ready before the status posts | Same |
+| **Bluesky** | No native audio support; falls back to a link card pointing to the post | Native for both **MP4** and iPhone **MOV** (≤ 100 MB) — uploaded to Bluesky's dedicated video-processing service (`video.bsky.app`), which transcodes server-side and is polled for a completed blob (~25s budget). Falls back to a link card if processing times out or fails, or if `createRecord` rejects the embed, so the post still goes out |
+
+For files that exceed the per-platform size limit, or when bytes are unavailable (presigned video uploads over the threshold), syndication falls back to the previous behaviour: a plain-text post with a permalink and an "Audio: " or "Video: " prefix. Multiple photos syndicate to all three platforms (Micro.blog via repeated `photo[]` parts, Mastodon and Bluesky via multiple media attachments/images, up to 4).
+
+On mobile, Thinking video posters render a first frame instead of a blank box by appending `#t=0.001` to the video `src`.
 
 ## Sharing rommy.blog links
 

@@ -1,15 +1,23 @@
 name = "rommy-blog-admin"
 main = "update-thinking.js"
-compatibility_date = "2025-04-01"
+compatibility_date = "2026-07-10"
 workers_dev = true
+
+# Edge cache for cacheable GET/HEAD responses (e.g. /media/* with Cache-Control).
+[cache]
+enabled = true
 
 [vars]
 GITHUB_OWNER = "fingerguns"
 GITHUB_REPO = "blog"
 GITHUB_BRANCH = "main"
 ALLOWED_ORIGINS = "https://rommy.blog,https://rommy-blog.pages.dev,http://localhost:8799,http://127.0.0.1:8799"
-# Public R2 URL base after enabling public access on rommy-blog-media (e.g. https://pub-xxxx.r2.dev)
-MEDIA_PUBLIC_URL = "https://pub-d918c1f2d7fd45cd8a120234983c1079.r2.dev"
+# Public media served same-origin via Worker at /media/* (iOS audio compatibility).
+MEDIA_PUBLIC_URL = "https://rommy.blog/media"
+R2_BUCKET_NAME = "rommy-blog-media"
+
+[ai]
+binding = "AI"
 
 [[r2_buckets]]
 binding = "MEDIA"
@@ -24,7 +32,16 @@ database_id = "2cb5dcd1-ff1b-4152-b081-58f56c9e5a55"
 pattern = "rommy.blog/api/admin*"
 zone_name = "rommy.blog"
 
+[[routes]]
+pattern = "rommy.blog/media/*"
+zone_name = "rommy.blog"
+
 # Set via: wrangler secret put ADMIN_PASSWORD
 # Set via: wrangler secret put GITHUB_TOKEN
 # Set via: wrangler secret put PAGES_DEPLOY_HOOK  (Cloudflare Pages deploy hook URL)
 # Set via: wrangler secret put MICROBLOG_TOKEN  (micro.blog API token — optional, skipped if absent)
+# Direct video upload (presigned PUT to R2 — optional; falls back to Worker multipart if absent):
+#   wrangler secret put R2_ACCOUNT_ID
+#   wrangler secret put R2_ACCESS_KEY_ID
+#   wrangler secret put R2_SECRET_ACCESS_KEY
+# Then apply bucket CORS: wrangler r2 bucket cors set rommy-blog-media --file=r2-cors.json
