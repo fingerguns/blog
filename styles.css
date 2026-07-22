@@ -445,19 +445,36 @@ h2 {
 
 /* Thinking view toggle (list / grid) */
 .thinking-view-toggle {
-  margin: 0 0 1.25rem;
-  text-align: right;
+  display: flex;
+  justify-content: flex-start;
+  gap: 0.4rem;
+  margin: 0.5rem 0 1.5rem;
 }
-.thinking-view-toggle a {
-  font-size: 0.85rem;
+.thinking-view-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
   color: var(--muted);
-  text-decoration: underline;
-  text-decoration-color: var(--rule);
-  text-underline-offset: 0.2em;
+  cursor: pointer;
+  transition: color 0.15s, background-color 0.15s;
 }
-.thinking-view-toggle a:hover {
+.thinking-view-btn svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  display: block;
+}
+.thinking-view-btn:hover {
   color: var(--link-hover);
-  text-decoration-color: currentColor;
+}
+.thinking-view-btn[aria-pressed="true"] {
+  color: var(--text);
+  background: var(--thinking-delete-bg);
 }
 .thinking-views[data-view="list"] .thinking-grid-wrap { display: none; }
 .thinking-views[data-view="grid"] .microblog-feed { display: none; }

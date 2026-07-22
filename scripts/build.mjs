@@ -811,7 +811,7 @@ ${thinkingLightboxScript}
 </html>
 `;
 
-const thinkingViewToggleScript = `    <script>(function(){var wrap=document.querySelector('.thinking-views');var btn=document.getElementById('thinking-view-toggle');if(!wrap||!btn)return;function set(v){wrap.setAttribute('data-view',v);btn.textContent=v==='grid'?'List view':'Grid view';localStorage.setItem('thinkingView',v);}set(localStorage.getItem('thinkingView')||'list');btn.addEventListener('click',function(e){e.preventDefault();set(wrap.getAttribute('data-view')==='grid'?'list':'grid');});}());</script>`;
+const thinkingViewToggleScript = `    <script>(function(){var wrap=document.querySelector('.thinking-views');var btns=document.querySelectorAll('.thinking-view-btn');if(!wrap||!btns.length)return;function set(v){wrap.setAttribute('data-view',v);btns.forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-view-btn')===v?'true':'false');});localStorage.setItem('thinkingView',v);}set(localStorage.getItem('thinkingView')||'list');btns.forEach(function(b){b.addEventListener('click',function(){set(b.getAttribute('data-view-btn'));});});}());</script>`;
 
 const thinkingArchiveFoot = `      <footer class="site-footer">
         <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><a href="#" class="theme-toggle" id="theme-toggle"></a></p>
@@ -1008,7 +1008,15 @@ ${g.items.map(thinkingGridItemHtml).join("\n")}
 
 const thinkingGridHtml = thinkingGridGroupsHtml(microblogItems);
 
-const thinkingViewToggleHtml = `      <p class="thinking-view-toggle"><a href="#" id="thinking-view-toggle">Grid view</a></p>`;
+const THINKING_VIEW_ICONS = {
+  list: `<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="3" width="16" height="3" rx="1" fill="currentColor"/><rect x="2" y="8.5" width="16" height="3" rx="1" fill="currentColor"/><rect x="2" y="14" width="16" height="3" rx="1" fill="currentColor"/></svg>`,
+  grid: `<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="2" width="7" height="7" rx="1" fill="currentColor"/><rect x="11" y="2" width="7" height="7" rx="1" fill="currentColor"/><rect x="2" y="11" width="7" height="7" rx="1" fill="currentColor"/><rect x="11" y="11" width="7" height="7" rx="1" fill="currentColor"/></svg>`,
+};
+
+const thinkingViewToggleHtml = `      <div class="thinking-view-toggle" role="group" aria-label="Switch view">
+        <button type="button" class="thinking-view-btn" data-view-btn="list" aria-pressed="true" aria-label="List view">${THINKING_VIEW_ICONS.list}</button>
+        <button type="button" class="thinking-view-btn" data-view-btn="grid" aria-pressed="false" aria-label="Grid view">${THINKING_VIEW_ICONS.grid}</button>
+      </div>`;
 
 const microblogPageHtml = `${archiveHead("Thinking", sectionHeading("Thinking", "h1"))}
     <div class="thinking-views" data-view="list">
