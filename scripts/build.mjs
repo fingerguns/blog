@@ -373,7 +373,7 @@ function youtubeIdFromHtml(html) {
 }
 
 function youtubeThumbnailUrl(id) {
-  return `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+  return `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
 }
 
 // "July 2026" in ET, used to group Thinking grid items by month
@@ -986,7 +986,69 @@ ${thinkingLightboxScript}
 </html>
 `;
 
-const thinkingViewToggleScript = `    <script>(function(){var wrap=document.querySelector('.thinking-views');if(!wrap)return;var viewBtns=document.querySelectorAll('.thinking-view-btn');var filterBtns=document.querySelectorAll('.thinking-filter-btn');var items=document.querySelectorAll('.thinking-grid-item');var months=document.querySelectorAll('.thinking-grid-month');var kinds=${JSON.stringify(THINKING_GRID_KINDS)};var filterKey='thinkingGridFiltersV2';function defaultFilters(){var all={};kinds.forEach(function(k){all[k]=false;});return all;}function loadFilters(){try{var saved=JSON.parse(localStorage.getItem(filterKey)||'null');if(saved&&typeof saved==='object')return saved;}catch(e){}return defaultFilters();}var active=loadFilters();function anyFilterActive(){return kinds.some(function(k){return active[k];});}function applyFilters(){var on=anyFilterActive();filterBtns.forEach(function(b){var k=b.getAttribute('data-filter');b.setAttribute('aria-pressed',active[k]?'true':'false');});items.forEach(function(el){var k=el.getAttribute('data-kind');el.hidden=!on||!active[k];});months.forEach(function(section){section.hidden=!section.querySelector('.thinking-grid-item:not([hidden])');});try{localStorage.setItem(filterKey,JSON.stringify(active));}catch(e){}}function setView(v){wrap.setAttribute('data-view',v);viewBtns.forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-view-btn')===v?'true':'false');});localStorage.setItem('thinkingView',v);}if(viewBtns.length){setView(localStorage.getItem('thinkingView')||'list');viewBtns.forEach(function(b){b.addEventListener('click',function(){setView(b.getAttribute('data-view-btn'));});});}if(filterBtns.length){applyFilters();filterBtns.forEach(function(b){b.addEventListener('click',function(){var k=b.getAttribute('data-filter');if(active[k]){active[k]=false;}else{kinds.forEach(function(kind){active[kind]=(kind===k);});}applyFilters();});});}}());</script>`;
+const thinkingViewToggleScript = `    <script>(function(){
+var wrap=document.querySelector('.thinking-views');
+if(!wrap)return;
+var viewBtns=document.querySelectorAll('.thinking-view-btn');
+var filterBtns=document.querySelectorAll('.thinking-filter-btn');
+var items=document.querySelectorAll('.thinking-grid-item');
+var months=document.querySelectorAll('.thinking-grid-month');
+var kinds=${JSON.stringify(THINKING_GRID_KINDS)};
+var filterKey='thinkingGridFiltersV2';
+var gridMediaObs=null;
+function defaultFilters(){var all={};kinds.forEach(function(k){all[k]=false;});return all;}
+function loadFilters(){try{var saved=JSON.parse(localStorage.getItem(filterKey)||'null');if(saved&&typeof saved==='object')return saved;}catch(e){}return defaultFilters();}
+var active=loadFilters();
+function anyFilterActive(){return kinds.some(function(k){return active[k];});}
+function hydrateGridMedia(el){
+  if(el.dataset.loaded==='1')return;
+  var url=el.getAttribute('data-src');
+  if(!url)return;
+  el.src=url;
+  el.removeAttribute('data-src');
+  el.dataset.loaded='1';
+  if(gridMediaObs)gridMediaObs.unobserve(el);
+}
+function scanGridMedia(){
+  if(!gridMediaObs){
+    gridMediaObs=new IntersectionObserver(function(entries){
+      entries.forEach(function(e){if(e.isIntersecting)hydrateGridMedia(e.target);});
+    },{rootMargin:'240px'});
+  }
+  wrap.querySelectorAll('.thinking-grid-item img[data-src], .thinking-grid-item video[data-src]').forEach(function(el){gridMediaObs.unobserve(el);});
+  if(wrap.getAttribute('data-view')!=='grid')return;
+  wrap.querySelectorAll('.thinking-grid-item:not([hidden]) img[data-src], .thinking-grid-item:not([hidden]) video[data-src]').forEach(function(el){gridMediaObs.observe(el);});
+}
+function applyFilters(){
+  var on=anyFilterActive();
+  filterBtns.forEach(function(b){var k=b.getAttribute('data-filter');b.setAttribute('aria-pressed',active[k]?'true':'false');});
+  items.forEach(function(el){var k=el.getAttribute('data-kind');el.hidden=!on||!active[k];});
+  months.forEach(function(section){section.hidden=!section.querySelector('.thinking-grid-item:not([hidden])');});
+  try{localStorage.setItem(filterKey,JSON.stringify(active));}catch(e){}
+  scanGridMedia();
+}
+function setView(v){
+  wrap.setAttribute('data-view',v);
+  viewBtns.forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-view-btn')===v?'true':'false');});
+  localStorage.setItem('thinkingView',v);
+  scanGridMedia();
+}
+if(viewBtns.length){
+  setView(localStorage.getItem('thinkingView')||'list');
+  viewBtns.forEach(function(b){b.addEventListener('click',function(){setView(b.getAttribute('data-view-btn'));});});
+}
+if(filterBtns.length){
+  applyFilters();
+  filterBtns.forEach(function(b){
+    b.addEventListener('click',function(){
+      var k=b.getAttribute('data-filter');
+      if(active[k]){active[k]=false;}
+      else{kinds.forEach(function(kind){active[kind]=(kind===k);});}
+      applyFilters();
+    });
+  });
+}else{scanGridMedia();}
+}());</script>`;
 
 const thinkingArchiveFoot = `      <footer class="site-footer">
         <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><a href="#" class="theme-toggle" id="theme-toggle"></a></p>
@@ -1133,7 +1195,7 @@ function thinkingGridItemHtml(item, spotifyThumbnails = {}) {
   const { src, alt } = imageSrcAltFromHtml(item.content_html);
   if (kind === "photo" && src) {
     return `          <a class="thinking-grid-item thinking-grid-photo" data-kind="photo" href="${href}" aria-label="${label}">
-            <img src="${escHtml(src)}" alt="${escHtml(alt || "Photo")}" loading="lazy" decoding="async" />
+            <img data-src="${escHtml(src)}" alt="${escHtml(alt || "Photo")}" loading="lazy" decoding="async" />
             ${thinkingGridBadgeHtml("photo")}
           </a>`;
   }
@@ -1141,7 +1203,7 @@ function thinkingGridItemHtml(item, spotifyThumbnails = {}) {
     const videoSrc = videoSrcFromHtml(item.content_html);
     const posterSrc = `${videoSrc}${videoSrc.includes("#") ? "" : "#t=0.001"}`;
     return `          <a class="thinking-grid-item thinking-grid-video" data-kind="video" href="${href}" aria-label="${label}">
-            <video class="thinking-grid-video-poster" muted playsinline preload="metadata" src="${escHtml(posterSrc)}" aria-hidden="true"></video>
+            <video class="thinking-grid-video-poster" muted playsinline preload="none" data-src="${escHtml(posterSrc)}" aria-hidden="true"></video>
             ${thinkingGridBadgeHtml("video")}
           </a>`;
   }
@@ -1150,7 +1212,7 @@ function thinkingGridItemHtml(item, spotifyThumbnails = {}) {
     const cover = spotifyThumbnails[`${spotifyEmbed.type}:${spotifyEmbed.id}`];
     if (cover) {
       return `          <a class="thinking-grid-item thinking-grid-spotify" data-kind="spotify" href="${href}" aria-label="${label}">
-            <img src="${escHtml(cover)}" alt="" loading="lazy" decoding="async" />
+            <img data-src="${escHtml(cover)}" alt="" loading="lazy" decoding="async" />
             ${thinkingGridBadgeHtml("spotify")}
           </a>`;
     }
@@ -1158,7 +1220,7 @@ function thinkingGridItemHtml(item, spotifyThumbnails = {}) {
   if (kind === "youtube") {
     const youtubeId = youtubeIdFromHtml(item.content_html);
     return `          <a class="thinking-grid-item thinking-grid-youtube" data-kind="youtube" href="${href}" aria-label="${label}">
-            <img src="${escHtml(youtubeThumbnailUrl(youtubeId))}" alt="" loading="lazy" decoding="async" />
+            <img data-src="${escHtml(youtubeThumbnailUrl(youtubeId))}" alt="" loading="lazy" decoding="async" />
             ${thinkingGridBadgeHtml("youtube")}
           </a>`;
   }

@@ -511,6 +511,8 @@ h2 {
 /* Thinking grid view — one thumbnail per post, grouped by month */
 .thinking-grid-month {
   margin: 0 0 1.75rem;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 200px;
 }
 .thinking-grid-month-label {
   font-size: 0.8rem;
