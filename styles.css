@@ -533,6 +533,12 @@ h2 {
   border: 1px solid var(--rule);
   text-decoration: none;
 }
+/* Author `display: block` above wins over the UA [hidden] rule, so filtered
+   tiles never actually disappear unless we restate it here. */
+.thinking-grid-item[hidden],
+.thinking-grid-month[hidden] {
+  display: none !important;
+}
 .thinking-grid-photo,
 .thinking-grid-spotify,
 .thinking-grid-youtube {
