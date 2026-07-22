@@ -244,25 +244,6 @@ h2 {
     font-size: 1.35rem;
   }
 
-  .thinking-grid-item {
-    width: 96px;
-    height: 96px;
-  }
-  .thinking-grid-text-body {
-    font-size: 0.56rem;
-    -webkit-line-clamp: 6;
-  }
-  .thinking-grid-icon {
-    width: 16px;
-    height: 16px;
-    right: 0.25rem;
-    bottom: 0.25rem;
-  }
-  .thinking-grid-icon--youtube {
-    width: 21px;
-    height: 15px;
-  }
-
   .post-date,
   .meta {
     overflow: hidden;
@@ -543,6 +524,36 @@ h2 {
 .thinking-grid-icon--youtube {
   width: 26px;
   height: 18px;
+}
+
+/* Mobile: lock the grid to 3 columns; thumbnails scale fluidly with the
+   viewport instead of a fixed pixel size (must come after the base rules
+   above so it wins the cascade at equal specificity). */
+@media (max-width: 480px) {
+  .thinking-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.3rem;
+  }
+  .thinking-grid-item {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+  }
+  .thinking-grid-text-body {
+    font-size: clamp(0.5rem, 3.2vw, 0.62rem);
+    -webkit-line-clamp: 6;
+  }
+  .thinking-grid-icon {
+    width: 16px;
+    height: 16px;
+    right: 0.25rem;
+    bottom: 0.25rem;
+  }
+  .thinking-grid-icon--youtube {
+    width: 21px;
+    height: 15px;
+  }
 }
 
 /* Microblog feed */
