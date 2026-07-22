@@ -556,6 +556,111 @@ h2 {
   }
 }
 
+/* Reading view toggle (list / grid) — same look as the Thinking toggle */
+.reading-view-toggle {
+  display: flex;
+  justify-content: flex-start;
+  gap: 0.4rem;
+  margin: 0.5rem 0 1.5rem;
+}
+.reading-view-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s, background-color 0.15s;
+}
+.reading-view-btn svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  display: block;
+}
+.reading-view-btn:hover {
+  color: var(--link-hover);
+}
+.reading-view-btn[aria-pressed="true"] {
+  color: var(--text);
+  background: var(--thinking-delete-bg);
+}
+.reading-views[data-view="list"] .reading-grid-wrap { display: none; }
+.reading-views[data-view="grid"] .reading-list { display: none; }
+
+/* Reading grid view — storefront-style catalog, two columns, grouped by month */
+.reading-grid-month {
+  margin: 0 0 2rem;
+}
+.reading-grid-month-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 0 0 0.85rem;
+}
+.reading-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.75rem 1.25rem;
+}
+.reading-grid-item {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: var(--text);
+}
+.reading-grid-cover {
+  display: block;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--thinking-delete-bg);
+  margin-bottom: 0.6rem;
+}
+.reading-grid-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.reading-grid-cover-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 1rem;
+  text-align: center;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.reading-grid-title {
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+.reading-grid-item:hover .reading-grid-title {
+  color: var(--link-hover);
+}
+@media (max-width: 480px) {
+  .reading-grid {
+    gap: 1.25rem 0.85rem;
+  }
+  .reading-grid-title {
+    font-size: 0.82rem;
+  }
+  .reading-grid-cover-fallback {
+    font-size: 0.75rem;
+    padding: 0.75rem;
+  }
+}
+
 /* Microblog feed */
 .microblog-feed {
   margin-top: 1.5rem;

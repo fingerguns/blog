@@ -578,6 +578,66 @@ const renderReadingItem = (r) =>
             <a href="${escHtml(r.url)}" target="_blank" rel="noopener noreferrer">${escHtml(r.title)}</a>
           </li>`;
 
+// Reading grid: book cover art isn't stored in D1 (reading rows only have
+// title/url/ym), so covers are scraped from each Bookshop.org page's
+// og:image at build time and cached locally, so we don't refetch on every
+// build. Only successful fetches are cached — a failed/blocked fetch is
+// simply retried on the next build rather than "poisoning" the cache with
+// a permanent null, since a currently-blocked build environment shouldn't
+// prevent a later, working one from ever picking up the cover.
+const readingCoversPath = join(root, "data/reading-covers.json");
+let readingCoverCache = {};
+if (existsSync(readingCoversPath)) {
+  try {
+    readingCoverCache = JSON.parse(readFileSync(readingCoversPath, "utf8"));
+  } catch {
+    readingCoverCache = {};
+  }
+}
+
+async function fetchBookCover(url) {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        Accept: "text/html",
+      },
+      redirect: "follow",
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const html = await res.text();
+    const m =
+      html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ||
+      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+    return m ? m[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+const missingCovers = orderedReading.filter((r) => r.url && !(r.url in readingCoverCache));
+if (missingCovers.length > 0) {
+  console.log(`Fetching ${missingCovers.length} book cover(s) from Bookshop.org…`);
+  let fetchedAny = false;
+  for (const r of missingCovers) {
+    const cover = await fetchBookCover(r.url);
+    if (cover) {
+      readingCoverCache[r.url] = cover;
+      fetchedAny = true;
+    } else {
+      console.log(`  couldn't fetch a cover for "${r.title}" — will retry next build`);
+    }
+  }
+  if (fetchedAny) {
+    writeFileSync(readingCoversPath, `${JSON.stringify(readingCoverCache, null, 2)}\n`);
+  }
+}
+
 const stripHashtags = (s) => String(s).replace(/\s*#\S+/g, "").trim();
 
 const orderedLinklog = [...(linklog || [])].sort(sortDesc);
@@ -833,12 +893,6 @@ ${postListAllHtml}
       </ol>
 ${archiveFoot}`;
 
-const readingPageHtml = `${archiveHead("Reading", sectionHeading("Reading", "h1"))}
-      <ol class="post-list" reversed>
-${readingAllHtml}
-      </ol>
-${archiveFoot}`;
-
 const sharingPageHtml = `${archiveHead("Sharing", sectionHeading("Sharing", "h1"))}
       <ol class="post-list" reversed>
 ${linklogAllHtml}
@@ -1017,6 +1071,90 @@ const thinkingViewToggleHtml = `      <div class="thinking-view-toggle" role="gr
         <button type="button" class="thinking-view-btn" data-view-btn="list" aria-pressed="true" aria-label="List view">${THINKING_VIEW_ICONS.list}</button>
         <button type="button" class="thinking-view-btn" data-view-btn="grid" aria-pressed="false" aria-label="Grid view">${THINKING_VIEW_ICONS.grid}</button>
       </div>`;
+
+// Reading grid: a storefront-style catalog — bigger cover art, two columns,
+// grouped by month like the Thinking grid, title underneath linking out to
+// the Bookshop.org page.
+function readingMonthLabel(ym) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || ""));
+  if (!m) return "";
+  const [, y, mo] = m;
+  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).format(
+    new Date(Date.UTC(Number(y), Number(mo) - 1, 1))
+  );
+}
+
+function readingGridItemHtml(r) {
+  const cover = readingCoverCache[r.url];
+  const coverInner = cover
+    ? `<img src="${escHtml(cover)}" alt="${escHtml(r.title)}" loading="lazy" decoding="async" />`
+    : `<span class="reading-grid-cover-fallback">${escHtml(r.title)}</span>`;
+  return `          <a class="reading-grid-item" href="${escHtml(r.url)}" target="_blank" rel="noopener noreferrer">
+            <span class="reading-grid-cover">${coverInner}</span>
+            <span class="reading-grid-title">${escHtml(r.title)}</span>
+          </a>`;
+}
+
+function readingGridGroupsHtml(items) {
+  if (items.length === 0) {
+    return `      <p style="color:var(--muted)">No books yet.</p>`;
+  }
+  const groups = [];
+  for (const item of items) {
+    const label = readingMonthLabel(item.ym);
+    const current = groups[groups.length - 1];
+    if (current && current.label === label) {
+      current.items.push(item);
+    } else {
+      groups.push({ label, items: [item] });
+    }
+  }
+  return groups
+    .map(
+      (g) => `      <section class="reading-grid-month">
+        <h2 class="reading-grid-month-label">${escHtml(g.label)}</h2>
+        <div class="reading-grid">
+${g.items.map(readingGridItemHtml).join("\n")}
+        </div>
+      </section>`
+    )
+    .join("\n");
+}
+
+const readingGridHtml = readingGridGroupsHtml(orderedReading);
+
+const readingViewToggleHtml = `      <div class="reading-view-toggle" role="group" aria-label="Switch view">
+        <button type="button" class="reading-view-btn" data-view-btn="list" aria-pressed="true" aria-label="List view">${THINKING_VIEW_ICONS.list}</button>
+        <button type="button" class="reading-view-btn" data-view-btn="grid" aria-pressed="false" aria-label="Grid view">${THINKING_VIEW_ICONS.grid}</button>
+      </div>`;
+
+const readingViewToggleScript = `    <script>(function(){var wrap=document.querySelector('.reading-views');var btns=document.querySelectorAll('.reading-view-btn');if(!wrap||!btns.length)return;function set(v){wrap.setAttribute('data-view',v);btns.forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-view-btn')===v?'true':'false');});localStorage.setItem('readingView',v);}set(localStorage.getItem('readingView')||'list');btns.forEach(function(b){b.addEventListener('click',function(){set(b.getAttribute('data-view-btn'));});});}());</script>`;
+
+const readingArchiveFoot = `      <footer class="site-footer">
+        <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><a href="#" class="theme-toggle" id="theme-toggle"></a></p>
+        <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
+      </footer>
+    </article>
+    <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
+${portraitPhotoToggleScript}
+${readingViewToggleScript}
+${thinkingLightboxScript}
+    <script>(function(){var BATCH=10;var list=document.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++)items[i].hidden=true;var shown=BATCH;var sentinel=document.createElement('div');document.body.appendChild(sentinel);var obs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++)items[i].hidden=false;shown=next;if(shown>=items.length)obs.disconnect();},{rootMargin:'0px'});obs.observe(sentinel);}());</script>
+  </body>
+</html>
+`;
+
+const readingPageHtml = `${archiveHead("Reading", sectionHeading("Reading", "h1"))}
+    <div class="reading-views" data-view="list">
+${readingViewToggleHtml}
+      <ol class="post-list reading-list" reversed>
+${readingAllHtml}
+      </ol>
+      <div class="reading-grid-wrap">
+${readingGridHtml}
+      </div>
+    </div>
+${readingArchiveFoot}`;
 
 const microblogPageHtml = `${archiveHead("Thinking", sectionHeading("Thinking", "h1"))}
     <div class="thinking-views" data-view="list">
