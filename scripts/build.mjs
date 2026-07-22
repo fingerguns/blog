@@ -361,6 +361,7 @@ function stripMediaMarkup(html) {
 // Small icon badges for the grid's text-preview cards, indicating the kind
 // of media attached (generic play/mic glyphs; brand marks for YouTube/Spotify).
 const THINKING_MEDIA_ICONS = {
+  photo: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" style="fill:var(--text)"/><rect x="6" y="9" width="12" height="8" rx="1.5" style="fill:var(--bg)"/><circle cx="12" cy="13" r="2.5" style="fill:none;stroke:var(--bg);stroke-width:1.2"/><path d="M9 9V7.5h3V9" style="fill:var(--bg)"/></svg>`,
   video: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" style="fill:var(--text)"/><rect x="6" y="8.5" width="9" height="7" rx="1.3" style="fill:var(--bg)"/><path d="M15 10 L19.5 8 L19.5 16 L15 14 Z" style="fill:var(--bg)"/></svg>`,
   audio: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" style="fill:var(--text)"/><path d="M12 6.5a2.25 2.25 0 0 1 2.25 2.25v3a2.25 2.25 0 0 1-4.5 0v-3A2.25 2.25 0 0 1 12 6.5z" style="fill:var(--bg)"/><path d="M8.25 11.75a3.75 3.75 0 0 0 7.5 0M12 15.5v2M10 17.5h4" style="fill:none;stroke:var(--bg);stroke-width:1.1;stroke-linecap:round"/></svg>`,
   youtube: `<svg viewBox="0 0 28 20" aria-hidden="true"><rect width="28" height="20" rx="5" fill="#FF0000"/><path d="M11 6.2 19 10l-8 3.8V6.2z" fill="#fff"/></svg>`,
@@ -1058,6 +1059,7 @@ function thinkingGridItemHtml(item) {
   if (src) {
     return `          <a class="thinking-grid-item thinking-grid-photo" href="${href}" aria-label="${escHtml(formatMbDate(item.date_published))}">
             <img src="${escHtml(src)}" alt="${escHtml(alt || "Photo")}" loading="lazy" decoding="async" />
+            <span class="thinking-grid-icon thinking-grid-icon--photo" aria-hidden="true">${THINKING_MEDIA_ICONS.photo}</span>
           </a>`;
   }
   // Cap well above what a thumbnail can show — the box's overflow:hidden
