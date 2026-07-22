@@ -6,6 +6,7 @@ import { renderThinkingContentHtml } from "../scripts/lib/thinking-html.mjs";
 import { scheduleSectionHintRefresh } from "./section-hints.mjs";
 import { serveMedia } from "./media.mjs";
 import { createR2PresignedPutUrl } from "./r2-presign.mjs";
+import { thinkingVideoPosterKey, uploadVideoPosterToR2 } from "./video-poster.mjs";
 
 /**
  * Cloudflare Worker: admin API for rommy.blog
@@ -447,6 +448,15 @@ async function parseRequest(request) {
         video && typeof video === "object" && "arrayBuffer" in video && video.size > 0
           ? video
           : null,
+      video_poster: (() => {
+        const poster = fd.get("video_poster");
+        return poster &&
+          typeof poster === "object" &&
+          "arrayBuffer" in poster &&
+          poster.size > 0
+          ? poster
+          : null;
+      })(),
     };
   }
   return request.json();
@@ -574,6 +584,9 @@ async function handleThinking(payload, db, cors, env, ctx) {
       syndicationMedia = { url: mediaUrl, bytes: uploaded.bytes, mimeType: uploaded.mimeType, key: uploaded.key, size: uploaded.bytes?.byteLength ?? 0, mediaType: "audio", alt: mediaAlt };
     } else if (video) {
       const uploaded = await uploadVideoToR2(env, video);
+      if (payload.video_poster) {
+        await uploadVideoPosterToR2(env, uploaded.key, payload.video_poster);
+      }
       mediaUrl = uploaded.url;
       mediaAlt = text.slice(0, 1000) || "Video";
       mediaType = "video";
@@ -1175,8 +1188,10 @@ async function handleThinkingVideoUploadUrl(payload, cors, env) {
 
   const ext = VIDEO_EXT[mimeType] || "mp4";
   const key = `thinking/video/${toDateStr(new Date())}/${crypto.randomUUID()}.${ext}`;
+  const posterKey = thinkingVideoPosterKey(key);
 
   let uploadUrl;
+  let posterUploadUrl;
   try {
     uploadUrl = await createR2PresignedPutUrl({
       accountId: env.R2_ACCOUNT_ID,
@@ -1185,6 +1200,14 @@ async function handleThinkingVideoUploadUrl(payload, cors, env) {
       accessKeyId: env.R2_ACCESS_KEY_ID,
       secretAccessKey: env.R2_SECRET_ACCESS_KEY,
       mimeType,
+    });
+    posterUploadUrl = await createR2PresignedPutUrl({
+      accountId: env.R2_ACCOUNT_ID,
+      bucket,
+      key: posterKey,
+      accessKeyId: env.R2_ACCESS_KEY_ID,
+      secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+      mimeType: "image/jpeg",
     });
   } catch (err) {
     return json(
@@ -1198,7 +1221,9 @@ async function handleThinkingVideoUploadUrl(payload, cors, env) {
     {
       ok: true,
       uploadUrl,
+      posterUploadUrl,
       key,
+      posterKey,
       mediaUrl: `${publicBase}/${key}`,
       mimeType,
     },

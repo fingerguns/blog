@@ -548,7 +548,8 @@ h2 {
 }
 .thinking-grid-photo img,
 .thinking-grid-spotify img,
-.thinking-grid-youtube img {
+.thinking-grid-youtube img,
+.thinking-grid-video img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -559,7 +560,8 @@ h2 {
 }
 .thinking-grid-photo img.is-loaded,
 .thinking-grid-spotify img.is-loaded,
-.thinking-grid-youtube img.is-loaded {
+.thinking-grid-youtube img.is-loaded,
+.thinking-grid-video img.is-loaded {
   opacity: 1;
 }
 .thinking-grid-video {

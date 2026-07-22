@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { d1Configured, loadBlogDataFromD1 } from "./d1-client.mjs";
 import { escHtml, escXml } from "./lib/html.mjs";
 import { mergeSectionHints } from "./lib/section-hints.mjs";
-import { thinkingGridThumbUrl } from "./lib/media-url.mjs";
+import { thinkingGridThumbUrl, videoPosterKeyFromVideoUrl } from "./lib/media-url.mjs";
 import { renderThinkingContentHtml } from "./lib/thinking-html.mjs";
 import { thinkingSlugFromIso } from "./lib/thinking-slug.mjs";
 
@@ -1220,7 +1220,7 @@ const microblogEntriesHtml = microblogItems.length > 0
 
 // Grid view: same items, grouped by month, one square thumbnail per post
 // (photo or video frame when present, else a small text-preview card).
-function thinkingGridItemHtml(item, spotifyThumbnails = {}) {
+function thinkingGridItemHtml(item, spotifyThumbnails = {}, videoPosterCache = {}) {
   const slug = thinkingSlug(item);
   const href = `/thinking/${escHtml(slug)}/`;
   const label = escHtml(formatMbDate(item.date_published));
@@ -1234,6 +1234,15 @@ function thinkingGridItemHtml(item, spotifyThumbnails = {}) {
           </a>`;
   }
   if (kind === "video") {
+    const videoSrc = videoSrcFromHtml(item.content_html);
+    const posterKey = videoPosterKeyFromVideoUrl(videoSrc, base);
+    if (posterKey && videoPosterCache[videoSrc]) {
+      const thumb = thinkingGridThumbUrl(`${base}/media/${posterKey}`, base);
+      return `          <a class="thinking-grid-item thinking-grid-video" data-kind="video" href="${href}" aria-label="${label}">
+            <img data-src="${escHtml(thumb)}" alt="" width="252" height="252" decoding="async" />
+            ${thinkingGridBadgeHtml("video")}
+          </a>`;
+    }
     return `          <a class="thinking-grid-item thinking-grid-video thinking-grid-video--placeholder" data-kind="video" href="${href}" aria-label="${label}">
             ${thinkingGridBadgeHtml("video")}
           </a>`;
@@ -1263,7 +1272,7 @@ function thinkingGridItemHtml(item, spotifyThumbnails = {}) {
           </a>`;
 }
 
-function thinkingGridGroupsHtml(items, spotifyThumbnails = {}) {
+function thinkingGridGroupsHtml(items, spotifyThumbnails = {}, videoPosterCache = {}) {
   if (items.length === 0) {
     return `      <p style="color:var(--muted)">No posts yet.</p>`;
   }
@@ -1282,7 +1291,7 @@ function thinkingGridGroupsHtml(items, spotifyThumbnails = {}) {
       (g) => `      <section class="thinking-grid-month">
         <h2 class="thinking-grid-month-label">${escHtml(g.label)}</h2>
         <div class="thinking-grid">
-${g.items.map((item) => thinkingGridItemHtml(item, spotifyThumbnails)).join("\n")}
+${g.items.map((item) => thinkingGridItemHtml(item, spotifyThumbnails, videoPosterCache)).join("\n")}
         </div>
       </section>`
     )
@@ -1324,7 +1333,50 @@ if (missingSpotifyThumbnails.length > 0) {
   }
 }
 
-const thinkingGridHtml = thinkingGridGroupsHtml(microblogItems, spotifyThumbnailCache);
+const videoPostersPath = join(root, "data/video-posters.json");
+let videoPosterCache = {};
+if (existsSync(videoPostersPath)) {
+  try {
+    videoPosterCache = JSON.parse(readFileSync(videoPostersPath, "utf8"));
+  } catch {
+    videoPosterCache = {};
+  }
+}
+
+const videoSrcsNeeded = new Set();
+for (const item of microblogItems) {
+  const videoSrc = videoSrcFromHtml(item.content_html);
+  if (videoSrc) videoSrcsNeeded.add(videoSrc);
+}
+
+let videoPosterCacheUpdated = false;
+for (const videoSrc of videoSrcsNeeded) {
+  if (videoSrc in videoPosterCache) continue;
+  const posterKey = videoPosterKeyFromVideoUrl(videoSrc, base);
+  if (!posterKey) {
+    videoPosterCache[videoSrc] = false;
+    videoPosterCacheUpdated = true;
+    continue;
+  }
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(`${base}/media/${posterKey}`, {
+      method: "HEAD",
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    videoPosterCache[videoSrc] = res.ok;
+  } catch {
+    videoPosterCache[videoSrc] = false;
+  }
+  videoPosterCacheUpdated = true;
+}
+if (videoPosterCacheUpdated) {
+  writeFileSync(videoPostersPath, `${JSON.stringify(videoPosterCache, null, 2)}\n`);
+}
+
+const thinkingGridHtml = thinkingGridGroupsHtml(microblogItems, spotifyThumbnailCache, videoPosterCache);
 
 const THINKING_VIEW_ICONS = {
   list: `<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="3" width="16" height="3" rx="1" fill="currentColor"/><rect x="2" y="8.5" width="16" height="3" rx="1" fill="currentColor"/><rect x="2" y="14" width="16" height="3" rx="1" fill="currentColor"/></svg>`,

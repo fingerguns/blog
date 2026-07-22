@@ -4,6 +4,10 @@
   "description": "Static minimalist blog with Atom feed; optional Node build for index + feed",
   "scripts": {
     "build": "node --env-file=.env scripts/build.mjs",
+    "backfill-video-posters": "node --env-file=.env scripts/backfill-video-posters.mjs",
     "preview": "npx serve dist -p 3000"
+  },
+  "devDependencies": {
+    "ffmpeg-static": "^5.2.0"
   }
 }

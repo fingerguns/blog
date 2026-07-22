@@ -1520,7 +1520,7 @@
         }
       }
 
-      async function callThinkingVideoAPI(text, videoFile, onProgress) {
+      async function callThinkingVideoAPI(text, videoFile, videoPoster, onProgress) {
         var pw = loadSession();
         if (!pw) throw new Error("You need to be signed in. Go to the Login tab.");
 
@@ -1547,6 +1547,7 @@
             fd.append("action", "thinking");
             fd.append("text", text);
             fd.append("video", videoFile);
+            if (videoPoster) fd.append("video_poster", videoPoster, "poster.jpg");
             if (onProgress) return postThinkingMultipart(fd, onProgress);
             var fallbackRes = await fetch(API_URL, { method: "POST", body: fd });
             var fallbackData = await fallbackRes.json();
@@ -1557,6 +1558,9 @@
         }
 
         await putFileToPresignedUrl(init.uploadUrl, videoFile, init.mimeType, onProgress);
+        if (videoPoster && init.posterUploadUrl) {
+          await putFileToPresignedUrl(init.posterUploadUrl, videoPoster, "image/jpeg", null);
+        }
         if (onProgress) onProgress(100, "processing");
 
         var finRes = await fetch(API_URL, {
@@ -1575,11 +1579,11 @@
         return data;
       }
 
-      async function callThinkingAPI(text, photoFiles, blueskyPhotoFiles, audioFile, videoFile, onProgress) {
+      async function callThinkingAPI(text, photoFiles, blueskyPhotoFiles, audioFile, videoFile, videoPoster, onProgress) {
         var pw = loadSession();
         if (!pw) throw new Error("You need to be signed in. Go to the Login tab.");
         if (videoFile) {
-          return callThinkingVideoAPI(text, videoFile, onProgress);
+          return callThinkingVideoAPI(text, videoFile, videoPoster, onProgress);
         }
         var photos = Array.isArray(photoFiles) ? photoFiles.filter(Boolean) : photoFiles ? [photoFiles] : [];
         var blueskyPhotos = Array.isArray(blueskyPhotoFiles)
@@ -1632,6 +1636,84 @@
         var audioName = document.getElementById("t-audio-name");
         var videoName = document.getElementById("t-video-name");
         var photoPreviewUrls = [];
+        var videoPosterBlob = null;
+        var GRID_POSTER_SIZE = 252;
+
+        function captureVideoPosterBlob(videoEl) {
+          return new Promise(function (resolve) {
+            function snap() {
+              try {
+                var vw = videoEl.videoWidth;
+                var vh = videoEl.videoHeight;
+                if (!vw || !vh) {
+                  resolve(null);
+                  return;
+                }
+                var canvas = document.createElement("canvas");
+                canvas.width = GRID_POSTER_SIZE;
+                canvas.height = GRID_POSTER_SIZE;
+                var ctx = canvas.getContext("2d");
+                var scale = Math.max(GRID_POSTER_SIZE / vw, GRID_POSTER_SIZE / vh);
+                var dw = vw * scale;
+                var dh = vh * scale;
+                ctx.drawImage(
+                  videoEl,
+                  (GRID_POSTER_SIZE - dw) / 2,
+                  (GRID_POSTER_SIZE - dh) / 2,
+                  dw,
+                  dh
+                );
+                canvas.toBlob(
+                  function (blob) {
+                    resolve(blob || null);
+                  },
+                  "image/jpeg",
+                  0.82
+                );
+              } catch (err) {
+                resolve(null);
+              }
+            }
+
+            function seekAndSnap() {
+              var done = false;
+              function finish() {
+                if (done) return;
+                done = true;
+                snap();
+              }
+              videoEl.addEventListener("seeked", finish, { once: true });
+              try {
+                videoEl.currentTime = 0.001;
+              } catch (err) {
+                finish();
+              }
+              setTimeout(finish, 1500);
+            }
+
+            if (videoEl.readyState >= 2) {
+              seekAndSnap();
+            } else {
+              videoEl.addEventListener(
+                "loadeddata",
+                function () {
+                  seekAndSnap();
+                },
+                { once: true }
+              );
+              setTimeout(function () {
+                resolve(null);
+              }, 5000);
+            }
+          });
+        }
+
+        function queueVideoPosterCapture() {
+          videoPosterBlob = null;
+          captureVideoPosterBlob(videoPreview).then(function (blob) {
+            videoPosterBlob = blob;
+          });
+        }
 
         function selectedPhotoFiles() {
           if (!photoInput.files || !photoInput.files.length) return [];
@@ -1718,6 +1800,7 @@
           if (photoName) photoName.textContent = "No photos";
           if (audioName) audioName.textContent = "No audio";
           if (videoName) videoName.textContent = "No video";
+          videoPosterBlob = null;
         }
 
         function clearPhotoSelection() {
@@ -1743,6 +1826,7 @@
           videoPreview.removeAttribute("src");
           revokeVideoPreviewUrl();
           if (videoName) videoName.textContent = "No video";
+          videoPosterBlob = null;
         }
 
         mediaRemove.addEventListener("click", clearThinkingMedia);
@@ -1851,6 +1935,7 @@
           videoPreview._objectUrl = URL.createObjectURL(file);
           videoPreview.src = videoPreview._objectUrl;
           videoPreview.hidden = false;
+          videoPreview.addEventListener("loadeddata", queueVideoPosterCapture, { once: true });
           mediaRemove.hidden = false;
           if (videoName) videoName.textContent = file.name;
           if (photoName) photoName.textContent = "No photos";
@@ -1983,6 +2068,7 @@
               blueskyFiles,
               audioFile || null,
               videoFile || null,
+              videoPosterBlob,
               onProgress
             );
             hideThinkingUploadProgress();

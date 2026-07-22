@@ -18,6 +18,22 @@ export function toSiteMediaUrl(url, siteUrl = "https://rommy.blog") {
   return url;
 }
 
+/** R2 key for a native video's grid poster JPEG (paired with the .mov/.mp4). */
+export function videoPosterKeyFromVideoUrl(url, siteUrl = "https://rommy.blog") {
+  if (!url) return "";
+  const normalized = toSiteMediaUrl(url, siteUrl);
+  try {
+    const u = new URL(normalized);
+    const key = u.pathname.replace(/^\/media\//, "");
+    if (/^thinking\/video\/.+\.(mp4|mov|m4v)$/i.test(key)) {
+      return key.replace(/\.(mp4|mov|m4v)$/i, "-poster.jpg");
+    }
+  } catch {
+    /* ignore invalid URLs */
+  }
+  return "";
+}
+
 /** Small square thumb for Thinking grid tiles (Worker-resized for rommy.blog media). */
 export function thinkingGridThumbUrl(url, siteUrl = "https://rommy.blog") {
   if (!url) return "";
