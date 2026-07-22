@@ -15,7 +15,8 @@ Built with [Cursor](https://cursor.com). See the [colophon](https://rommy.blog/c
 - **Comments** — [Webmentions](https://webmention.io) on Writing posts: incoming likes, reposts, and replies are received by webmention.io and rendered client-side; [Bridgy](https://brid.gy) bridges Mastodon replies/boosts back in
 - **Writing editor** — [Quill](https://quilljs.com/) with image upload, text wrap (left / right / center / full), drafts, and post version history
 - **Social previews** — Open Graph / Twitter meta on Writing and Thinking permalinks (first in-post image when available)
-- **Plain links in Thinking** — URLs in notes are normal hyperlinks on the site (no on-site unfurl cards), except YouTube links, which render as a native, playable embed below the note
+- **Plain links in Thinking** — URLs in notes are normal hyperlinks on the site (no on-site unfurl cards), except YouTube links (native video embed) and Spotify links (native track/album/playlist/episode/show/artist embed), which render below the note
+- **Thinking archive views** — [`/thinking/`](https://rommy.blog/thinking/) offers List and Grid views, switched with two small icon buttons under the heading (preference remembered in `localStorage`); Grid groups notes by month with one square thumbnail per post — the note's photo when present, otherwise a text-preview card. Video, audio, YouTube, and Spotify notes without a photo show a small icon badge (camera, mic, YouTube, or Spotify mark) in the card's corner
 - **Changelog** — Generated from Git history at build time
 - **Colophon** — [`/colophon/`](https://rommy.blog/colophon/) describes how the site is built, with an optional toggle to read it in the style of Walt Whitman
 
@@ -29,9 +30,11 @@ Admin (Pages) → Worker API → D1 (write) + R2 (photos)
 Pages build → D1 HTTP API (read) → scripts/build.mjs → dist/ → rommy.blog
 ```
 
-The Thinking **archive** and permalink pages are built from the `thinking_posts` table in D1 at deploy time (same source as the homepage blurb). Slugs use US Eastern time. External links in Thinking are rendered as basic `<a>` tags — no on-site unfurl cards — with one exception: YouTube links (`youtube.com/watch`, `/shorts/`, `/live/`, `youtu.be`) also get a responsive `youtube-nocookie.com` iframe embed appended after the note text (see `scripts/lib/youtube.mjs`), so videos play natively on rommy.blog without leaving the page. A `t=`/`start=` timestamp on the URL is carried into the embed's start time.
+The Thinking **archive** and permalink pages are built from the `thinking_posts` table in D1 at deploy time (same source as the homepage blurb). Slugs use US Eastern time. External links in Thinking are rendered as basic `<a>` tags — no on-site unfurl cards — with two exceptions: YouTube links (`youtube.com/watch`, `/shorts/`, `/live/`, `youtu.be`) get a responsive `youtube-nocookie.com` iframe embed appended after the note text (see `scripts/lib/youtube.mjs`), and Spotify links (`open.spotify.com/track|album|playlist|episode|show|artist/...`) get a compact `open.spotify.com/embed` iframe the same way (see `scripts/lib/spotify.mjs`) — so both play natively on rommy.blog without leaving the page. A `t=`/`start=` timestamp on a YouTube URL is carried into the embed's start time.
 
 Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on their own platforms when you include links there.
+
+The archive at `/thinking/` renders both a List view (chronological, same layout as the homepage feed) and a Grid view (posts grouped by month, one square thumbnail each) in the same page load; a small icon toggle swaps `data-view` on a wrapper element via CSS, and the choice persists in `localStorage`. Grid thumbnails use the post's first photo when present; otherwise a text-preview card shows a snippet of the note (clipped to the box with `-webkit-line-clamp`), with a small SVG icon badge in the bottom-right corner for video, audio, YouTube, and Spotify posts.
 
 ## Repository layout
 
@@ -39,7 +42,7 @@ Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on the
 |------|---------|
 | `admin/` | Admin UI (static HTML + JS) |
 | `scripts/build.mjs` | Regenerates site into `dist/` |
-| `scripts/lib/` | Shared HTML, slug, thinking, linkify, media-URL, and YouTube-embed helpers (build + Worker) |
+| `scripts/lib/` | Shared HTML, slug, thinking, linkify, media-URL, and YouTube/Spotify-embed helpers (build + Worker) |
 | `scripts/d1-client.mjs` | D1 queries for local/Pages builds |
 | `build-pages.mjs` | Cloudflare Pages entrypoint (git unshallow + build) |
 | `worker/` | Cloudflare Worker (`update-thinking.js`) — admin API |
