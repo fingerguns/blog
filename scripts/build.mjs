@@ -337,6 +337,33 @@ function videoSrcFromHtml(html) {
   return m[1].replace(/#t=0\.001$/, "");
 }
 
+function spotifyEmbedFromHtml(html) {
+  const str = String(html || "");
+  const m = str.match(
+    /open\.spotify\.com\/embed\/(track|album|playlist|episode|show|artist)\/([A-Za-z0-9]+)/i
+  );
+  if (!m) return null;
+  return { type: m[1].toLowerCase(), id: m[2] };
+}
+
+async function fetchSpotifyThumbnail(type, id) {
+  try {
+    const pageUrl = `https://open.spotify.com/${type}/${id}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(
+      `https://open.spotify.com/oembed?url=${encodeURIComponent(pageUrl)}`,
+      { signal: controller.signal }
+    );
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return typeof data?.thumbnail_url === "string" ? data.thumbnail_url : null;
+  } catch {
+    return null;
+  }
+}
+
 // "July 2026" in ET, used to group Thinking grid items by month
 function monthLabelET(iso) {
   const d = new Date(iso);
@@ -1063,7 +1090,7 @@ const microblogEntriesHtml = microblogItems.length > 0
 
 // Grid view: same items, grouped by month, one square thumbnail per post
 // (photo or video frame when present, else a small text-preview card).
-function thinkingGridItemHtml(item) {
+function thinkingGridItemHtml(item, spotifyThumbnails = {}) {
   const slug = thinkingSlug(item);
   const href = `/thinking/${escHtml(slug)}/`;
   const label = escHtml(formatMbDate(item.date_published));
@@ -1082,6 +1109,17 @@ function thinkingGridItemHtml(item) {
             <span class="thinking-grid-icon thinking-grid-icon--video" aria-hidden="true">${THINKING_MEDIA_ICONS.video}</span>
           </a>`;
   }
+  const spotifyEmbed = spotifyEmbedFromHtml(item.content_html);
+  if (spotifyEmbed) {
+    const spotifyKey = `${spotifyEmbed.type}:${spotifyEmbed.id}`;
+    const cover = spotifyThumbnails[spotifyKey];
+    if (cover) {
+      return `          <a class="thinking-grid-item thinking-grid-spotify" href="${href}" aria-label="${label}">
+            <img src="${escHtml(cover)}" alt="" loading="lazy" decoding="async" />
+            <span class="thinking-grid-icon thinking-grid-icon--spotify" aria-hidden="true">${THINKING_MEDIA_ICONS.spotify}</span>
+          </a>`;
+    }
+  }
   // Cap well above what a thumbnail can show — the box's overflow:hidden
   // does the real clipping, so text fills down to the bottom instead of
   // getting cut off early with an ellipsis.
@@ -1097,7 +1135,7 @@ function thinkingGridItemHtml(item) {
           </a>`;
 }
 
-function thinkingGridGroupsHtml(items) {
+function thinkingGridGroupsHtml(items, spotifyThumbnails = {}) {
   if (items.length === 0) {
     return `      <p style="color:var(--muted)">No posts yet.</p>`;
   }
@@ -1116,14 +1154,49 @@ function thinkingGridGroupsHtml(items) {
       (g) => `      <section class="thinking-grid-month">
         <h2 class="thinking-grid-month-label">${escHtml(g.label)}</h2>
         <div class="thinking-grid">
-${g.items.map(thinkingGridItemHtml).join("\n")}
+${g.items.map((item) => thinkingGridItemHtml(item, spotifyThumbnails)).join("\n")}
         </div>
       </section>`
     )
     .join("\n");
 }
 
-const thinkingGridHtml = thinkingGridGroupsHtml(microblogItems);
+const spotifyThumbnailsPath = join(root, "data/spotify-thumbnails.json");
+let spotifyThumbnailCache = {};
+if (existsSync(spotifyThumbnailsPath)) {
+  try {
+    spotifyThumbnailCache = JSON.parse(readFileSync(spotifyThumbnailsPath, "utf8"));
+  } catch {
+    spotifyThumbnailCache = {};
+  }
+}
+
+const spotifyKeysNeeded = new Set();
+for (const item of microblogItems) {
+  const embed = spotifyEmbedFromHtml(item.content_html);
+  if (embed) spotifyKeysNeeded.add(`${embed.type}:${embed.id}`);
+}
+
+const missingSpotifyThumbnails = [...spotifyKeysNeeded].filter((key) => !(key in spotifyThumbnailCache));
+if (missingSpotifyThumbnails.length > 0) {
+  console.log(`Looking up ${missingSpotifyThumbnails.length} Spotify thumbnail(s)…`);
+  let fetchedAny = false;
+  for (const key of missingSpotifyThumbnails) {
+    const [type, id] = key.split(":");
+    const thumb = await fetchSpotifyThumbnail(type, id);
+    if (thumb) {
+      spotifyThumbnailCache[key] = thumb;
+      fetchedAny = true;
+    } else {
+      console.log(`  no thumbnail for Spotify ${key} — will retry next build`);
+    }
+  }
+  if (fetchedAny) {
+    writeFileSync(spotifyThumbnailsPath, `${JSON.stringify(spotifyThumbnailCache, null, 2)}\n`);
+  }
+}
+
+const thinkingGridHtml = thinkingGridGroupsHtml(microblogItems, spotifyThumbnailCache);
 
 const THINKING_VIEW_ICONS = {
   list: `<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="3" width="16" height="3" rx="1" fill="currentColor"/><rect x="2" y="8.5" width="16" height="3" rx="1" fill="currentColor"/><rect x="2" y="14" width="16" height="3" rx="1" fill="currentColor"/></svg>`,
