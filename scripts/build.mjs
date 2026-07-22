@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { d1Configured, loadBlogDataFromD1 } from "./d1-client.mjs";
 import { escHtml, escXml } from "./lib/html.mjs";
 import { mergeSectionHints } from "./lib/section-hints.mjs";
+import { thinkingGridThumbUrl } from "./lib/media-url.mjs";
 import { renderThinkingContentHtml } from "./lib/thinking-html.mjs";
 import { thinkingSlugFromIso } from "./lib/thinking-slug.mjs";
 
@@ -373,7 +374,7 @@ function youtubeIdFromHtml(html) {
 }
 
 function youtubeThumbnailUrl(id) {
-  return `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
+  return thinkingGridThumbUrl(`https://i.ytimg.com/vi/${id}/mqdefault.jpg`, base);
 }
 
 // "July 2026" in ET, used to group Thinking grid items by month
@@ -996,28 +997,60 @@ var months=document.querySelectorAll('.thinking-grid-month');
 var kinds=${JSON.stringify(THINKING_GRID_KINDS)};
 var filterKey='thinkingGridFiltersV2';
 var gridMediaObs=null;
+var mediaQueue=[];
+var mediaInflight=0;
+var MEDIA_MAX=4;
 function defaultFilters(){var all={};kinds.forEach(function(k){all[k]=false;});return all;}
 function loadFilters(){try{var saved=JSON.parse(localStorage.getItem(filterKey)||'null');if(saved&&typeof saved==='object')return saved;}catch(e){}return defaultFilters();}
 var active=loadFilters();
 function anyFilterActive(){return kinds.some(function(k){return active[k];});}
+function drainMediaQueue(){
+  if(wrap.getAttribute('data-view')!=='grid')return;
+  while(mediaInflight<MEDIA_MAX&&mediaQueue.length){
+    var el=mediaQueue.shift();
+    if(!el||el.dataset.loaded==='1')continue;
+    var url=el.getAttribute('data-src');
+    if(!url){continue;}
+    mediaInflight++;
+    el.addEventListener('load',function done(){
+      el.removeEventListener('load',done);
+      el.removeEventListener('error',done);
+      el.classList.add('is-loaded');
+      mediaInflight--;
+      drainMediaQueue();
+    });
+    el.addEventListener('error',function done(){
+      el.removeEventListener('load',done);
+      el.removeEventListener('error',done);
+      el.classList.add('is-loaded');
+      mediaInflight--;
+      drainMediaQueue();
+    });
+    el.src=url;
+    el.removeAttribute('data-src');
+    el.dataset.loaded='1';
+    if(gridMediaObs)gridMediaObs.unobserve(el);
+  }
+}
 function hydrateGridMedia(el){
-  if(el.dataset.loaded==='1')return;
-  var url=el.getAttribute('data-src');
-  if(!url)return;
-  el.src=url;
-  el.removeAttribute('data-src');
-  el.dataset.loaded='1';
-  if(gridMediaObs)gridMediaObs.unobserve(el);
+  if(el.dataset.loaded==='1'||el.dataset.queued==='1')return;
+  if(!el.getAttribute('data-src'))return;
+  el.dataset.queued='1';
+  mediaQueue.push(el);
+  drainMediaQueue();
 }
 function scanGridMedia(){
   if(!gridMediaObs){
     gridMediaObs=new IntersectionObserver(function(entries){
       entries.forEach(function(e){if(e.isIntersecting)hydrateGridMedia(e.target);});
-    },{rootMargin:'240px'});
+    },{rootMargin:'80px'});
   }
-  wrap.querySelectorAll('.thinking-grid-item img[data-src], .thinking-grid-item video[data-src]').forEach(function(el){gridMediaObs.unobserve(el);});
+  wrap.querySelectorAll('.thinking-grid-item img[data-src]').forEach(function(el){gridMediaObs.unobserve(el);});
+  mediaQueue=mediaQueue.filter(function(el){return el.isConnected&&!el.closest('.thinking-grid-item[hidden]');});
   if(wrap.getAttribute('data-view')!=='grid')return;
-  wrap.querySelectorAll('.thinking-grid-item:not([hidden]) img[data-src], .thinking-grid-item:not([hidden]) video[data-src]').forEach(function(el){gridMediaObs.observe(el);});
+  wrap.querySelectorAll('.thinking-grid-item:not([hidden]) img[data-src]').forEach(function(el){
+    if(el.dataset.loaded!=='1'&&el.dataset.queued!=='1')gridMediaObs.observe(el);
+  });
 }
 function applyFilters(){
   var on=anyFilterActive();
@@ -1194,16 +1227,14 @@ function thinkingGridItemHtml(item, spotifyThumbnails = {}) {
   const kind = thinkingGridKind(item, spotifyThumbnails);
   const { src, alt } = imageSrcAltFromHtml(item.content_html);
   if (kind === "photo" && src) {
+    const thumb = thinkingGridThumbUrl(src, base);
     return `          <a class="thinking-grid-item thinking-grid-photo" data-kind="photo" href="${href}" aria-label="${label}">
-            <img data-src="${escHtml(src)}" alt="${escHtml(alt || "Photo")}" loading="lazy" decoding="async" />
+            <img data-src="${escHtml(thumb)}" alt="${escHtml(alt || "Photo")}" width="252" height="252" decoding="async" />
             ${thinkingGridBadgeHtml("photo")}
           </a>`;
   }
   if (kind === "video") {
-    const videoSrc = videoSrcFromHtml(item.content_html);
-    const posterSrc = `${videoSrc}${videoSrc.includes("#") ? "" : "#t=0.001"}`;
-    return `          <a class="thinking-grid-item thinking-grid-video" data-kind="video" href="${href}" aria-label="${label}">
-            <video class="thinking-grid-video-poster" muted playsinline preload="none" data-src="${escHtml(posterSrc)}" aria-hidden="true"></video>
+    return `          <a class="thinking-grid-item thinking-grid-video thinking-grid-video--placeholder" data-kind="video" href="${href}" aria-label="${label}">
             ${thinkingGridBadgeHtml("video")}
           </a>`;
   }
@@ -1211,8 +1242,9 @@ function thinkingGridItemHtml(item, spotifyThumbnails = {}) {
     const spotifyEmbed = spotifyEmbedFromHtml(item.content_html);
     const cover = spotifyThumbnails[`${spotifyEmbed.type}:${spotifyEmbed.id}`];
     if (cover) {
+      const thumb = thinkingGridThumbUrl(cover, base);
       return `          <a class="thinking-grid-item thinking-grid-spotify" data-kind="spotify" href="${href}" aria-label="${label}">
-            <img data-src="${escHtml(cover)}" alt="" loading="lazy" decoding="async" />
+            <img data-src="${escHtml(thumb)}" alt="" width="252" height="252" decoding="async" />
             ${thinkingGridBadgeHtml("spotify")}
           </a>`;
     }
@@ -1220,9 +1252,9 @@ function thinkingGridItemHtml(item, spotifyThumbnails = {}) {
   if (kind === "youtube") {
     const youtubeId = youtubeIdFromHtml(item.content_html);
     return `          <a class="thinking-grid-item thinking-grid-youtube" data-kind="youtube" href="${href}" aria-label="${label}">
-            <img data-src="${escHtml(youtubeThumbnailUrl(youtubeId))}" alt="" loading="lazy" decoding="async" />
+            <img data-src="${escHtml(youtubeThumbnailUrl(youtubeId))}" alt="" width="252" height="252" decoding="async" />
             ${thinkingGridBadgeHtml("youtube")}
-          </a>`;
+      </a>`;
   }
   const snippet =
     thinkingSnippet(stripHtml(stripMediaMarkup(item.content_html)), 280) || "(No text)";

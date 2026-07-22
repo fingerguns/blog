@@ -19,6 +19,9 @@ R2_BUCKET_NAME = "rommy-blog-media"
 [ai]
 binding = "AI"
 
+[images]
+binding = "IMAGES"
+
 [[r2_buckets]]
 binding = "MEDIA"
 bucket_name = "rommy-blog-media"

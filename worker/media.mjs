@@ -1,3 +1,5 @@
+import { serveMediaThumb } from "./image-thumb.mjs";
+
 const CACHE_CONTROL =
   "public, max-age=31536000, immutable, stale-while-revalidate=86400";
 
@@ -41,6 +43,28 @@ export async function serveMedia(request, env) {
     return new Response("Media storage is not configured", { status: 500 });
   }
 
+  // cf.image subrequests must reach the original bytes without re-entering transforms.
+  if (/image-resizing/i.test(request.headers.get("via") || "")) {
+    return serveMediaObject(request, env);
+  }
+
+  const method = request.method;
+  if (method !== "GET" && method !== "HEAD") {
+    return new Response("Method not allowed", { status: 405 });
+  }
+
+  const pathname = new URL(request.url).pathname;
+  const thumbMatch = /^\/media\/thumb\/(\d+)\/(.+)$/.exec(pathname);
+  if (thumbMatch) {
+    const width = Number(thumbMatch[1]);
+    const sourceKey = decodeURIComponent(thumbMatch[2]);
+    return serveMediaThumb(request, env, width, sourceKey);
+  }
+
+  return serveMediaObject(request, env);
+}
+
+async function serveMediaObject(request, env) {
   const method = request.method;
   if (method !== "GET" && method !== "HEAD") {
     return new Response("Method not allowed", { status: 405 });
