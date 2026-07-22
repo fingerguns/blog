@@ -499,7 +499,7 @@ h2 {
 .thinking-grid-text-body {
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 8;
+  -webkit-line-clamp: 6;
   overflow: hidden;
   width: 100%;
   overflow-wrap: break-word;
@@ -507,12 +507,18 @@ h2 {
   line-height: 1.25;
   color: var(--text);
 }
+/* Media badges sit over the text in the bottom-right corner — give the
+   body one fewer line than text-only tiles so copy never runs under the
+   icon (same effective clearance mobile already gets from smaller icons). */
+.thinking-grid-text:has(.thinking-grid-icon) .thinking-grid-text-body {
+  -webkit-line-clamp: 5;
+}
 .thinking-grid-icon {
   position: absolute;
-  right: 0.3rem;
-  bottom: 0.3rem;
-  width: 20px;
-  height: 20px;
+  right: 0.25rem;
+  bottom: 0.25rem;
+  width: 16px;
+  height: 16px;
   line-height: 0;
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
 }
@@ -522,8 +528,8 @@ h2 {
   display: block;
 }
 .thinking-grid-icon--youtube {
-  width: 26px;
-  height: 18px;
+  width: 21px;
+  height: 15px;
 }
 
 /* Mobile: lock the grid to 3 columns; thumbnails scale fluidly with the
