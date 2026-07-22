@@ -326,6 +326,17 @@ function imageSrcAltFromHtml(html) {
   return { src: srcM ? srcM[1] : "", alt: altM ? altM[1] : "" };
 }
 
+// Native video posts render as <video class="thinking-video"> — pull the src so
+// the grid can show the first frame as a thumbnail instead of a text card.
+function videoSrcFromHtml(html) {
+  const str = String(html || "");
+  const m =
+    str.match(/<video[^>]+class=["'][^"']*thinking-video[^"']*["'][^>]+src=["']([^"']+)["']/i) ||
+    str.match(/<video[^>]+src=["']([^"']+)["'][^>]+class=["'][^"']*thinking-video[^"']*["']/i);
+  if (!m) return "";
+  return m[1].replace(/#t=0\.001$/, "");
+}
+
 // "July 2026" in ET, used to group Thinking grid items by month
 function monthLabelET(iso) {
   const d = new Date(iso);
@@ -1051,15 +1062,24 @@ const microblogEntriesHtml = microblogItems.length > 0
   : `        <p style="color:var(--muted)">No posts yet.</p>`;
 
 // Grid view: same items, grouped by month, one square thumbnail per post
-// (post photo when present, else a small text-preview card).
+// (photo or video frame when present, else a small text-preview card).
 function thinkingGridItemHtml(item) {
   const slug = thinkingSlug(item);
   const href = `/thinking/${escHtml(slug)}/`;
+  const label = escHtml(formatMbDate(item.date_published));
   const { src, alt } = imageSrcAltFromHtml(item.content_html);
   if (src) {
-    return `          <a class="thinking-grid-item thinking-grid-photo" href="${href}" aria-label="${escHtml(formatMbDate(item.date_published))}">
+    return `          <a class="thinking-grid-item thinking-grid-photo" href="${href}" aria-label="${label}">
             <img src="${escHtml(src)}" alt="${escHtml(alt || "Photo")}" loading="lazy" decoding="async" />
             <span class="thinking-grid-icon thinking-grid-icon--photo" aria-hidden="true">${THINKING_MEDIA_ICONS.photo}</span>
+          </a>`;
+  }
+  const videoSrc = videoSrcFromHtml(item.content_html);
+  if (videoSrc) {
+    const posterSrc = `${videoSrc}${videoSrc.includes("#") ? "" : "#t=0.001"}`;
+    return `          <a class="thinking-grid-item thinking-grid-video" href="${href}" aria-label="${label}">
+            <video class="thinking-grid-video-poster" muted playsinline preload="metadata" src="${escHtml(posterSrc)}" aria-hidden="true"></video>
+            <span class="thinking-grid-icon thinking-grid-icon--video" aria-hidden="true">${THINKING_MEDIA_ICONS.video}</span>
           </a>`;
   }
   // Cap well above what a thumbnail can show — the box's overflow:hidden

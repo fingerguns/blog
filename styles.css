@@ -494,6 +494,16 @@ h2 {
   object-fit: cover;
   display: block;
 }
+.thinking-grid-video {
+  position: relative;
+}
+.thinking-grid-video-poster {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
 .thinking-grid-text {
   position: relative;
   background: var(--thinking-delete-bg);
