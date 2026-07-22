@@ -579,12 +579,15 @@ const renderReadingItem = (r) =>
           </li>`;
 
 // Reading grid: book cover art isn't stored in D1 (reading rows only have
-// title/url/ym), so covers are scraped from each Bookshop.org page's
-// og:image at build time and cached locally, so we don't refetch on every
-// build. Only successful fetches are cached — a failed/blocked fetch is
-// simply retried on the next build rather than "poisoning" the cache with
-// a permanent null, since a currently-blocked build environment shouldn't
-// prevent a later, working one from ever picking up the cover.
+// title/url/ym), so covers are looked up at build time via Open Library's
+// public search + covers API and cached locally, so we don't refetch on
+// every build. Bookshop.org and IndieBound.org both sit behind Cloudflare
+// bot management and reject scraping attempts outright (confirmed 403 /
+// challenge responses regardless of User-Agent), so we don't even try
+// scraping their pages — Open Library's API is designed for exactly this
+// kind of lookup and isn't blocked. Only successful fetches are cached —
+// a failed/no-match lookup is simply retried on the next build rather
+// than "poisoning" the cache with a permanent null.
 const readingCoversPath = join(root, "data/reading-covers.json");
 let readingCoverCache = {};
 if (existsSync(readingCoversPath)) {
@@ -595,42 +598,59 @@ if (existsSync(readingCoversPath)) {
   }
 }
 
-async function fetchBookCover(url) {
+async function openLibraryJson(path) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
-        Accept: "text/html",
-      },
-      redirect: "follow",
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
+    const res = await fetch(`https://openlibrary.org${path}`, { signal: controller.signal });
     if (!res.ok) return null;
-    const html = await res.text();
-    const m =
-      html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ||
-      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-    return m ? m[1] : null;
+    return await res.json();
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
+}
+
+// Cover lookup, most precise first:
+// 1. The exact edition record for an ISBN (its own `covers` array) — this is
+//    what the book actually looks like on the shelf, not just "a" cover for
+//    the work, which matters since Open Library often merges translations
+//    and editions of the same work together.
+// 2. A search by ISBN, using whatever cover the matched work happens to have.
+// 3. A plain title search, for books whose Bookshop.org URL has no ISBN.
+async function fetchBookCover(title, url) {
+  const isbn = /[?&]ean=(\d{9,13})\b/.exec(String(url || ""))?.[1];
+  if (isbn) {
+    const edition = await openLibraryJson(`/isbn/${isbn}.json`);
+    const editionCoverId = edition?.covers?.find((id) => id > 0);
+    if (editionCoverId) return `https://covers.openlibrary.org/b/id/${editionCoverId}-L.jpg`;
+
+    const bySearch = await openLibraryJson(
+      `/search.json?limit=1&fields=cover_i&q=${encodeURIComponent(`isbn:${isbn}`)}`
+    );
+    const searchCoverId = bySearch?.docs?.[0]?.cover_i;
+    if (searchCoverId) return `https://covers.openlibrary.org/b/id/${searchCoverId}-L.jpg`;
+  }
+
+  const byTitle = await openLibraryJson(
+    `/search.json?limit=1&fields=cover_i&q=${encodeURIComponent(title)}`
+  );
+  const titleCoverId = byTitle?.docs?.[0]?.cover_i;
+  return titleCoverId ? `https://covers.openlibrary.org/b/id/${titleCoverId}-L.jpg` : null;
 }
 
 const missingCovers = orderedReading.filter((r) => r.url && !(r.url in readingCoverCache));
 if (missingCovers.length > 0) {
-  console.log(`Fetching ${missingCovers.length} book cover(s) from Bookshop.org…`);
+  console.log(`Looking up ${missingCovers.length} book cover(s) via Open Library…`);
   let fetchedAny = false;
   for (const r of missingCovers) {
-    const cover = await fetchBookCover(r.url);
+    const cover = await fetchBookCover(r.title, r.url);
     if (cover) {
       readingCoverCache[r.url] = cover;
       fetchedAny = true;
     } else {
-      console.log(`  couldn't fetch a cover for "${r.title}" — will retry next build`);
+      console.log(`  no cover found for "${r.title}" — will retry next build`);
     }
   }
   if (fetchedAny) {
