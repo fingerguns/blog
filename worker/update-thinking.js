@@ -2181,18 +2181,16 @@ async function openLibraryCoverCandidate(isbn, title) {
 // doesn't guarantee the right book — so every candidate carries whatever
 // author name its source cheaply provides, letting the admin's picker UI
 // show it as a sanity check alongside the cover image itself.
-async function itunesCoverCandidate(isbn, title) {
+async function itunesTitleSearch(title) {
   try {
-    const url = isbn
-      ? `https://itunes.apple.com/lookup?isbn=${isbn}&entity=ebook`
-      : `https://itunes.apple.com/search?entity=ebook&limit=1&term=${encodeURIComponent(title)}`;
-    const res = await fetch(url);
+    const res = await fetch(
+      `https://itunes.apple.com/search?entity=ebook&limit=1&term=${encodeURIComponent(title)}`
+    );
     if (!res.ok) return null;
     const data = await res.json();
     const hit = data?.results?.[0];
     const art = hit?.artworkUrl100;
-    if (!art) return null;
-    if (!isbn && !bookTitlesMatch(title, hit.trackName)) return null;
+    if (!art || !bookTitlesMatch(title, hit.trackName)) return null;
     return {
       url: art.replace(/\d+x\d+bb\.(jpg|png)$/, "600x900bb.$1"),
       title: hit.trackName || null,
@@ -2203,20 +2201,43 @@ async function itunesCoverCandidate(isbn, title) {
   }
 }
 
-async function googleBooksCoverCandidate(isbn, title, apiKey) {
-  if (!apiKey) return null;
+async function itunesCoverCandidate(isbn, title) {
+  if (isbn) {
+    try {
+      const res = await fetch(`https://itunes.apple.com/lookup?isbn=${isbn}&entity=ebook`);
+      if (res.ok) {
+        const data = await res.json();
+        const hit = data?.results?.[0];
+        const art = hit?.artworkUrl100;
+        if (art) {
+          return {
+            url: art.replace(/\d+x\d+bb\.(jpg|png)$/, "600x900bb.$1"),
+            title: hit.trackName || null,
+            author: hit.artistName || null,
+          };
+        }
+      }
+    } catch {
+      /* fall through to title search below */
+    }
+  }
+  // Ebook editions almost always carry a different ISBN than the print
+  // edition our URL's ISBN came from, so an exact-ISBN miss doesn't mean
+  // Apple Books doesn't have it — a title search often still finds it.
+  return itunesTitleSearch(title);
+}
+
+async function googleBooksTitleSearch(title, apiKey) {
   try {
-    const q = isbn ? `isbn:${isbn}` : `intitle:${title}`;
     const res = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&key=${apiKey}`
+      `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(`intitle:${title}`)}&key=${apiKey}`
     );
     if (!res.ok) return null;
     const data = await res.json();
     const hit = data?.items?.[0];
     const info = hit?.volumeInfo;
     const img = info?.imageLinks?.thumbnail || info?.imageLinks?.smallThumbnail;
-    if (!img) return null;
-    if (!isbn && !bookTitlesMatch(title, info?.title)) return null;
+    if (!img || !bookTitlesMatch(title, info?.title)) return null;
     return {
       url: img.replace(/^http:/, "https:").replace(/&zoom=\d/, "&zoom=2"),
       title: info?.title || null,
@@ -2225,6 +2246,35 @@ async function googleBooksCoverCandidate(isbn, title, apiKey) {
   } catch {
     return null;
   }
+}
+
+async function googleBooksCoverCandidate(isbn, title, apiKey) {
+  if (!apiKey) return null;
+  if (isbn) {
+    try {
+      const res = await fetch(
+        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(`isbn:${isbn}`)}&key=${apiKey}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const hit = data?.items?.[0];
+        const info = hit?.volumeInfo;
+        const img = info?.imageLinks?.thumbnail || info?.imageLinks?.smallThumbnail;
+        if (img) {
+          return {
+            url: img.replace(/^http:/, "https:").replace(/&zoom=\d/, "&zoom=2"),
+            title: info?.title || null,
+            author: info?.authors?.[0] || null,
+          };
+        }
+      }
+    } catch {
+      /* fall through to title search below */
+    }
+  }
+  // Same reasoning as Apple Books: the ebook edition Google indexed may
+  // carry a different ISBN than our print-edition ISBN, so retry by title.
+  return googleBooksTitleSearch(title, apiKey);
 }
 
 async function handleReadingCoverCandidates(body, cors, env) {
