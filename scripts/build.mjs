@@ -364,6 +364,18 @@ async function fetchSpotifyThumbnail(type, id) {
   }
 }
 
+function youtubeIdFromHtml(html) {
+  const str = String(html || "");
+  const m =
+    str.match(/youtube-nocookie\.com\/embed\/([\w-]{11})/i) ||
+    str.match(/youtube\.com\/embed\/([\w-]{11})/i);
+  return m ? m[1] : null;
+}
+
+function youtubeThumbnailUrl(id) {
+  return `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+}
+
 // "July 2026" in ET, used to group Thinking grid items by month
 function monthLabelET(iso) {
   const d = new Date(iso);
@@ -1119,6 +1131,13 @@ function thinkingGridItemHtml(item, spotifyThumbnails = {}) {
             <span class="thinking-grid-icon thinking-grid-icon--spotify" aria-hidden="true">${THINKING_MEDIA_ICONS.spotify}</span>
           </a>`;
     }
+  }
+  const youtubeId = youtubeIdFromHtml(item.content_html);
+  if (youtubeId) {
+    return `          <a class="thinking-grid-item thinking-grid-youtube" href="${href}" aria-label="${label}">
+            <img src="${escHtml(youtubeThumbnailUrl(youtubeId))}" alt="" loading="lazy" decoding="async" />
+            <span class="thinking-grid-icon thinking-grid-icon--youtube" aria-hidden="true">${THINKING_MEDIA_ICONS.youtube}</span>
+          </a>`;
   }
   // Cap well above what a thumbnail can show — the box's overflow:hidden
   // does the real clipping, so text fills down to the bottom instead of
