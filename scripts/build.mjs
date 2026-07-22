@@ -416,7 +416,30 @@ const THINKING_MEDIA_ICONS = {
   audio: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" style="fill:var(--text)"/><path d="M12 6.5a2.25 2.25 0 0 1 2.25 2.25v3a2.25 2.25 0 0 1-4.5 0v-3A2.25 2.25 0 0 1 12 6.5z" style="fill:var(--bg)"/><path d="M8.25 11.75a3.75 3.75 0 0 0 7.5 0M12 15.5v2M10 17.5h4" style="fill:none;stroke:var(--bg);stroke-width:1.1;stroke-linecap:round"/></svg>`,
   youtube: `<svg viewBox="0 0 28 20" aria-hidden="true"><rect width="28" height="20" rx="5" fill="#FF0000"/><path d="M11 6.2 19 10l-8 3.8V6.2z" fill="#fff"/></svg>`,
   spotify: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#1DB954"/><path d="M6.5 9.7c3.4-1 7.2-.8 10.1.9M7.3 12.6c2.8-.8 6-.6 8.4.7M8.1 15.4c2.3-.6 4.9-.5 6.8.6" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>`,
+  text: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" style="fill:var(--text)"/><text x="12" y="16" text-anchor="middle" font-size="11" font-weight="700" font-family="Georgia,'Times New Roman',serif" style="fill:var(--bg)">Tt</text></svg>`,
 };
+
+const THINKING_GRID_KINDS = ["photo", "video", "youtube", "spotify", "audio", "text"];
+
+function thinkingGridKind(item, spotifyThumbnails = {}) {
+  if (imageSrcAltFromHtml(item.content_html).src) return "photo";
+  if (videoSrcFromHtml(item.content_html)) return "video";
+  const spotifyEmbed = spotifyEmbedFromHtml(item.content_html);
+  if (spotifyEmbed) {
+    const key = `${spotifyEmbed.type}:${spotifyEmbed.id}`;
+    if (spotifyThumbnails[key]) return "spotify";
+  }
+  if (youtubeIdFromHtml(item.content_html)) return "youtube";
+  const mediaKind = thinkingMediaKind(item.content_html);
+  if (mediaKind) return mediaKind;
+  return "text";
+}
+
+function thinkingGridBadgeHtml(kind) {
+  const icon = THINKING_MEDIA_ICONS[kind];
+  if (!icon) return "";
+  return `<span class="thinking-grid-icon thinking-grid-icon--${kind}" aria-hidden="true">${icon}</span>`;
+}
 
 function thinkingOgFromItem(item) {
   const description = thinkingSnippet(stripHtml(item.content_html));
@@ -963,7 +986,7 @@ ${thinkingLightboxScript}
 </html>
 `;
 
-const thinkingViewToggleScript = `    <script>(function(){var wrap=document.querySelector('.thinking-views');var btns=document.querySelectorAll('.thinking-view-btn');if(!wrap||!btns.length)return;function set(v){wrap.setAttribute('data-view',v);btns.forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-view-btn')===v?'true':'false');});localStorage.setItem('thinkingView',v);}set(localStorage.getItem('thinkingView')||'list');btns.forEach(function(b){b.addEventListener('click',function(){set(b.getAttribute('data-view-btn'));});});}());</script>`;
+const thinkingViewToggleScript = `    <script>(function(){var wrap=document.querySelector('.thinking-views');if(!wrap)return;var viewBtns=document.querySelectorAll('.thinking-view-btn');var filterBtns=document.querySelectorAll('.thinking-filter-btn');var items=document.querySelectorAll('.thinking-grid-item');var months=document.querySelectorAll('.thinking-grid-month');var kinds=${JSON.stringify(THINKING_GRID_KINDS)};var filterKey='thinkingGridFilters';function loadFilters(){try{var saved=JSON.parse(localStorage.getItem(filterKey)||'null');if(saved&&typeof saved==='object')return saved;}catch(e){}var all={};kinds.forEach(function(k){all[k]=true;});return all;}var active=loadFilters();function applyFilters(){filterBtns.forEach(function(b){var k=b.getAttribute('data-filter');b.setAttribute('aria-pressed',active[k]?'true':'false');});items.forEach(function(el){var k=el.getAttribute('data-kind');el.hidden=!active[k];});months.forEach(function(section){section.hidden=!section.querySelector('.thinking-grid-item:not([hidden])');});try{localStorage.setItem(filterKey,JSON.stringify(active));}catch(e){}}function setView(v){wrap.setAttribute('data-view',v);viewBtns.forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-view-btn')===v?'true':'false');});localStorage.setItem('thinkingView',v);}if(viewBtns.length){setView(localStorage.getItem('thinkingView')||'list');viewBtns.forEach(function(b){b.addEventListener('click',function(){setView(b.getAttribute('data-view-btn'));});});}if(filterBtns.length){applyFilters();filterBtns.forEach(function(b){b.addEventListener('click',function(){var k=b.getAttribute('data-filter');active[k]=!active[k];applyFilters();});});}}());</script>`;
 
 const thinkingArchiveFoot = `      <footer class="site-footer">
         <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><a href="#" class="theme-toggle" id="theme-toggle"></a></p>
@@ -1106,51 +1129,43 @@ function thinkingGridItemHtml(item, spotifyThumbnails = {}) {
   const slug = thinkingSlug(item);
   const href = `/thinking/${escHtml(slug)}/`;
   const label = escHtml(formatMbDate(item.date_published));
+  const kind = thinkingGridKind(item, spotifyThumbnails);
   const { src, alt } = imageSrcAltFromHtml(item.content_html);
-  if (src) {
-    return `          <a class="thinking-grid-item thinking-grid-photo" href="${href}" aria-label="${label}">
+  if (kind === "photo" && src) {
+    return `          <a class="thinking-grid-item thinking-grid-photo" data-kind="photo" href="${href}" aria-label="${label}">
             <img src="${escHtml(src)}" alt="${escHtml(alt || "Photo")}" loading="lazy" decoding="async" />
-            <span class="thinking-grid-icon thinking-grid-icon--photo" aria-hidden="true">${THINKING_MEDIA_ICONS.photo}</span>
+            ${thinkingGridBadgeHtml("photo")}
           </a>`;
   }
-  const videoSrc = videoSrcFromHtml(item.content_html);
-  if (videoSrc) {
+  if (kind === "video") {
+    const videoSrc = videoSrcFromHtml(item.content_html);
     const posterSrc = `${videoSrc}${videoSrc.includes("#") ? "" : "#t=0.001"}`;
-    return `          <a class="thinking-grid-item thinking-grid-video" href="${href}" aria-label="${label}">
+    return `          <a class="thinking-grid-item thinking-grid-video" data-kind="video" href="${href}" aria-label="${label}">
             <video class="thinking-grid-video-poster" muted playsinline preload="metadata" src="${escHtml(posterSrc)}" aria-hidden="true"></video>
-            <span class="thinking-grid-icon thinking-grid-icon--video" aria-hidden="true">${THINKING_MEDIA_ICONS.video}</span>
+            ${thinkingGridBadgeHtml("video")}
           </a>`;
   }
-  const spotifyEmbed = spotifyEmbedFromHtml(item.content_html);
-  if (spotifyEmbed) {
-    const spotifyKey = `${spotifyEmbed.type}:${spotifyEmbed.id}`;
-    const cover = spotifyThumbnails[spotifyKey];
+  if (kind === "spotify") {
+    const spotifyEmbed = spotifyEmbedFromHtml(item.content_html);
+    const cover = spotifyThumbnails[`${spotifyEmbed.type}:${spotifyEmbed.id}`];
     if (cover) {
-      return `          <a class="thinking-grid-item thinking-grid-spotify" href="${href}" aria-label="${label}">
+      return `          <a class="thinking-grid-item thinking-grid-spotify" data-kind="spotify" href="${href}" aria-label="${label}">
             <img src="${escHtml(cover)}" alt="" loading="lazy" decoding="async" />
-            <span class="thinking-grid-icon thinking-grid-icon--spotify" aria-hidden="true">${THINKING_MEDIA_ICONS.spotify}</span>
+            ${thinkingGridBadgeHtml("spotify")}
           </a>`;
     }
   }
-  const youtubeId = youtubeIdFromHtml(item.content_html);
-  if (youtubeId) {
-    return `          <a class="thinking-grid-item thinking-grid-youtube" href="${href}" aria-label="${label}">
+  if (kind === "youtube") {
+    const youtubeId = youtubeIdFromHtml(item.content_html);
+    return `          <a class="thinking-grid-item thinking-grid-youtube" data-kind="youtube" href="${href}" aria-label="${label}">
             <img src="${escHtml(youtubeThumbnailUrl(youtubeId))}" alt="" loading="lazy" decoding="async" />
-            <span class="thinking-grid-icon thinking-grid-icon--youtube" aria-hidden="true">${THINKING_MEDIA_ICONS.youtube}</span>
+            ${thinkingGridBadgeHtml("youtube")}
           </a>`;
   }
-  // Cap well above what a thumbnail can show — the box's overflow:hidden
-  // does the real clipping, so text fills down to the bottom instead of
-  // getting cut off early with an ellipsis.
   const snippet =
     thinkingSnippet(stripHtml(stripMediaMarkup(item.content_html)), 280) || "(No text)";
-  const mediaKind = thinkingMediaKind(item.content_html);
-  const iconHtml = mediaKind
-    ? `
-            <span class="thinking-grid-icon thinking-grid-icon--${mediaKind}" aria-hidden="true">${THINKING_MEDIA_ICONS[mediaKind]}</span>`
-    : "";
-  return `          <a class="thinking-grid-item thinking-grid-text" href="${href}" aria-label="${escHtml(formatMbDate(item.date_published))}">
-            <span class="thinking-grid-text-body">${escHtml(snippet)}</span>${iconHtml}
+  return `          <a class="thinking-grid-item thinking-grid-text" data-kind="${escHtml(kind)}" href="${href}" aria-label="${label}">
+            <span class="thinking-grid-text-body">${escHtml(snippet)}</span>${thinkingGridBadgeHtml(kind)}
           </a>`;
 }
 
@@ -1222,9 +1237,28 @@ const THINKING_VIEW_ICONS = {
   grid: `<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="2" width="7" height="7" rx="1" fill="currentColor"/><rect x="11" y="2" width="7" height="7" rx="1" fill="currentColor"/><rect x="2" y="11" width="7" height="7" rx="1" fill="currentColor"/><rect x="11" y="11" width="7" height="7" rx="1" fill="currentColor"/></svg>`,
 };
 
-const thinkingViewToggleHtml = `      <div class="thinking-view-toggle" role="group" aria-label="Switch view">
+const THINKING_FILTER_LABELS = {
+  photo: "Photos",
+  video: "Videos",
+  youtube: "YouTube",
+  spotify: "Spotify",
+  audio: "Audio",
+  text: "Text",
+};
+
+const thinkingGridFiltersHtml = `        <div class="thinking-grid-filters" role="group" aria-label="Filter grid by type">
+${THINKING_GRID_KINDS.map(
+  (kind) =>
+    `          <button type="button" class="thinking-filter-btn thinking-filter-btn--${kind}" data-filter="${kind}" aria-pressed="true" aria-label="${THINKING_FILTER_LABELS[kind]}">${THINKING_MEDIA_ICONS[kind]}</button>`
+).join("\n")}
+        </div>`;
+
+const thinkingArchiveToolbarHtml = `      <div class="thinking-archive-toolbar">
+        <div class="thinking-view-toggle" role="group" aria-label="Switch view">
         <button type="button" class="thinking-view-btn" data-view-btn="list" aria-pressed="true" aria-label="List view">${THINKING_VIEW_ICONS.list}</button>
         <button type="button" class="thinking-view-btn" data-view-btn="grid" aria-pressed="false" aria-label="Grid view">${THINKING_VIEW_ICONS.grid}</button>
+        </div>
+${thinkingGridFiltersHtml}
       </div>`;
 
 // Reading grid: a storefront-style catalog — bigger cover art, two columns,
@@ -1313,7 +1347,7 @@ ${readingArchiveFoot}`;
 
 const microblogPageHtml = `${archiveHead("Thinking", sectionHeading("Thinking", "h1"))}
     <div class="thinking-views" data-view="list">
-${thinkingViewToggleHtml}
+${thinkingArchiveToolbarHtml}
       <div class="microblog-feed">
 ${microblogEntriesHtml}
       </div>

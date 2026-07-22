@@ -424,12 +424,60 @@ h2 {
 .form-success { color: var(--link); }
 .form-error { color: #c0392b; }
 
-/* Thinking view toggle (list / grid) */
+/* Thinking archive toolbar — view toggle (left) + grid type filters (right) */
+.thinking-archive-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0.5rem 0 1.5rem;
+}
 .thinking-view-toggle {
   display: flex;
   justify-content: flex-start;
   gap: 0.4rem;
-  margin: 0.5rem 0 1.5rem;
+  flex-shrink: 0;
+}
+.thinking-grid-filters {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.thinking-views[data-view="list"] .thinking-grid-filters {
+  visibility: hidden;
+  pointer-events: none;
+}
+.thinking-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0.38;
+  transition: opacity 0.15s, background-color 0.15s;
+}
+.thinking-filter-btn svg {
+  width: 1.35rem;
+  height: 1.35rem;
+  display: block;
+}
+.thinking-filter-btn--youtube svg {
+  width: 1.75rem;
+  height: 1.25rem;
+}
+.thinking-filter-btn:hover {
+  opacity: 0.72;
+}
+.thinking-filter-btn[aria-pressed="true"] {
+  opacity: 1;
+  background: var(--thinking-delete-bg);
 }
 .thinking-view-btn {
   display: inline-flex;
