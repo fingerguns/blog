@@ -2048,7 +2048,7 @@ async function handlePost(body, db, cors, env, ctx) {
 // ─── Reading ──────────────────────────────────────────────────────────────────
 
 async function handleReading(body, db, cors, env, ctx) {
-  const { title, url, ym, cover_url } = body;
+  const { title, url, ym, cover_url, author } = body;
 
   if (typeof title !== "string" || !title.trim()) {
     return json({ error: "Missing title" }, 400, cors);
@@ -2068,17 +2068,19 @@ async function handleReading(body, db, cors, env, ctx) {
     title: title.trim(),
     url: url.trim(),
     coverUrl: typeof cover_url === "string" && cover_url.trim() ? cover_url.trim() : null,
+    author: typeof author === "string" && author.trim() ? author.trim() : null,
   };
 
   try {
     await dbRun(
       db,
-      "INSERT INTO reading (ym, title, url, added_at, cover_url) VALUES (?, ?, ?, ?, ?)",
+      "INSERT INTO reading (ym, title, url, added_at, cover_url, author) VALUES (?, ?, ?, ?, ?, ?)",
       entry.ym,
       entry.title,
       entry.url,
       now.toISOString(),
-      entry.coverUrl
+      entry.coverUrl,
+      entry.author
     );
 
     const { microblogWarning, blueskyWarning, mastodonWarning } = await syndicateText(
@@ -2099,7 +2101,7 @@ async function handleListReading(db, cors) {
   try {
     const { results: rows } = await dbAll(
       db,
-      "SELECT id, ym, title, url, added_at, cover_url FROM reading ORDER BY added_at DESC"
+      "SELECT id, ym, title, url, added_at, cover_url, author FROM reading ORDER BY added_at DESC"
     );
     return json({ ok: true, items: rows || [] }, 200, cors);
   } catch (err) {
@@ -2145,11 +2147,27 @@ function bookTitlesMatch(a, b) {
   return Boolean(na && nb) && (na === nb || na.includes(nb) || nb.includes(na));
 }
 
+// When we know the author, use it as a second check on top of the title
+// match — a plain title-only search can still land on a completely
+// unrelated book that happens to share the exact same title (e.g. two
+// different novels both called "The Murderess"), and the title+author
+// combined query only helps when the source actually has *our* book. This
+// catches the rest: reject a title match whose own author doesn't overlap
+// at all with the one we're looking for.
+function bookAuthorsMatch(given, found) {
+  if (!given) return true;
+  if (!found) return false;
+  const words = (s) => normalizeBookTitle(s).split(" ").filter((w) => w.length > 2);
+  const givenWords = words(given);
+  const foundWords = words(found);
+  return givenWords.some((w) => foundWords.includes(w));
+}
+
 function isbnFromBookshopUrl(url) {
   return /[?&]ean=(\d{9,13})\b/.exec(String(url || ""))?.[1] || null;
 }
 
-async function openLibraryCoverCandidate(isbn, title) {
+async function openLibraryCoverCandidate(isbn, title, author) {
   try {
     if (isbn) {
       const res = await fetch(`https://openlibrary.org/isbn/${isbn}.json`);
@@ -2159,13 +2177,32 @@ async function openLibraryCoverCandidate(isbn, title) {
         if (coverId) return `https://covers.openlibrary.org/b/id/${coverId}-L.jpg`;
       }
     }
+
+    // A short/generic title (e.g. "Hill") is much less likely to be
+    // swamped by unrelated books once Open Library's distinct title+author
+    // fields narrow the search — try that before the plain title-only pass.
+    if (author) {
+      const res2 = await fetch(
+        `https://openlibrary.org/search.json?limit=1&fields=cover_i,title&title=${encodeURIComponent(
+          title
+        )}&author=${encodeURIComponent(author)}`
+      );
+      if (res2.ok) {
+        const data2 = await res2.json();
+        const hit = data2?.docs?.[0];
+        if (hit?.cover_i && bookTitlesMatch(title, hit.title)) {
+          return `https://covers.openlibrary.org/b/id/${hit.cover_i}-L.jpg`;
+        }
+      }
+    }
+
     const q = isbn ? `isbn:${isbn}` : title;
-    const res2 = await fetch(
+    const res3 = await fetch(
       `https://openlibrary.org/search.json?limit=1&fields=cover_i,title&q=${encodeURIComponent(q)}`
     );
-    if (res2.ok) {
-      const data2 = await res2.json();
-      const hit = data2?.docs?.[0];
+    if (res3.ok) {
+      const data3 = await res3.json();
+      const hit = data3?.docs?.[0];
       if (hit?.cover_i && (isbn || bookTitlesMatch(title, hit.title))) {
         return `https://covers.openlibrary.org/b/id/${hit.cover_i}-L.jpg`;
       }
@@ -2181,16 +2218,18 @@ async function openLibraryCoverCandidate(isbn, title) {
 // doesn't guarantee the right book — so every candidate carries whatever
 // author name its source cheaply provides, letting the admin's picker UI
 // show it as a sanity check alongside the cover image itself.
-async function itunesTitleSearch(title) {
+async function itunesSearchByTerm(term, title, author) {
   try {
     const res = await fetch(
-      `https://itunes.apple.com/search?entity=ebook&limit=1&term=${encodeURIComponent(title)}`
+      `https://itunes.apple.com/search?entity=ebook&limit=1&term=${encodeURIComponent(term)}`
     );
     if (!res.ok) return null;
     const data = await res.json();
     const hit = data?.results?.[0];
     const art = hit?.artworkUrl100;
-    if (!art || !bookTitlesMatch(title, hit.trackName)) return null;
+    if (!art) return null;
+    if (!bookTitlesMatch(title, hit.trackName)) return null;
+    if (!bookAuthorsMatch(author, hit.artistName)) return null;
     return {
       url: art.replace(/\d+x\d+bb\.(jpg|png)$/, "600x900bb.$1"),
       title: hit.trackName || null,
@@ -2201,7 +2240,23 @@ async function itunesTitleSearch(title) {
   }
 }
 
-async function itunesCoverCandidate(isbn, title) {
+async function itunesTitleSearch(title, author) {
+  // Apple's search has no separate author param, so a short/generic title
+  // (e.g. "Hill") gets combined into one free-text term with the author —
+  // this is exactly what surfaced the correct "Hill" by Jean Giono instead
+  // of a page of unrelated "Napoleon Hill" results.
+  if (author) {
+    const combined = await itunesSearchByTerm(`${title} ${author}`, title, author);
+    if (combined) return combined;
+  }
+  // Plain title-only search carries no author check from Apple's side, so
+  // when we do know the author, still require its match here too — this is
+  // what keeps a genuine title collision (e.g. two different novels both
+  // called "The Murderess") from returning the wrong book.
+  return itunesSearchByTerm(title, title, author);
+}
+
+async function itunesCoverCandidate(isbn, title, author) {
   if (isbn) {
     try {
       const res = await fetch(`https://itunes.apple.com/lookup?isbn=${isbn}&entity=ebook`);
@@ -2223,21 +2278,24 @@ async function itunesCoverCandidate(isbn, title) {
   }
   // Ebook editions almost always carry a different ISBN than the print
   // edition our URL's ISBN came from, so an exact-ISBN miss doesn't mean
-  // Apple Books doesn't have it — a title search often still finds it.
-  return itunesTitleSearch(title);
+  // Apple Books doesn't have it — a title (+ author, if given) search often
+  // still finds it.
+  return itunesTitleSearch(title, author);
 }
 
-async function googleBooksTitleSearch(title, apiKey) {
+async function googleBooksSearchByQuery(q, title, author, apiKey) {
   try {
     const res = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(`intitle:${title}`)}&key=${apiKey}`
+      `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&key=${apiKey}`
     );
     if (!res.ok) return null;
     const data = await res.json();
     const hit = data?.items?.[0];
     const info = hit?.volumeInfo;
     const img = info?.imageLinks?.thumbnail || info?.imageLinks?.smallThumbnail;
-    if (!img || !bookTitlesMatch(title, info?.title)) return null;
+    if (!img) return null;
+    if (!bookTitlesMatch(title, info?.title)) return null;
+    if (!bookAuthorsMatch(author, (info?.authors || []).join(" "))) return null;
     return {
       url: img.replace(/^http:/, "https:").replace(/&zoom=\d/, "&zoom=2"),
       title: info?.title || null,
@@ -2248,7 +2306,24 @@ async function googleBooksTitleSearch(title, apiKey) {
   }
 }
 
-async function googleBooksCoverCandidate(isbn, title, apiKey) {
+async function googleBooksTitleSearch(title, author, apiKey) {
+  // Google Books supports distinct qualifiers, so a generic title paired
+  // with an author narrows the match far more reliably than title alone.
+  if (author) {
+    const combined = await googleBooksSearchByQuery(
+      `intitle:${title} inauthor:${author}`,
+      title,
+      author,
+      apiKey
+    );
+    if (combined) return combined;
+  }
+  // Same reasoning as Apple Books: when we do know the author, still check
+  // it against the plain title-only result too, to catch title collisions.
+  return googleBooksSearchByQuery(`intitle:${title}`, title, author, apiKey);
+}
+
+async function googleBooksCoverCandidate(isbn, title, author, apiKey) {
   if (!apiKey) return null;
   if (isbn) {
     try {
@@ -2273,21 +2348,23 @@ async function googleBooksCoverCandidate(isbn, title, apiKey) {
     }
   }
   // Same reasoning as Apple Books: the ebook edition Google indexed may
-  // carry a different ISBN than our print-edition ISBN, so retry by title.
-  return googleBooksTitleSearch(title, apiKey);
+  // carry a different ISBN than our print-edition ISBN, so retry by title
+  // (+ author, if given).
+  return googleBooksTitleSearch(title, author, apiKey);
 }
 
 async function handleReadingCoverCandidates(body, cors, env) {
-  const { title, url } = body;
+  const { title, url, author } = body;
   if (typeof title !== "string" || !title.trim()) {
     return json({ error: "Missing title" }, 400, cors);
   }
   const isbn = isbnFromBookshopUrl(url);
+  const authorTrimmed = typeof author === "string" && author.trim() ? author.trim() : null;
 
   const [openlibrary, itunes, google] = await Promise.all([
-    openLibraryCoverCandidate(isbn, title.trim()),
-    itunesCoverCandidate(isbn, title.trim()),
-    googleBooksCoverCandidate(isbn, title.trim(), env.GOOGLE_BOOKS_API_KEY),
+    openLibraryCoverCandidate(isbn, title.trim(), authorTrimmed),
+    itunesCoverCandidate(isbn, title.trim(), authorTrimmed),
+    googleBooksCoverCandidate(isbn, title.trim(), authorTrimmed, env.GOOGLE_BOOKS_API_KEY),
   ]);
 
   const candidates = [];
@@ -2307,6 +2384,11 @@ async function handleUpdateReadingCover(payload, db, cors, env) {
     typeof payload.cover_url === "string" && payload.cover_url.trim()
       ? payload.cover_url.trim()
       : null;
+  // author is optional here: the "Change cover" flow always sends whatever
+  // is in its author field (pre-filled, edited, or blank), so it's saved
+  // alongside the cover the same way cover_url is.
+  const author =
+    typeof payload.author === "string" && payload.author.trim() ? payload.author.trim() : null;
 
   try {
     const existing = await dbFirst(db, "SELECT id FROM reading WHERE id = ?", id);
@@ -2314,7 +2396,13 @@ async function handleUpdateReadingCover(payload, db, cors, env) {
       return json({ error: "Reading entry not found" }, 404, cors);
     }
 
-    await dbRun(db, "UPDATE reading SET cover_url = ? WHERE id = ?", coverUrl, id);
+    await dbRun(
+      db,
+      "UPDATE reading SET cover_url = ?, author = ? WHERE id = ?",
+      coverUrl,
+      author,
+      id
+    );
     await triggerRebuild(env);
 
     return json({ ok: true }, 200, cors);

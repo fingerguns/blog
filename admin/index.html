@@ -850,8 +850,12 @@
         <p class="lead">Add a book to the READING section.</p>
 
         <form class="admin-form" id="reading-form">
-          <label for="r-title">Book Title / Author</label>
-          <input id="r-title" type="text" required placeholder="e.g. Inside the Box David Epstein" />
+          <label for="r-title">Book Title</label>
+          <input id="r-title" type="text" required placeholder="e.g. Inside the Box" />
+
+          <label for="r-author">Author (optional)</label>
+          <input id="r-author" type="text" placeholder="e.g. David Epstein" />
+          <p class="admin-hint" style="margin-top:-0.9rem">Helps cover search when the title alone is too generic or ambiguous.</p>
 
           <label for="r-url">Bookshop.org URL</label>
           <input id="r-url" type="url" required placeholder="https://bookshop.org/p/books/…" />
@@ -2539,8 +2543,13 @@
 
       // ── Reading cover picker (shared by the add form and the archive list) ──
 
-      async function fetchCoverCandidates(title, url) {
-        var data = await callAPI({ action: "reading-cover-candidates", title: title, url: url });
+      async function fetchCoverCandidates(title, url, author) {
+        var data = await callAPI({
+          action: "reading-cover-candidates",
+          title: title,
+          url: url,
+          author: author || "",
+        });
         return data.candidates || [];
       }
 
@@ -2610,6 +2619,7 @@
         findBtn.addEventListener("click", async function () {
           var title = document.getElementById("r-title").value.trim();
           var url = document.getElementById("r-url").value.trim();
+          var author = document.getElementById("r-author").value.trim();
           if (!title) {
             showStatus(status, "Enter a title first.", true);
             return;
@@ -2617,7 +2627,7 @@
           findBtn.disabled = true;
           findBtn.textContent = "Finding covers…";
           try {
-            var candidates = await fetchCoverCandidates(title, url);
+            var candidates = await fetchCoverCandidates(title, url, author);
             selectedCoverUrl = null;
             renderCoverPicker(picker, candidates, function (u) { selectedCoverUrl = u; });
           } catch (err) {
@@ -2636,6 +2646,7 @@
             var data = await callAPI({
               action: "reading",
               title: document.getElementById("r-title").value,
+              author: document.getElementById("r-author").value,
               url: document.getElementById("r-url").value,
               ym: document.getElementById("r-ym").value,
               cover_url: selectedCoverUrl,
@@ -2643,6 +2654,7 @@
             var rFmt = formatSyndicationStatus(data, "Added. Site will rebuild shortly.");
             showStatus(status, rFmt.text, false, !rFmt.warn, rFmt.warn);
             document.getElementById("r-title").value = "";
+            document.getElementById("r-author").value = "";
             document.getElementById("r-url").value = "";
             document.getElementById("r-ym").value = "";
             selectedCoverUrl = null;
@@ -2703,11 +2715,17 @@
             titleEl.className = "draft-item-title";
             titleEl.textContent = item.title;
 
+            var authorEl = document.createElement("div");
+            authorEl.className = "draft-item-date";
+            authorEl.textContent = item.author || "";
+            authorEl.hidden = !item.author;
+
             var dateEl = document.createElement("div");
             dateEl.className = "draft-item-date";
             dateEl.textContent = item.ym + (item.added_at ? " · added " + item.added_at.slice(0, 10) : "");
 
             main.appendChild(titleEl);
+            main.appendChild(authorEl);
             main.appendChild(dateEl);
             row.appendChild(thumb);
             row.appendChild(main);
@@ -2748,30 +2766,67 @@
             actions.appendChild(coverBtn);
             actions.appendChild(del);
 
+            var pickerWrap = document.createElement("div");
+            pickerWrap.style.flexBasis = "100%";
+            pickerWrap.hidden = true;
+
+            var authorRow = document.createElement("div");
+            authorRow.style.display = "flex";
+            authorRow.style.alignItems = "center";
+            authorRow.style.gap = "0.6rem";
+            authorRow.style.margin = "0.6rem 0";
+
+            var authorInput = document.createElement("input");
+            authorInput.type = "text";
+            authorInput.placeholder = "Author (optional) — helps disambiguate the search";
+            authorInput.value = item.author || "";
+            authorInput.style.flex = "1";
+            authorInput.style.font = "inherit";
+            authorInput.style.padding = "0.4rem 0.6rem";
+            authorInput.style.border = "1px solid var(--rule)";
+            authorInput.style.borderRadius = "0.2rem";
+            authorInput.style.background = "var(--bg)";
+            authorInput.style.color = "var(--text)";
+
+            var findCoverBtn = document.createElement("button");
+            findCoverBtn.type = "button";
+            findCoverBtn.className = "reading-item-cover-btn";
+            findCoverBtn.textContent = "Find covers";
+
+            authorRow.appendChild(authorInput);
+            authorRow.appendChild(findCoverBtn);
+
             var pickerRow = document.createElement("div");
             pickerRow.className = "cover-picker";
-            pickerRow.style.flexBasis = "100%";
             pickerRow.hidden = true;
 
-            coverBtn.addEventListener("click", async function () {
-              if (!pickerRow.hidden) {
-                pickerRow.hidden = true;
-                pickerRow.innerHTML = "";
-                return;
-              }
-              coverBtn.disabled = true;
-              coverBtn.textContent = "Finding…";
+            pickerWrap.appendChild(authorRow);
+            pickerWrap.appendChild(pickerRow);
+
+            async function runCoverSearch() {
+              findCoverBtn.disabled = true;
+              findCoverBtn.textContent = "Finding…";
               try {
-                var candidates = await fetchCoverCandidates(item.title, item.url);
+                var candidates = await fetchCoverCandidates(item.title, item.url, authorInput.value.trim());
                 renderCoverPicker(pickerRow, candidates, async function (u) {
                   try {
-                    await callAPI({ action: "update-reading-cover", id: item.id, cover_url: u });
+                    var chosenAuthor = authorInput.value.trim();
+                    await callAPI({
+                      action: "update-reading-cover",
+                      id: item.id,
+                      cover_url: u,
+                      author: chosenAuthor,
+                    });
                     item.cover_url = u;
+                    item.author = chosenAuthor;
                     var newThumb = u ? document.createElement("img") : document.createElement("div");
                     newThumb.className = u ? "reading-item-thumb" : "reading-item-thumb-empty";
                     if (u) { newThumb.src = u; newThumb.alt = ""; }
                     thumb.replaceWith(newThumb);
                     thumb = newThumb;
+                    authorEl.textContent = chosenAuthor;
+                    authorEl.hidden = !chosenAuthor;
+                    pickerWrap.hidden = true;
                     pickerRow.hidden = true;
                     pickerRow.innerHTML = "";
                   } catch (err) {
@@ -2781,14 +2836,26 @@
               } catch (err) {
                 if (status) showStatus(status, err.message || "Could not fetch cover candidates", true);
               } finally {
-                coverBtn.disabled = false;
-                coverBtn.textContent = "Change cover";
+                findCoverBtn.disabled = false;
+                findCoverBtn.textContent = "Find covers";
               }
+            }
+
+            findCoverBtn.addEventListener("click", runCoverSearch);
+
+            coverBtn.addEventListener("click", function () {
+              if (!pickerWrap.hidden) {
+                pickerWrap.hidden = true;
+                pickerRow.hidden = true;
+                pickerRow.innerHTML = "";
+                return;
+              }
+              pickerWrap.hidden = false;
             });
 
             li.appendChild(row);
             li.appendChild(actions);
-            li.appendChild(pickerRow);
+            li.appendChild(pickerWrap);
             list.appendChild(li);
           });
         } catch (err) {
