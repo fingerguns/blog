@@ -28,8 +28,9 @@ const lines = ["DELETE FROM reading_favorites;"];
 for (const item of favorites) {
   if (!item?.title || !item?.url) continue;
   const author = item.author ? `'${escSql(item.author)}'` : "NULL";
+  const coverUrl = item.cover_url ? `'${escSql(item.cover_url)}'` : "NULL";
   lines.push(
-    `INSERT INTO reading_favorites (title, url, cover_url, author, added_at) VALUES ('${escSql(item.title)}', '${escSql(item.url)}', NULL, ${author}, '${now}');`
+    `INSERT INTO reading_favorites (title, url, cover_url, author, added_at) VALUES ('${escSql(item.title)}', '${escSql(item.url)}', ${coverUrl}, ${author}, '${now}');`
   );
 }
 
