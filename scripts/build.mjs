@@ -1570,11 +1570,11 @@ ${THINKING_GRID_KINDS.map(
         </div>`;
 
 const thinkingArchiveToolbarHtml = `      <div class="thinking-archive-toolbar">
+${thinkingGridFiltersHtml}
         <div class="thinking-view-toggle" role="group" aria-label="Switch view">
         <button type="button" class="thinking-view-btn" data-view-btn="list" aria-pressed="true" aria-label="List view">${THINKING_VIEW_ICONS.list}</button>
         <button type="button" class="thinking-view-btn" data-view-btn="grid" aria-pressed="false" aria-label="Grid view">${THINKING_VIEW_ICONS.grid}</button>
         </div>
-${thinkingGridFiltersHtml}
       </div>`;
 
 // Reading grid: a storefront-style catalog — bigger cover art, two columns,

@@ -465,23 +465,25 @@ h2 {
 .form-success { color: var(--link); }
 .form-error { color: #c0392b; }
 
-/* Thinking archive toolbar — view toggle (left) + grid type filters (right) */
+/* Thinking archive toolbar — type filters (left) + view toggle (right) */
 .thinking-archive-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
   margin: 0.5rem 0 1.5rem;
+  flex-wrap: wrap;
 }
 .thinking-view-toggle {
   display: flex;
   justify-content: flex-start;
   gap: 0.4rem;
   flex-shrink: 0;
+  margin: 0;
 }
 .thinking-grid-filters {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   flex-wrap: wrap;
   gap: 0.35rem;
 }
@@ -518,11 +520,12 @@ h2 {
 }
 @media (max-width: 480px) {
   .thinking-archive-toolbar {
-    flex-wrap: nowrap;
-    justify-content: space-between;
-    gap: 0.15rem;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
   }
   .thinking-view-toggle {
+    justify-content: flex-end;
     gap: 0.12rem;
     flex-shrink: 0;
   }
@@ -537,10 +540,9 @@ h2 {
   .thinking-grid-filters {
     flex: 0 1 auto;
     flex-wrap: nowrap;
-    justify-content: flex-end;
+    justify-content: flex-start;
     gap: 0.12rem;
     min-width: 0;
-    margin-left: auto;
   }
   .thinking-filter-btn {
     width: 1.8rem;
