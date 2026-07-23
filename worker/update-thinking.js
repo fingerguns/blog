@@ -1,3 +1,4 @@
+import { bookshopAffiliateUrl, isbnFromBookshopUrl } from "../scripts/lib/bookshop-affiliate.mjs";
 import { thinkingSlugFromDate } from "../scripts/lib/thinking-slug.mjs";
 import { escHtml } from "../scripts/lib/html.mjs";
 import { coalesceImageParagraphsHtml } from "../scripts/lib/coalesce-images.mjs";
@@ -2124,10 +2125,12 @@ async function handleReading(body, db, cors, env, ctx) {
       entry.author
     );
 
+    const affiliateUrl = bookshopAffiliateUrl(entry.url, env.BOOKSHOP_AFFILIATE_ID);
+
     const { microblogWarning, blueskyWarning, mastodonWarning } = await syndicateText(
       env,
-      `Now reading: ${entry.title}\n\n${entry.url}`,
-      entry.url
+      `Now reading: ${entry.title}\n\n${affiliateUrl}`,
+      affiliateUrl
     );
 
     await triggerRebuild(env);
@@ -2202,10 +2205,6 @@ function bookAuthorsMatch(given, found) {
   const givenWords = words(given);
   const foundWords = words(found);
   return givenWords.some((w) => foundWords.includes(w));
-}
-
-function isbnFromBookshopUrl(url) {
-  return /[?&]ean=(\d{9,13})\b/.exec(String(url || ""))?.[1] || null;
 }
 
 async function openLibraryCoverCandidate(isbn, title, author) {

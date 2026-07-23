@@ -15,6 +15,7 @@ ALLOWED_ORIGINS = "https://rommy.blog,https://rommy-blog.pages.dev,http://localh
 # Public media served same-origin via Worker at /media/* (iOS audio compatibility).
 MEDIA_PUBLIC_URL = "https://rommy.blog/media"
 R2_BUCKET_NAME = "rommy-blog-media"
+BOOKSHOP_AFFILIATE_ID = "126485"
 
 [ai]
 binding = "AI"
