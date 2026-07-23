@@ -1,10 +1,27 @@
 import { escHtml } from "./html.mjs";
 import { linkifyThinkingEscapedHtml } from "./linkify.mjs";
 import { toSiteMediaUrl } from "./media-url.mjs";
-import { extractYouTubeEmbeds } from "./youtube.mjs";
-import { extractSpotifyEmbeds } from "./spotify.mjs";
+import { extractYouTubeEmbeds, parseYouTubeUrl } from "./youtube.mjs";
+import { extractSpotifyEmbeds, parseSpotifyUrl } from "./spotify.mjs";
 
 const SPOTIFY_EMBED_HEIGHT = 152;
+const URL_RE = /https?:\/\/[^\s<>"]+/g;
+
+function isEmbeddableUrl(rawUrl) {
+  const clean = String(rawUrl).replace(/[.,;:!?)"']+$/, "");
+  return Boolean(parseYouTubeUrl(clean) || parseSpotifyUrl(clean));
+}
+
+/** Remove URLs that render as native YouTube/Spotify embeds from plain post text. */
+export function stripEmbeddableUrls(text) {
+  if (!text) return "";
+  return String(text)
+    .replace(URL_RE, (url) => (isEmbeddableUrl(url) ? "" : url))
+    .replace(/[^\S\n]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 
 export function inferMediaType(mediaUrl, mediaType) {
   if (mediaType === "audio" || mediaType === "image" || mediaType === "video") return mediaType;
@@ -79,7 +96,8 @@ export function renderThinkingContentHtml(
   siteUrl = "",
   options = {}
 ) {
-  const t = (text || "").trim();
+  const raw = (text || "").trim();
+  const t = stripEmbeddableUrls(raw);
   const type = inferMediaType(mediaUrl, mediaType);
   const photoUrls = type === "image" ? resolvePhotoUrls(mediaUrl, options.mediaUrls, siteUrl) : [];
   const resolvedUrl =
@@ -95,10 +113,12 @@ export function renderThinkingContentHtml(
       const inner = linkifyThinkingEscapedHtml(escHtml(para).replace(/\n/g, "<br>"));
       parts.push(`<p>${inner}</p>`);
     }
-    for (const embed of extractYouTubeEmbeds(t)) {
+  }
+  if (raw) {
+    for (const embed of extractYouTubeEmbeds(raw)) {
       parts.push(renderYouTubeEmbed(embed));
     }
-    for (const embed of extractSpotifyEmbeds(t)) {
+    for (const embed of extractSpotifyEmbeds(raw)) {
       parts.push(renderSpotifyEmbed(embed));
     }
   }
