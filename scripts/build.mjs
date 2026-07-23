@@ -17,6 +17,10 @@ import {
   buildLatestCoverLookup,
   inheritLatestCover,
 } from "./lib/reading-cover-inherit.mjs";
+import {
+  applyReadingFavoritesOverrides,
+  loadReadingFavoritesOverrides,
+} from "./lib/reading-favorites-overrides.mjs";
 import { thinkingSlugFromIso } from "./lib/thinking-slug.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -731,8 +735,19 @@ function titlesMatch(a, b) {
   return Boolean(na && nb) && (na === nb || na.includes(nb) || nb.includes(na));
 }
 
+function coverFromCache(url) {
+  if (!url) return null;
+  if (readingCoverCache[url]) return readingCoverCache[url];
+  const isbn = isbnFromBookshopUrl(url);
+  if (!isbn) return null;
+  for (const [key, cover] of Object.entries(readingCoverCache)) {
+    if (isbnFromBookshopUrl(key) === isbn) return cover;
+  }
+  return null;
+}
+
 function coverForReadingEntry(r) {
-  return r.cover_url || readingCoverCache[r.url] || null;
+  return r.cover_url || coverFromCache(r.url) || null;
 }
 
 // Cover lookup, most precise first:
@@ -783,7 +798,7 @@ async function resolveIsbnForReading(title, url) {
 // Open Library / Apple Books / Google Books candidates) skip the automatic
 // lookup entirely — that choice always wins.
 const missingCovers = orderedReading.filter(
-  (r) => r.url && !r.cover_url && !(r.url in readingCoverCache)
+  (r) => r.url && !r.cover_url && !coverFromCache(r.url)
 );
 if (missingCovers.length > 0) {
   console.log(`Looking up ${missingCovers.length} book cover(s) via Open Library…`);
@@ -814,16 +829,12 @@ for (const r of orderedReading) {
 
 let readingFavorites = Array.isArray(readingFavoritesRaw) ? readingFavoritesRaw : [];
 if (!readingFavorites.length && !d1Configured()) {
-  const favoritesJsonPath = join(root, "data/reading-favorites.json");
-  if (existsSync(favoritesJsonPath)) {
-    try {
-      readingFavorites = JSON.parse(readFileSync(favoritesJsonPath, "utf8"));
-    } catch {
-      readingFavorites = [];
-    }
-  }
+  readingFavorites = loadReadingFavoritesOverrides(root);
 }
 if (!Array.isArray(readingFavorites)) readingFavorites = [];
+
+const readingFavoritesOverrides = loadReadingFavoritesOverrides(root);
+readingFavorites = applyReadingFavoritesOverrides(readingFavorites, readingFavoritesOverrides);
 
 const sortReadingFavoritesByTitle = (a, b) =>
   String(a.title || "").localeCompare(String(b.title || ""), undefined, { sensitivity: "base" });
@@ -831,6 +842,15 @@ const sortReadingFavoritesByTitle = (a, b) =>
 const orderedReadingFavorites = [...readingFavorites]
   .filter((r) => r && r.title && r.url)
   .sort(sortReadingFavoritesByTitle);
+
+for (const r of orderedReadingFavorites) {
+  if (!r.cover_url || !r.url) continue;
+  readingCoverCache[r.url] = r.cover_url;
+  const isbn = isbnFromBookshopUrl(r.url);
+  if (isbn) {
+    readingCoverCache[`https://bookshop.org/a/${bookshopAffiliateId}/${isbn}`] = r.cover_url;
+  }
+}
 
 const readingFavoritesAffiliateUrlByCanonical = new Map();
 const readingFavoriteLinkUrl = (r) =>
@@ -861,7 +881,7 @@ if (inheritedFavoriteCovers > 0) {
 }
 
 const favoritesMissingCovers = orderedReadingFavorites.filter(
-  (r) => r.url && !r.cover_url && !(r.url in readingCoverCache)
+  (r) => r.url && !r.cover_url && !coverFromCache(r.url)
 );
 if (favoritesMissingCovers.length > 0) {
   console.log(`Looking up ${favoritesMissingCovers.length} favorite book cover(s) via Open Library…`);
@@ -1570,7 +1590,7 @@ function readingMonthLabel(ym) {
 }
 
 function readingGridItemHtml(r, linkUrlFn = readingLinkUrl) {
-  const cover = r.cover_url || readingCoverCache[r.url];
+  const cover = r.cover_url || coverFromCache(r.url);
   const coverInner = cover
     ? `<img src="${escHtml(cover)}" alt="${escHtml(r.title)}" loading="lazy" decoding="async" />`
     : `<span class="reading-grid-cover-fallback">${escHtml(r.title)}</span>`;
