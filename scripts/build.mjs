@@ -12,6 +12,7 @@ import { escHtml, escXml } from "./lib/html.mjs";
 import { mergeSectionHints } from "./lib/section-hints.mjs";
 import { thinkingGridThumbUrl, videoPosterKeyFromVideoUrl } from "./lib/media-url.mjs";
 import { renderThinkingContentHtml } from "./lib/thinking-html.mjs";
+import { bookshopAffiliateUrl, bookshopAffiliateIdFromEnv, isbnFromBookshopUrl } from "./lib/bookshop-affiliate.mjs";
 import { thinkingSlugFromIso } from "./lib/thinking-slug.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -651,10 +652,12 @@ function sortReadingByYmDesc(a, b) {
 }
 
 const orderedReading = [...(reading || [])].sort(sortReadingByYmDesc);
+const readingAffiliateUrlByCanonical = new Map();
+const readingLinkUrl = (r) => readingAffiliateUrlByCanonical.get(r.url) || bookshopAffiliateUrl(r.url);
 const renderReadingItem = (r) =>
   `          <li>
             <span class="post-date">${escHtml(r.ym)}</span>
-            <a href="${escHtml(r.url)}" target="_blank" rel="noopener noreferrer">${escHtml(r.title)}</a>
+            <a href="${escHtml(readingLinkUrl(r))}" target="_blank" rel="noopener noreferrer">${escHtml(r.title)}</a>
           </li>`;
 
 // Reading grid: book cover art isn't stored in D1 (reading rows only have
@@ -735,6 +738,18 @@ async function fetchBookCover(title, url) {
   return null;
 }
 
+async function resolveIsbnForReading(title, url) {
+  const fromUrl = isbnFromBookshopUrl(url);
+  if (fromUrl) return fromUrl;
+
+  const byTitle = await openLibraryJson(
+    `/search.json?limit=1&fields=isbn,title&q=${encodeURIComponent(title)}`
+  );
+  const hit = byTitle?.docs?.[0];
+  if (!hit?.isbn?.length || !titlesMatch(title, hit.title)) return null;
+  return hit.isbn.find((value) => String(value).length === 13) || hit.isbn[0];
+}
+
 // Entries with a manually-chosen cover_url (picked in the admin from the
 // Open Library / Apple Books / Google Books candidates) skip the automatic
 // lookup entirely — that choice always wins.
@@ -756,6 +771,16 @@ if (missingCovers.length > 0) {
   if (fetchedAny) {
     writeFileSync(readingCoversPath, `${JSON.stringify(readingCoverCache, null, 2)}\n`);
   }
+}
+
+const bookshopAffiliateId = bookshopAffiliateIdFromEnv();
+for (const r of orderedReading) {
+  let affiliate = bookshopAffiliateUrl(r.url, bookshopAffiliateId);
+  if (affiliate === r.url && /bookshop\.org/i.test(r.url || "")) {
+    const isbn = await resolveIsbnForReading(r.title, r.url);
+    if (isbn) affiliate = `https://bookshop.org/a/${bookshopAffiliateId}/${isbn}`;
+  }
+  readingAffiliateUrlByCanonical.set(r.url, affiliate);
 }
 
 const stripHashtags = (s) => String(s).replace(/\s*#\S+/g, "").trim();
@@ -1140,7 +1165,7 @@ const nowPageHtml = `${archiveHead("Now")}
 ${hasThinking(thinking) ? `        <h2>Thinking</h2>
         ${renderThinkingHtml(thinking)}
 ` : ""}${currentBook ? `        <h2>Reading</h2>
-        <p><a href="${escHtml(currentBook.url)}" target="_blank" rel="noopener">${escHtml(currentBook.title)}</a></p>
+        <p><a href="${escHtml(readingLinkUrl(currentBook))}" target="_blank" rel="noopener">${escHtml(currentBook.title)}</a></p>
 ` : ""}        <h2>Working</h2>
         <p>On summer holiday in Sifnos.</p>
         <h2>Living</h2>
@@ -1451,7 +1476,7 @@ function readingGridItemHtml(r) {
   const coverInner = cover
     ? `<img src="${escHtml(cover)}" alt="${escHtml(r.title)}" loading="lazy" decoding="async" />`
     : `<span class="reading-grid-cover-fallback">${escHtml(r.title)}</span>`;
-  return `          <a class="reading-grid-item" href="${escHtml(r.url)}" target="_blank" rel="noopener noreferrer">
+  return `          <a class="reading-grid-item" href="${escHtml(readingLinkUrl(r))}" target="_blank" rel="noopener noreferrer">
             <span class="reading-grid-cover">${coverInner}</span>
             <span class="reading-grid-title">${escHtml(r.title)}</span>
           </a>`;
