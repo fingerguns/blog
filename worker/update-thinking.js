@@ -1,4 +1,8 @@
 import { bookshopAffiliateUrl, isbnFromBookshopUrl } from "../scripts/lib/bookshop-affiliate.mjs";
+import {
+  buildLatestCoverLookup,
+  inheritLatestCover,
+} from "../scripts/lib/reading-cover-inherit.mjs";
 import { thinkingSlugFromDate } from "../scripts/lib/thinking-slug.mjs";
 import { escHtml } from "../scripts/lib/html.mjs";
 import { coalesceImageParagraphsHtml } from "../scripts/lib/coalesce-images.mjs";
@@ -2247,7 +2251,16 @@ async function handleListReadingFavorites(db, cors) {
       db,
       "SELECT id, title, url, added_at, cover_url, author FROM reading_favorites ORDER BY title COLLATE NOCASE ASC, id ASC"
     );
-    return json({ ok: true, items: rows || [] }, 200, cors);
+    const { results: latestRows } = await dbAll(
+      db,
+      "SELECT title, url, cover_url FROM reading WHERE cover_url IS NOT NULL AND cover_url != ''"
+    );
+    const latestCoverLookup = buildLatestCoverLookup(latestRows || [], (entry) => entry.cover_url || null);
+    const items = (rows || []).map((row) => {
+      const inherited = inheritLatestCover(row, latestCoverLookup);
+      return inherited ? { ...row, cover_url: inherited } : row;
+    });
+    return json({ ok: true, items }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Could not list reading favorites" }, 500, cors);
   }
