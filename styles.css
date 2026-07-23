@@ -228,8 +228,7 @@ h2 {
 .about-avatar {
   float: right;
   width: 305px;
-  height: 305px;
-  object-fit: cover;
+  height: auto;
   border-radius: 4px;
   margin: 0 0 1rem 1.5rem;
 }
