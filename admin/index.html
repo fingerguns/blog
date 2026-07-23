@@ -481,6 +481,17 @@
         font-weight: 600;
         margin: 2rem 0 0.75rem;
       }
+      .reading-admin-subheading {
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin: 1.5rem 0 0.75rem;
+      }
+      .reading-favorite-form {
+        margin-bottom: 1rem;
+      }
       /* ── Mobile responsive ── */
       @media (max-width: 480px) {
         /* Prevent iOS auto-zoom on any interactive element */
@@ -874,7 +885,29 @@
 
         <div id="reading-archive-admin" hidden>
           <h3 class="thinking-archive-heading">All entries</h3>
+
+          <h4 class="reading-admin-subheading">Latest</h4>
           <ul class="drafts-list" id="reading-archive-list"></ul>
+
+          <h4 class="reading-admin-subheading">Books Everyone Should Read</h4>
+          <form class="admin-form reading-favorite-form" id="reading-favorite-form">
+            <label for="rf-title">Book Title</label>
+            <input id="rf-title" type="text" required placeholder="e.g. Stoner" />
+
+            <label for="rf-author">Author (optional)</label>
+            <input id="rf-author" type="text" placeholder="e.g. John Williams" />
+
+            <label for="rf-url">Bookshop.org URL</label>
+            <input id="rf-url" type="url" required placeholder="https://bookshop.org/p/books/… or affiliate link" />
+
+            <button type="button" id="rf-find-cover">Find cover art</button>
+            <div id="rf-cover-picker" class="cover-picker" hidden></div>
+
+            <button type="submit" id="rf-submit">Add to favorites</button>
+            <p class="admin-status" id="rf-status" hidden></p>
+          </form>
+          <ul class="drafts-list" id="reading-favorites-list"></ul>
+
           <p class="admin-status" id="reading-archive-status" hidden></p>
         </div>
       </div>
@@ -2755,200 +2788,284 @@
         });
       })();
 
-      // ── Reading archive ────────────────────────────────────────────────────
+      // ── Reading archive (Latest + Books Everyone Should Read) ─────────────
 
-      async function loadReadingArchive() {
-        var wrap = document.getElementById("reading-archive-admin");
-        var list = document.getElementById("reading-archive-list");
-        var status = document.getElementById("reading-archive-status");
-        if (!wrap || !list) return;
-        if (!loadSession()) { wrap.hidden = true; return; }
-        wrap.hidden = false;
-        list.innerHTML = '<li><span class="admin-hint">Loading…</span></li>';
-        if (status) status.hidden = true;
-        try {
-          var data = await callAPI({ action: "list-reading" });
-          var items = data.items || [];
-          list.innerHTML = "";
-          if (!items.length) {
-            list.innerHTML = '<li><span class="admin-hint">No entries yet.</span></li>';
-            return;
+      function appendReadingAdminEntry(list, item, status, config) {
+        var li = document.createElement("li");
+        li.style.flexWrap = "wrap";
+        li.style.alignItems = "center";
+
+        var row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.alignItems = "center";
+        row.style.gap = "0.75rem";
+        row.style.flex = "1";
+        row.style.minWidth = "0";
+
+        var thumb = item.cover_url ? document.createElement("img") : document.createElement("div");
+        thumb.className = item.cover_url ? "reading-item-thumb" : "reading-item-thumb-empty";
+        if (item.cover_url) {
+          thumb.src = item.cover_url;
+          thumb.alt = "";
+        }
+
+        var main = document.createElement("div");
+        main.className = "draft-item-main";
+        main.style.cursor = "default";
+
+        var titleEl = document.createElement("div");
+        titleEl.className = "draft-item-title";
+        titleEl.textContent = item.title;
+
+        var authorEl = document.createElement("div");
+        authorEl.className = "draft-item-date";
+        authorEl.textContent = item.author || "";
+        authorEl.hidden = !item.author;
+
+        var metaEl = document.createElement("div");
+        metaEl.className = "draft-item-date";
+        metaEl.textContent = config.metaText(item);
+
+        main.appendChild(titleEl);
+        main.appendChild(authorEl);
+        main.appendChild(metaEl);
+        row.appendChild(thumb);
+        row.appendChild(main);
+
+        var actions = document.createElement("div");
+        actions.style.display = "flex";
+        actions.style.gap = "0.9rem";
+        actions.style.flexShrink = "0";
+
+        var coverBtn = document.createElement("button");
+        coverBtn.type = "button";
+        coverBtn.className = "reading-item-cover-btn";
+        coverBtn.textContent = "Change cover";
+
+        var del = document.createElement("button");
+        del.type = "button";
+        del.className = "draft-item-delete";
+        del.textContent = "Delete";
+        del.addEventListener("click", async function () {
+          if (!confirm('Delete "' + item.title + '"?')) return;
+          del.disabled = true;
+          try {
+            await callAPI({ action: config.deleteAction, id: item.id });
+            li.remove();
+            if (!list.children.length) {
+              list.innerHTML = '<li><span class="admin-hint">' + config.emptyMessage + "</span></li>";
+            }
+          } catch (err) {
+            del.disabled = false;
+            if (status) {
+              showStatus(status, err.message || "Delete failed", true);
+            } else {
+              alert(err.message || "Delete failed");
+            }
           }
-          items.forEach(function (item) {
-            var li = document.createElement("li");
-            li.style.flexWrap = "wrap";
-            li.style.alignItems = "center";
+        });
 
-            var row = document.createElement("div");
-            row.style.display = "flex";
-            row.style.alignItems = "center";
-            row.style.gap = "0.75rem";
-            row.style.flex = "1";
-            row.style.minWidth = "0";
+        actions.appendChild(coverBtn);
+        actions.appendChild(del);
 
-            var thumb = item.cover_url ? document.createElement("img") : document.createElement("div");
-            thumb.className = item.cover_url ? "reading-item-thumb" : "reading-item-thumb-empty";
-            if (item.cover_url) {
-              thumb.src = item.cover_url;
-              thumb.alt = "";
-            }
+        var pickerWrap = document.createElement("div");
+        pickerWrap.style.flexBasis = "100%";
+        pickerWrap.hidden = true;
 
-            var main = document.createElement("div");
-            main.className = "draft-item-main";
-            main.style.cursor = "default";
+        var authorRow = document.createElement("div");
+        authorRow.style.display = "flex";
+        authorRow.style.alignItems = "center";
+        authorRow.style.gap = "0.6rem";
+        authorRow.style.margin = "0.6rem 0";
 
-            var titleEl = document.createElement("div");
-            titleEl.className = "draft-item-title";
-            titleEl.textContent = item.title;
+        var authorInput = document.createElement("input");
+        authorInput.type = "text";
+        authorInput.placeholder = "Author (optional) — helps disambiguate the search";
+        authorInput.value = item.author || "";
+        authorInput.style.flex = "1";
+        authorInput.style.font = "inherit";
+        authorInput.style.padding = "0.4rem 0.6rem";
+        authorInput.style.border = "1px solid var(--rule)";
+        authorInput.style.borderRadius = "0.2rem";
+        authorInput.style.background = "var(--bg)";
+        authorInput.style.color = "var(--text)";
 
-            var authorEl = document.createElement("div");
-            authorEl.className = "draft-item-date";
-            authorEl.textContent = item.author || "";
-            authorEl.hidden = !item.author;
+        var findCoverBtn = document.createElement("button");
+        findCoverBtn.type = "button";
+        findCoverBtn.className = "reading-item-cover-btn";
+        findCoverBtn.textContent = "Find covers";
 
-            var dateEl = document.createElement("div");
-            dateEl.className = "draft-item-date";
-            dateEl.textContent = item.ym + (item.added_at ? " · added " + item.added_at.slice(0, 10) : "");
+        authorRow.appendChild(authorInput);
+        authorRow.appendChild(findCoverBtn);
 
-            main.appendChild(titleEl);
-            main.appendChild(authorEl);
-            main.appendChild(dateEl);
-            row.appendChild(thumb);
-            row.appendChild(main);
+        var pickerRow = document.createElement("div");
+        pickerRow.className = "cover-picker";
+        pickerRow.hidden = true;
 
-            var actions = document.createElement("div");
-            actions.style.display = "flex";
-            actions.style.gap = "0.9rem";
-            actions.style.flexShrink = "0";
+        pickerWrap.appendChild(authorRow);
+        pickerWrap.appendChild(pickerRow);
 
-            var coverBtn = document.createElement("button");
-            coverBtn.type = "button";
-            coverBtn.className = "reading-item-cover-btn";
-            coverBtn.textContent = "Change cover";
-
-            var del = document.createElement("button");
-            del.type = "button";
-            del.className = "draft-item-delete";
-            del.textContent = "Delete";
-            del.addEventListener("click", async function () {
-              if (!confirm('Delete "' + item.title + '"?')) return;
-              del.disabled = true;
+        async function runCoverSearch() {
+          findCoverBtn.disabled = true;
+          findCoverBtn.textContent = "Finding…";
+          try {
+            var candidates = await fetchCoverCandidates(item.title, item.url, authorInput.value.trim());
+            renderCoverPicker(pickerRow, candidates, async function (u) {
               try {
-                await callAPI({ action: "delete-reading", id: item.id });
-                li.remove();
-                if (!list.children.length) {
-                  list.innerHTML = '<li><span class="admin-hint">No entries yet.</span></li>';
-                }
-              } catch (err) {
-                del.disabled = false;
-                if (status) {
-                  showStatus(status, err.message || "Delete failed", true);
-                } else {
-                  alert(err.message || "Delete failed");
-                }
-              }
-            });
-
-            actions.appendChild(coverBtn);
-            actions.appendChild(del);
-
-            var pickerWrap = document.createElement("div");
-            pickerWrap.style.flexBasis = "100%";
-            pickerWrap.hidden = true;
-
-            var authorRow = document.createElement("div");
-            authorRow.style.display = "flex";
-            authorRow.style.alignItems = "center";
-            authorRow.style.gap = "0.6rem";
-            authorRow.style.margin = "0.6rem 0";
-
-            var authorInput = document.createElement("input");
-            authorInput.type = "text";
-            authorInput.placeholder = "Author (optional) — helps disambiguate the search";
-            authorInput.value = item.author || "";
-            authorInput.style.flex = "1";
-            authorInput.style.font = "inherit";
-            authorInput.style.padding = "0.4rem 0.6rem";
-            authorInput.style.border = "1px solid var(--rule)";
-            authorInput.style.borderRadius = "0.2rem";
-            authorInput.style.background = "var(--bg)";
-            authorInput.style.color = "var(--text)";
-
-            var findCoverBtn = document.createElement("button");
-            findCoverBtn.type = "button";
-            findCoverBtn.className = "reading-item-cover-btn";
-            findCoverBtn.textContent = "Find covers";
-
-            authorRow.appendChild(authorInput);
-            authorRow.appendChild(findCoverBtn);
-
-            var pickerRow = document.createElement("div");
-            pickerRow.className = "cover-picker";
-            pickerRow.hidden = true;
-
-            pickerWrap.appendChild(authorRow);
-            pickerWrap.appendChild(pickerRow);
-
-            async function runCoverSearch() {
-              findCoverBtn.disabled = true;
-              findCoverBtn.textContent = "Finding…";
-              try {
-                var candidates = await fetchCoverCandidates(item.title, item.url, authorInput.value.trim());
-                renderCoverPicker(pickerRow, candidates, async function (u) {
-                  try {
-                    var chosenAuthor = authorInput.value.trim();
-                    await callAPI({
-                      action: "update-reading-cover",
-                      id: item.id,
-                      cover_url: u,
-                      author: chosenAuthor,
-                    });
-                    item.cover_url = u;
-                    item.author = chosenAuthor;
-                    var newThumb = u ? document.createElement("img") : document.createElement("div");
-                    newThumb.className = u ? "reading-item-thumb" : "reading-item-thumb-empty";
-                    if (u) { newThumb.src = u; newThumb.alt = ""; }
-                    thumb.replaceWith(newThumb);
-                    thumb = newThumb;
-                    authorEl.textContent = chosenAuthor;
-                    authorEl.hidden = !chosenAuthor;
-                    pickerWrap.hidden = true;
-                    pickerRow.hidden = true;
-                    pickerRow.innerHTML = "";
-                  } catch (err) {
-                    if (status) showStatus(status, err.message || "Could not update cover", true);
-                  }
+                var chosenAuthor = authorInput.value.trim();
+                await callAPI({
+                  action: config.updateCoverAction,
+                  id: item.id,
+                  cover_url: u,
+                  author: chosenAuthor,
                 });
-              } catch (err) {
-                if (status) showStatus(status, err.message || "Could not fetch cover candidates", true);
-              } finally {
-                findCoverBtn.disabled = false;
-                findCoverBtn.textContent = "Find covers";
-              }
-            }
-
-            findCoverBtn.addEventListener("click", runCoverSearch);
-
-            coverBtn.addEventListener("click", function () {
-              if (!pickerWrap.hidden) {
+                item.cover_url = u;
+                item.author = chosenAuthor;
+                var newThumb = u ? document.createElement("img") : document.createElement("div");
+                newThumb.className = u ? "reading-item-thumb" : "reading-item-thumb-empty";
+                if (u) { newThumb.src = u; newThumb.alt = ""; }
+                thumb.replaceWith(newThumb);
+                thumb = newThumb;
+                authorEl.textContent = chosenAuthor;
+                authorEl.hidden = !chosenAuthor;
                 pickerWrap.hidden = true;
                 pickerRow.hidden = true;
                 pickerRow.innerHTML = "";
-                return;
+              } catch (err) {
+                if (status) showStatus(status, err.message || "Could not update cover", true);
               }
-              pickerWrap.hidden = false;
             });
+          } catch (err) {
+            if (status) showStatus(status, err.message || "Could not fetch cover candidates", true);
+          } finally {
+            findCoverBtn.disabled = false;
+            findCoverBtn.textContent = "Find covers";
+          }
+        }
 
-            li.appendChild(row);
-            li.appendChild(actions);
-            li.appendChild(pickerWrap);
-            list.appendChild(li);
+        findCoverBtn.addEventListener("click", runCoverSearch);
+
+        coverBtn.addEventListener("click", function () {
+          if (!pickerWrap.hidden) {
+            pickerWrap.hidden = true;
+            pickerRow.hidden = true;
+            pickerRow.innerHTML = "";
+            return;
+          }
+          pickerWrap.hidden = false;
+        });
+
+        li.appendChild(row);
+        li.appendChild(actions);
+        li.appendChild(pickerWrap);
+        list.appendChild(li);
+      }
+
+      async function loadReadingArchiveList(list, listAction, status, config) {
+        list.innerHTML = '<li><span class="admin-hint">Loading…</span></li>';
+        var data = await callAPI({ action: listAction });
+        var items = data.items || [];
+        list.innerHTML = "";
+        if (!items.length) {
+          list.innerHTML = '<li><span class="admin-hint">' + config.emptyMessage + "</span></li>";
+          return;
+        }
+        items.forEach(function (item) {
+          appendReadingAdminEntry(list, item, status, config);
+        });
+      }
+
+      async function loadReadingArchive() {
+        var wrap = document.getElementById("reading-archive-admin");
+        var latestList = document.getElementById("reading-archive-list");
+        var favoritesList = document.getElementById("reading-favorites-list");
+        var status = document.getElementById("reading-archive-status");
+        if (!wrap || !latestList || !favoritesList) return;
+        if (!loadSession()) { wrap.hidden = true; return; }
+        wrap.hidden = false;
+        if (status) status.hidden = true;
+        try {
+          await loadReadingArchiveList(latestList, "list-reading", status, {
+            deleteAction: "delete-reading",
+            updateCoverAction: "update-reading-cover",
+            emptyMessage: "No latest entries yet.",
+            metaText: function (item) {
+              return item.ym + (item.added_at ? " · added " + item.added_at.slice(0, 10) : "");
+            },
+          });
+          await loadReadingArchiveList(favoritesList, "list-reading-favorites", status, {
+            deleteAction: "delete-reading-favorite",
+            updateCoverAction: "update-reading-favorite-cover",
+            emptyMessage: "No favorites yet.",
+            metaText: function (item) {
+              return item.added_at ? "added " + item.added_at.slice(0, 10) : "";
+            },
           });
         } catch (err) {
-          list.innerHTML = "";
+          latestList.innerHTML = "";
+          favoritesList.innerHTML = "";
           if (status) showStatus(status, err.message || "Could not load entries", true);
         }
       }
+
+      (function () {
+        var form = document.getElementById("reading-favorite-form");
+        if (!form) return;
+        var status = document.getElementById("rf-status");
+        var submit = document.getElementById("rf-submit");
+        var findBtn = document.getElementById("rf-find-cover");
+        var picker = document.getElementById("rf-cover-picker");
+        var selectedCoverUrl = null;
+
+        findBtn.addEventListener("click", async function () {
+          var title = document.getElementById("rf-title").value.trim();
+          var url = document.getElementById("rf-url").value.trim();
+          var author = document.getElementById("rf-author").value.trim();
+          if (!title) {
+            showStatus(status, "Enter a title first.", true);
+            return;
+          }
+          findBtn.disabled = true;
+          findBtn.textContent = "Finding covers…";
+          try {
+            var candidates = await fetchCoverCandidates(title, url, author);
+            selectedCoverUrl = null;
+            renderCoverPicker(picker, candidates, function (u) { selectedCoverUrl = u; });
+          } catch (err) {
+            showStatus(status, err.message, true);
+          } finally {
+            findBtn.disabled = false;
+            findBtn.textContent = "Find cover art";
+          }
+        });
+
+        form.addEventListener("submit", async function (e) {
+          e.preventDefault();
+          submit.disabled = true;
+          showStatus(status, "Saving…", false);
+          try {
+            await callAPI({
+              action: "reading-favorite",
+              title: document.getElementById("rf-title").value,
+              author: document.getElementById("rf-author").value,
+              url: document.getElementById("rf-url").value,
+              cover_url: selectedCoverUrl,
+            });
+            showStatus(status, "Added. Site will rebuild shortly.", false, true);
+            document.getElementById("rf-title").value = "";
+            document.getElementById("rf-author").value = "";
+            document.getElementById("rf-url").value = "";
+            selectedCoverUrl = null;
+            picker.hidden = true;
+            picker.innerHTML = "";
+            loadReadingArchive();
+          } catch (err) {
+            showStatus(status, err.message, true);
+          } finally {
+            submit.disabled = false;
+          }
+        });
+      })();
 
       // ── Sharing form ───────────────────────────────────────────────────────
 

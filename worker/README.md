@@ -109,6 +109,10 @@ Output directory: `dist`
 | `reading-cover-candidates` | Search Open Library, Apple Books, Google Books for cover art |
 | `update-reading-cover` | Save chosen cover URL and author |
 | `delete-reading` | Delete reading entry |
+| `reading-favorite` | Add book to Books Everyone Should Read |
+| `list-reading-favorites` | List curated reading favorites |
+| `update-reading-favorite-cover` | Save cover URL and author on a favorite |
+| `delete-reading-favorite` | Delete a curated favorite |
 | `sharing` | Add linklog entry |
 | `list-drafts` | List all writing drafts |
 | `save-draft` | Create/update draft |
@@ -127,3 +131,13 @@ Pages build → D1 HTTP API (read) → build.mjs → dist/ → rommy.blog
 ```
 
 `data/posts.json` is kept as a legacy fallback for local builds without D1 credentials.
+`data/reading-favorites.json` seeds the curated list for local builds; in production it lives in D1 (`reading_favorites`).
+
+### Reading favorites migration
+
+```bash
+cd worker
+wrangler d1 execute rommy-blog-db --file=migrate-reading-favorites.sql --remote
+cd ..
+node scripts/seed-reading-favorites.mjs --remote
+```
