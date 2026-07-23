@@ -168,6 +168,48 @@ h2 {
   padding: 0;
 }
 
+.socials-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 500;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.socials-toggle:hover {
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+}
+
+.socials-chevron {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-top: 0.28rem solid transparent;
+  border-bottom: 0.28rem solid transparent;
+  border-left: 0.38rem solid currentColor;
+  transition: transform 0.15s ease;
+}
+
+.socials-toggle[aria-expanded="true"] .socials-chevron {
+  transform: rotate(90deg);
+}
+
+.socials-sublist {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0 0 0 1.25rem;
+}
+
+.socials-sublist li {
+  margin: 0.25rem 0;
+}
+
 .post-date,
 .meta {
   font-variant-numeric: tabular-nums;

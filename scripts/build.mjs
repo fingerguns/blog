@@ -56,6 +56,8 @@ const gaSnippet = `    <script async src="https://www.googletagmanager.com/gtag/
 
 const portraitPhotoToggleScript = `    <script>(function(){function init(){document.querySelectorAll(".post .body img:not(.thinking-photo)").forEach(function(img){if(img.dataset.portraitInit)return;function setup(){var w=img.naturalWidth,h=img.naturalHeight;if(!w||!h)return;img.dataset.portraitInit="1";if(h<=w)return;img.classList.add("photo-portrait");img.setAttribute("role","button");img.setAttribute("tabindex","0");img.setAttribute("aria-expanded","false");img.title="Click to enlarge";function toggle(){var ex=img.classList.toggle("photo-expanded");img.setAttribute("aria-expanded",ex?"true":"false");}img.addEventListener("click",toggle);img.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle();}});}if(img.complete)setup();else img.addEventListener("load",setup,{once:true});});}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();}());</script>`;
 
+const socialsToggleScript = `    <script>(function(){var btn=document.querySelector(".socials-toggle");if(!btn)return;var list=document.getElementById("socials-sublist");btn.addEventListener("click",function(){var open=btn.getAttribute("aria-expanded")==="true";btn.setAttribute("aria-expanded",open?"false":"true");list.hidden=open;});}());</script>`;
+
 const thinkingLightboxScript = `    <script>(function(){
   var overlay=null,imgEl=null,counterEl=null,urls=[],index=0;
   var touchX=0,touchY=0,touchT=0,swiping=false;
@@ -797,6 +799,23 @@ const linksHtml = (links || [])
   )
   .join("\n");
 
+const socialsHtml = `          <li class="link-list-socials">
+            <button type="button" class="socials-toggle" aria-expanded="false" aria-controls="socials-sublist">
+              Socials<span class="socials-chevron" aria-hidden="true"></span>
+            </button>
+            <ul class="socials-sublist" id="socials-sublist" hidden>
+              <li>
+                <a href="https://bsky.app/profile/rommy.nyc" rel="me noopener" target="_blank">Bluesky</a>
+              </li>
+              <li>
+                <a href="https://mas.to/@rommy" rel="me noopener" target="_blank">Mastodon</a>
+              </li>
+              <li>
+                <a href="https://rommy.micro.blog/" rel="me noopener" target="_blank">micro.blog</a>
+              </li>
+            </ul>
+          </li>`;
+
 const descriptionText = typeof site.description === "string" ? site.description.trim() : "";
 const descriptionMeta = descriptionText
   ? `    <meta
@@ -892,6 +911,7 @@ ${linklogHtml}
         <h2 id="links-heading">Elsewhere</h2>
         <ul class="link-list">
 ${linksHtml}
+${socialsHtml}
         </ul>
       </section>
 
@@ -902,6 +922,7 @@ ${linksHtml}
 
 ${colophonSection}    </main>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
+${socialsToggleScript}
 ${portraitPhotoToggleScript}
 ${thinkingLightboxScript}
   </body>
