@@ -16,7 +16,10 @@ Built with [Cursor](https://cursor.com). See the [colophon](https://rommy.blog/c
 - **Writing editor** — [Quill](https://quilljs.com/) with image upload, text wrap (left / right / center / full), drafts, and post version history
 - **Social previews** — Open Graph / Twitter meta on Writing and Thinking permalinks (first in-post image when available)
 - **Plain links in Thinking** — URLs in notes are normal hyperlinks on the site (no on-site unfurl cards), except YouTube links (native video embed) and Spotify links (native track/album/playlist/episode/show/artist embed), which render below the note
-- **Thinking archive views** — [`/thinking/`](https://rommy.blog/thinking/) offers List and Grid views, switched with two small icon buttons under the heading (preference remembered in `localStorage`); Grid groups notes by month with one square thumbnail per post — the note's photo when present, otherwise a text-preview card. Video, audio, YouTube, and Spotify notes without a photo show a small icon badge (camera, mic, YouTube, or Spotify mark) in the card's corner
+- **Thinking archive views** — [`/thinking/`](https://rommy.blog/thinking/) offers List and Grid views (icon buttons under the heading; choice remembered in `localStorage`). Grid groups notes by month with one square thumbnail per post — photos via edge-resized 252px thumbs, native video via stored JPEG posters, YouTube via preview images, Spotify via album art, or a text-preview card with a type badge. Six type-filter buttons (photo, video, audio, YouTube, Spotify, text) solo-select one kind at a time; all posts show until a filter is chosen; filters apply to list and grid and reset on each visit. Grid images load lazily when grid view is active
+- **Reading archive views** — [`/reading/`](https://rommy.blog/reading/) is sorted by read month (`ym`), not date added. List/grid toggle (remembered in `localStorage`); grid is a storefront-style cover catalog grouped by month (3 columns desktop, 2 mobile). Optional author field and multi-source cover picker (Open Library, Apple Books, Google Books) in admin; custom covers can live in R2
+- **Section tooltips** — Homepage section headings have hover blurbs stored in D1; Workers AI regenerates them after content changes (`refresh-section-hints` admin action or `npm run refresh-section-hints`)
+- **Elsewhere → Socials** — Collapsible row on the homepage with links to Bluesky, Mastodon, and micro.blog
 - **Changelog** — Generated from Git history at build time
 - **Colophon** — [`/colophon/`](https://rommy.blog/colophon/) describes how the site is built, with an optional toggle to read it in the style of Walt Whitman
 
@@ -32,9 +35,11 @@ Pages build → D1 HTTP API (read) → scripts/build.mjs → dist/ → rommy.blo
 
 The Thinking **archive** and permalink pages are built from the `thinking_posts` table in D1 at deploy time (same source as the homepage blurb). Slugs use US Eastern time. External links in Thinking are rendered as basic `<a>` tags — no on-site unfurl cards — with two exceptions: YouTube links (`youtube.com/watch`, `/shorts/`, `/live/`, `youtu.be`) get a responsive `youtube-nocookie.com` iframe embed appended after the note text (see `scripts/lib/youtube.mjs`), and Spotify links (`open.spotify.com/track|album|playlist|episode|show|artist/...`) get a compact `open.spotify.com/embed` iframe the same way (see `scripts/lib/spotify.mjs`) — so both play natively on rommy.blog without leaving the page. A `t=`/`start=` timestamp on a YouTube URL is carried into the embed's start time.
 
-Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on their own platforms when you include links there.
+The archive at `/thinking/` renders both a List view (chronological feed) and a Grid view (posts grouped by month, one square thumbnail each) in the same page load; icon buttons swap `data-view` on a wrapper via CSS, and the choice persists in `localStorage`. Type filters (photo, video, audio, YouTube, Spotify, text) show all posts by default; clicking one solo-selects that kind (click again to clear). Filters apply to both views and reset on each archive visit. Grid thumbnails use the post's first photo (Worker-resized via `/media/thumb/252/...`), a stored JPEG poster for native video, YouTube's `mqdefault` image, Spotify album art when available, or a text-preview card with a corner badge. Grid images defer loading until grid view is active and the tile is near the viewport.
 
-The archive at `/thinking/` renders both a List view (chronological, same layout as the homepage feed) and a Grid view (posts grouped by month, one square thumbnail each) in the same page load; a small icon toggle swaps `data-view` on a wrapper element via CSS, and the choice persists in `localStorage`. Grid thumbnails use the post's first photo when present; otherwise a text-preview card shows a snippet of the note (clipped to the box with `-webkit-line-clamp`), with a small SVG icon badge in the bottom-right corner for video, audio, YouTube, and Spotify posts.
+Reading at `/reading/` uses the same list/grid pattern (view choice in `localStorage`). Entries sort by `ym` descending. Grid covers come from D1 (`cover_url`), with build-time Open Library fallback for entries still missing art.
+
+Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on their own platforms when you include links there.
 
 ## Repository layout
 
@@ -42,7 +47,7 @@ The archive at `/thinking/` renders both a List view (chronological, same layout
 |------|---------|
 | `admin/` | Admin UI (static HTML + JS) |
 | `scripts/build.mjs` | Regenerates site into `dist/` |
-| `scripts/lib/` | Shared HTML, slug, thinking, linkify, media-URL, and YouTube/Spotify-embed helpers (build + Worker) |
+| `scripts/lib/` | Shared HTML, slug, thinking, linkify, media-URL/thumb helpers, section hints, and YouTube/Spotify-embed helpers (build + Worker) |
 | `scripts/d1-client.mjs` | D1 queries for local/Pages builds |
 | `build-pages.mjs` | Cloudflare Pages entrypoint (git unshallow + build) |
 | `worker/` | Cloudflare Worker (`update-thinking.js`) — admin API |
@@ -62,6 +67,8 @@ The archive at `/thinking/` renders both a List view (chronological, same layout
 ```bash
 npm run build
 npm run preview   # serves dist/ at http://localhost:3000
+npm run backfill-video-posters   # capture JPEG posters for existing Thinking videos (R2)
+npm run refresh-section-hints    # regenerate homepage section tooltips via Workers AI
 ```
 
 Output goes to **`dist/`** (gitignored). Generated HTML is not committed; CI/Pages builds from source + D1.
@@ -131,18 +138,23 @@ wrangler deploy
 
 | Action | Description |
 |--------|-------------|
-| `thinking` | Update Thinking text/photo in D1; optional Micro.blog + Bluesky |
+| `thinking` | Update Thinking text/photo/audio/video in D1; optional Micro.blog + Bluesky + Mastodon |
+| `thinking-video-upload-url` | Presigned PUT URL for direct video upload to R2 |
 | `list-thinking` | List Thinking archive from D1 (admin) |
+| `delete-thinking` | Delete Thinking post from archive (Micro.blog + Bluesky when saved) |
 | `upload-media` | Upload image to R2 (`thinking/` or `writing/`) |
 | `post` | Publish Writing post |
 | `edit-post` | Edit post (version history) |
 | `delete-post` | Delete published post |
-| `delete-thinking` | Delete Thinking post from archive (Micro.blog + Bluesky when saved) |
 | `fetch-post` | Load post for editing |
 | `list-drafts` / `save-draft` / `load-draft` / `delete-draft` | Writing drafts |
-| `reading` | Add Reading entry |
+| `reading` | Add Reading entry (optional author + cover) |
+| `reading-cover-candidates` | Search Open Library, Apple Books, Google Books for cover art |
+| `update-reading-cover` | Save chosen cover URL and author on a Reading entry |
+| `delete-reading` | Delete Reading entry |
 | `sharing` | Add Sharing (linklog) entry |
 | `fetch-title` | Fetch page title for Sharing |
+| `refresh-section-hints` | Regenerate homepage section tooltips with Workers AI |
 | `verify` | Check admin password |
 
 ## Photos
@@ -151,7 +163,16 @@ wrangler deploy
 - Up to **5 MB** per photo on rommy.blog and Micro.blog (JPEG, PNG, WebP, GIF)
 - Bluesky gets a compressed JPEG per photo when the original is over **2 MB**
 - **Thinking gallery:** 1 photo renders full width; 2–4 photos render as an equal-size, cropped 2×2 grid at the blog's content width (no letterboxing). Clicking any photo opens a same-page lightbox — full-viewport width, prev/next buttons, `←`/`→`/`Esc`, and swipe-to-navigate on mobile, wrapping at both ends — used identically on the homepage, `/thinking/` archive, and permalinks. On phones (including landscape orientation), lightbox photos render edge-to-edge with no corner rounding
+- **Thinking grid thumbs:** Photo tiles request square JPEGs from `/media/thumb/252/{key}` (Worker-resized, edge-cached). Native video tiles use a paired `-poster.jpg` in R2 (captured on upload or via `npm run backfill-video-posters`). Images in grid view load lazily with a small concurrency cap
 - On Writing posts, portrait-oriented photos default to half width; click to expand/collapse
+
+## Reading
+
+- Sorted by read month (`ym` DESC), not date added
+- List view: month + title linking to Bookshop.org
+- Grid view: cover art grouped by month (3 columns desktop, 2 mobile); list/grid choice in `localStorage`
+- Admin: optional **author** field improves cover search; **Find cover art** queries Open Library, Apple Books, and Google Books; covers can be changed later from the archive list
+- `cover_url` in D1 wins over build-time Open Library lookup; custom covers can be uploaded to R2 under `reading/covers/`
 
 ## Audio & Video Syndication
 
@@ -165,7 +186,7 @@ When a Thinking post includes audio or video, each platform receives it as a nat
 
 For files that exceed the per-platform size limit, or when bytes are unavailable (presigned video uploads over the threshold), syndication falls back to the previous behaviour: a plain-text post with a permalink and an "Audio: " or "Video: " prefix. Multiple photos syndicate to all three platforms (Micro.blog via repeated `photo[]` parts, Mastodon and Bluesky via multiple media attachments/images, up to 4).
 
-On mobile, Thinking video posters render a first frame instead of a blank box by appending `#t=0.001` to the video `src`.
+Native video uploads capture a JPEG grid poster at save time (`thinking/.../uuid-poster.jpg`). The Worker also serves square grid thumbnails at `/media/thumb/{width}/{key}` for rommy.blog-hosted photos.
 
 ## Sharing rommy.blog links
 

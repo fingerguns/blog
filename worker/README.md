@@ -105,13 +105,16 @@ Output directory: `dist`
 | `delete-post` | Delete a published writing post |
 | `delete-thinking` | Delete a Thinking post (Micro.blog, Bluesky if saved, rebuild) |
 | `fetch-post` | Load post for editing |
-| `reading` | Add reading entry |
+| `reading` | Add reading entry (optional author + cover) |
+| `reading-cover-candidates` | Search Open Library, Apple Books, Google Books for cover art |
+| `update-reading-cover` | Save chosen cover URL and author |
 | `delete-reading` | Delete reading entry |
 | `sharing` | Add linklog entry |
 | `list-drafts` | List all writing drafts |
 | `save-draft` | Create/update draft |
 | `load-draft` | Load draft by id |
 | `delete-draft` | Delete draft |
+| `refresh-section-hints` | Regenerate homepage section tooltips (Workers AI) |
 
 ## Architecture
 
