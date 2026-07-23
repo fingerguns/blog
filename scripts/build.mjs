@@ -27,9 +27,30 @@ if (d1Configured()) {
 } else {
   console.log("D1 not configured — loading data/posts.json");
   data = JSON.parse(readFileSync(join(root, "data/posts.json"), "utf8"));
+  const readingFavoritesPath = join(root, "data/reading-favorites.json");
+  if (existsSync(readingFavoritesPath)) {
+    try {
+      data.readingFavorites = JSON.parse(readFileSync(readingFavoritesPath, "utf8"));
+    } catch {
+      data.readingFavorites = [];
+    }
+  } else {
+    data.readingFavorites = [];
+  }
 }
 
-const { site, thinking, thinkingPosts = [], posts, reading, linklog, links, optionalColophon, sectionHints } = data;
+const {
+  site,
+  thinking,
+  thinkingPosts = [],
+  posts,
+  reading,
+  readingFavorites: readingFavoritesRaw = [],
+  linklog,
+  links,
+  optionalColophon,
+  sectionHints,
+} = data;
 
 const SECTION_HINTS = mergeSectionHints(sectionHints);
 
@@ -783,13 +804,15 @@ for (const r of orderedReading) {
   readingAffiliateUrlByCanonical.set(r.url, affiliate);
 }
 
-const readingFavoritesPath = join(root, "data/reading-favorites.json");
-let readingFavorites = [];
-if (existsSync(readingFavoritesPath)) {
-  try {
-    readingFavorites = JSON.parse(readFileSync(readingFavoritesPath, "utf8"));
-  } catch {
-    readingFavorites = [];
+let readingFavorites = Array.isArray(readingFavoritesRaw) ? readingFavoritesRaw : [];
+if (!readingFavorites.length && !d1Configured()) {
+  const favoritesJsonPath = join(root, "data/reading-favorites.json");
+  if (existsSync(favoritesJsonPath)) {
+    try {
+      readingFavorites = JSON.parse(readFileSync(favoritesJsonPath, "utf8"));
+    } catch {
+      readingFavorites = [];
+    }
   }
 }
 if (!Array.isArray(readingFavorites)) readingFavorites = [];

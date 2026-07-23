@@ -219,6 +219,22 @@ export default {
       return handleUpdateReadingCover(payload, db, cors, env);
     }
 
+    if (action === "reading-favorite") {
+      return handleReadingFavorite(payload, db, cors, env, ctx);
+    }
+
+    if (action === "list-reading-favorites") {
+      return handleListReadingFavorites(db, cors);
+    }
+
+    if (action === "delete-reading-favorite") {
+      return handleDeleteReadingFavorite(payload, db, cors, env, ctx);
+    }
+
+    if (action === "update-reading-favorite-cover") {
+      return handleUpdateReadingFavoriteCover(payload, db, cors, env);
+    }
+
     if (action === "sharing") {
       return handleSharing(payload, db, cors, env, ctx);
     }
@@ -2173,6 +2189,123 @@ async function handleDeleteReading(payload, db, cors, env, ctx) {
     return json({ ok: true }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Delete failed" }, 500, cors);
+  }
+}
+
+function normalizeReadingFavoriteUrl(url, env) {
+  const trimmed = String(url || "").trim();
+  let affiliate = bookshopAffiliateUrl(trimmed, env.BOOKSHOP_AFFILIATE_ID);
+  if (affiliate === trimmed && /bookshop\.org/i.test(trimmed)) {
+    const isbn = isbnFromBookshopUrl(trimmed);
+    if (isbn) {
+      affiliate = `https://bookshop.org/a/${env.BOOKSHOP_AFFILIATE_ID || "126485"}/${isbn}`;
+    }
+  }
+  return affiliate;
+}
+
+async function handleReadingFavorite(body, db, cors, env, ctx) {
+  const { title, url, cover_url, author } = body;
+
+  if (typeof title !== "string" || !title.trim()) {
+    return json({ error: "Missing title" }, 400, cors);
+  }
+  if (typeof url !== "string" || !url.trim()) {
+    return json({ error: "Missing url" }, 400, cors);
+  }
+
+  const now = new Date();
+  const entry = {
+    title: title.trim(),
+    url: normalizeReadingFavoriteUrl(url, env),
+    coverUrl: typeof cover_url === "string" && cover_url.trim() ? cover_url.trim() : null,
+    author: typeof author === "string" && author.trim() ? author.trim() : null,
+  };
+
+  try {
+    await dbRun(
+      db,
+      "INSERT INTO reading_favorites (title, url, cover_url, author, added_at) VALUES (?, ?, ?, ?, ?)",
+      entry.title,
+      entry.url,
+      entry.coverUrl,
+      entry.author,
+      now.toISOString()
+    );
+
+    await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Reading", triggerRebuild);
+    return json({ ok: true, entry }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Update failed" }, 500, cors);
+  }
+}
+
+async function handleListReadingFavorites(db, cors) {
+  try {
+    const { results: rows } = await dbAll(
+      db,
+      "SELECT id, title, url, added_at, cover_url, author FROM reading_favorites ORDER BY title COLLATE NOCASE ASC, id ASC"
+    );
+    return json({ ok: true, items: rows || [] }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Could not list reading favorites" }, 500, cors);
+  }
+}
+
+async function handleDeleteReadingFavorite(payload, db, cors, env, ctx) {
+  const id = payload.id;
+  if (!id || typeof id !== "number") {
+    return json({ error: "Missing or invalid id" }, 400, cors);
+  }
+
+  try {
+    const existing = await dbFirst(db, "SELECT id FROM reading_favorites WHERE id = ?", id);
+    if (!existing) {
+      return json({ error: "Favorite not found" }, 404, cors);
+    }
+
+    await dbRun(db, "DELETE FROM reading_favorites WHERE id = ?", id);
+
+    await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Reading", triggerRebuild);
+
+    return json({ ok: true }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Delete failed" }, 500, cors);
+  }
+}
+
+async function handleUpdateReadingFavoriteCover(payload, db, cors, env) {
+  const { id } = payload;
+  if (!id || typeof id !== "number") {
+    return json({ error: "Missing or invalid id" }, 400, cors);
+  }
+  const coverUrl =
+    typeof payload.cover_url === "string" && payload.cover_url.trim()
+      ? payload.cover_url.trim()
+      : null;
+  const author =
+    typeof payload.author === "string" && payload.author.trim() ? payload.author.trim() : null;
+
+  try {
+    const existing = await dbFirst(db, "SELECT id FROM reading_favorites WHERE id = ?", id);
+    if (!existing) {
+      return json({ error: "Favorite not found" }, 404, cors);
+    }
+
+    await dbRun(
+      db,
+      "UPDATE reading_favorites SET cover_url = ?, author = ? WHERE id = ?",
+      coverUrl,
+      author,
+      id
+    );
+    await triggerRebuild(env);
+
+    return json({ ok: true }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Update failed" }, 500, cors);
   }
 }
 

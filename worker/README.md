@@ -109,6 +109,10 @@ Output directory: `dist`
 | `reading-cover-candidates` | Search Open Library, Apple Books, Google Books for cover art |
 | `update-reading-cover` | Save chosen cover URL and author |
 | `delete-reading` | Delete reading entry |
+| `reading-favorite` | Add book to Books Everyone Should Read |
+| `list-reading-favorites` | List curated reading favorites |
+| `update-reading-favorite-cover` | Save cover URL and author on a favorite |
+| `delete-reading-favorite` | Delete a curated favorite |
 | `sharing` | Add linklog entry |
 | `list-drafts` | List all writing drafts |
 | `save-draft` | Create/update draft |
@@ -127,3 +131,20 @@ Pages build → D1 HTTP API (read) → build.mjs → dist/ → rommy.blog
 ```
 
 `data/posts.json` is kept as a legacy fallback for local builds without D1 credentials.
+`data/reading-favorites.json` seeds the curated list for local builds; in production it lives in D1 (`reading_favorites`).
+
+### Reading favorites migration
+
+Run from the **repo root** (`fingerguns-blog/`). Requires `scripts/seed-reading-favorites.mjs` and `worker/migrate-reading-favorites.sql` (added in the reading-favorites admin PR — `git pull origin main` first).
+
+```bash
+# 1. Create the reading_favorites table (must run inside worker/ — paths are relative to that folder)
+cd worker
+wrangler d1 execute rommy-blog-db --file=migrate-reading-favorites.sql --remote
+
+# 2. Load the 36 books from data/reading-favorites.json into D1
+cd ..
+node scripts/seed-reading-favorites.mjs --remote
+```
+
+If step 1 fails with “Unable to read SQL text file”, you're not in `worker/` or the migration file isn't in your checkout yet.
