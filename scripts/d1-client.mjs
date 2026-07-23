@@ -99,6 +99,15 @@ export async function loadBlogDataFromD1() {
     "SELECT id, ym, title, url, added_at, cover_url, author FROM reading ORDER BY ym DESC, added_at DESC, id DESC"
   );
 
+  let readingFavorites = [];
+  try {
+    readingFavorites = await d1Query(
+      "SELECT id, title, url, added_at, cover_url, author FROM reading_favorites ORDER BY title COLLATE NOCASE ASC, id ASC"
+    );
+  } catch {
+    readingFavorites = [];
+  }
+
   const linklog = await d1Query(
     "SELECT url, title, date, datetime FROM linklog ORDER BY datetime DESC"
   );
@@ -154,6 +163,15 @@ export async function loadBlogDataFromD1() {
       url: r.url,
       added_at: r.added_at,
       cover_url: r.cover_url || "",
+      author: r.author || "",
+    })),
+    readingFavorites: readingFavorites.map((r) => ({
+      id: r.id,
+      title: r.title,
+      url: r.url,
+      added_at: r.added_at,
+      cover_url: r.cover_url || "",
+      author: r.author || "",
     })),
     linklog: linklog.map((l) => ({
       url: l.url,
