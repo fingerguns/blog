@@ -13,6 +13,10 @@ import { mergeSectionHints } from "./lib/section-hints.mjs";
 import { thinkingGridThumbUrl, videoPosterKeyFromVideoUrl } from "./lib/media-url.mjs";
 import { renderThinkingContentHtml } from "./lib/thinking-html.mjs";
 import { bookshopAffiliateUrl, bookshopAffiliateIdFromEnv, isbnFromBookshopUrl } from "./lib/bookshop-affiliate.mjs";
+import {
+  buildLatestCoverLookup,
+  inheritLatestCover,
+} from "./lib/reading-cover-inherit.mjs";
 import { thinkingSlugFromIso } from "./lib/thinking-slug.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -727,6 +731,10 @@ function titlesMatch(a, b) {
   return Boolean(na && nb) && (na === nb || na.includes(nb) || nb.includes(na));
 }
 
+function coverForReadingEntry(r) {
+  return r.cover_url || readingCoverCache[r.url] || null;
+}
+
 // Cover lookup, most precise first:
 // 1. The exact edition record for an ISBN (its own `covers` array) — this is
 //    what the book actually looks like on the shelf, not just "a" cover for
@@ -835,6 +843,21 @@ for (const r of orderedReadingFavorites) {
     if (isbn) affiliate = `https://bookshop.org/a/${bookshopAffiliateId}/${isbn}`;
   }
   readingFavoritesAffiliateUrlByCanonical.set(r.url, affiliate);
+}
+
+const latestCoverLookup = buildLatestCoverLookup(orderedReading, coverForReadingEntry);
+let inheritedFavoriteCovers = 0;
+for (const r of orderedReadingFavorites) {
+  const inherited = inheritLatestCover(r, latestCoverLookup);
+  if (inherited) {
+    readingCoverCache[r.url] = inherited;
+    inheritedFavoriteCovers++;
+  }
+}
+if (inheritedFavoriteCovers > 0) {
+  console.log(
+    `Using ${inheritedFavoriteCovers} cover(s) from Latest for Books Everyone Should Read…`
+  );
 }
 
 const favoritesMissingCovers = orderedReadingFavorites.filter(
