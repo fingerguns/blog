@@ -783,6 +783,57 @@ for (const r of orderedReading) {
   readingAffiliateUrlByCanonical.set(r.url, affiliate);
 }
 
+const readingFavoritesPath = join(root, "data/reading-favorites.json");
+let readingFavorites = [];
+if (existsSync(readingFavoritesPath)) {
+  try {
+    readingFavorites = JSON.parse(readFileSync(readingFavoritesPath, "utf8"));
+  } catch {
+    readingFavorites = [];
+  }
+}
+if (!Array.isArray(readingFavorites)) readingFavorites = [];
+
+const sortReadingFavoritesByTitle = (a, b) =>
+  String(a.title || "").localeCompare(String(b.title || ""), undefined, { sensitivity: "base" });
+
+const orderedReadingFavorites = [...readingFavorites]
+  .filter((r) => r && r.title && r.url)
+  .sort(sortReadingFavoritesByTitle);
+
+const readingFavoritesAffiliateUrlByCanonical = new Map();
+const readingFavoriteLinkUrl = (r) =>
+  readingFavoritesAffiliateUrlByCanonical.get(r.url) || bookshopAffiliateUrl(r.url, bookshopAffiliateId);
+
+for (const r of orderedReadingFavorites) {
+  let affiliate = bookshopAffiliateUrl(r.url, bookshopAffiliateId);
+  if (affiliate === r.url && /bookshop\.org/i.test(r.url || "")) {
+    const isbn = await resolveIsbnForReading(r.title, r.url);
+    if (isbn) affiliate = `https://bookshop.org/a/${bookshopAffiliateId}/${isbn}`;
+  }
+  readingFavoritesAffiliateUrlByCanonical.set(r.url, affiliate);
+}
+
+const favoritesMissingCovers = orderedReadingFavorites.filter(
+  (r) => r.url && !r.cover_url && !(r.url in readingCoverCache)
+);
+if (favoritesMissingCovers.length > 0) {
+  console.log(`Looking up ${favoritesMissingCovers.length} favorite book cover(s) via Open Library…`);
+  let fetchedAny = false;
+  for (const r of favoritesMissingCovers) {
+    const cover = await fetchBookCover(r.title, r.url);
+    if (cover) {
+      readingCoverCache[r.url] = cover;
+      fetchedAny = true;
+    } else {
+      console.log(`  no cover found for favorite "${r.title}" — will retry next build`);
+    }
+  }
+  if (fetchedAny) {
+    writeFileSync(readingCoversPath, `${JSON.stringify(readingCoverCache, null, 2)}\n`);
+  }
+}
+
 const stripHashtags = (s) => String(s).replace(/\s*#\S+/g, "").trim();
 
 const orderedLinklog = [...(linklog || [])].sort(sortDesc);
@@ -805,6 +856,7 @@ const postListAllHtml = ordered.map((p) => renderPostItem(p, true)).join("\n");
 
 const readingHtml = orderedReading.slice(0, MAX_PER_SECTION).map(renderReadingItem).join("\n");
 const hasMoreReading = orderedReading.length > MAX_PER_SECTION;
+const hasReadingArchive = orderedReading.length > 0 || orderedReadingFavorites.length > 0;
 const readingAllHtml = orderedReading.map(renderReadingItem).join("\n");
 
 const linklogHtml = orderedLinklog.slice(0, MAX_PER_SECTION).map(renderLinklogItem).join("\n");
@@ -1471,15 +1523,15 @@ function readingMonthLabel(ym) {
   );
 }
 
-function readingGridItemHtml(r) {
+function readingGridItemHtml(r, linkUrlFn = readingLinkUrl) {
   const cover = r.cover_url || readingCoverCache[r.url];
   const coverInner = cover
     ? `<img src="${escHtml(cover)}" alt="${escHtml(r.title)}" loading="lazy" decoding="async" />`
     : `<span class="reading-grid-cover-fallback">${escHtml(r.title)}</span>`;
-  return `          <a class="reading-grid-item" href="${escHtml(readingLinkUrl(r))}" target="_blank" rel="noopener noreferrer">
-            <span class="reading-grid-cover">${coverInner}</span>
-            <span class="reading-grid-title">${escHtml(r.title)}</span>
-          </a>`;
+  return `          <a class="reading-grid-item" href="${escHtml(linkUrlFn(r))}" target="_blank" rel="noopener noreferrer">
+    <span class="reading-grid-cover">${coverInner}</span>
+    <span class="reading-grid-title">${escHtml(r.title)}</span>
+  </a>`;
 }
 
 function readingGridGroupsHtml(items) {
@@ -1501,7 +1553,7 @@ function readingGridGroupsHtml(items) {
       (g) => `      <section class="reading-grid-month">
         <h2 class="reading-grid-month-label">${escHtml(g.label)}</h2>
         <div class="reading-grid">
-${g.items.map(readingGridItemHtml).join("\n")}
+${g.items.map((r) => readingGridItemHtml(r)).join("\n")}
         </div>
       </section>`
     )
@@ -1510,12 +1562,42 @@ ${g.items.map(readingGridItemHtml).join("\n")}
 
 const readingGridHtml = readingGridGroupsHtml(orderedReading);
 
-const readingViewToggleHtml = `      <div class="reading-view-toggle" role="group" aria-label="Switch view">
-        <button type="button" class="reading-view-btn" data-view-btn="list" aria-pressed="true" aria-label="List view">${THINKING_VIEW_ICONS.list}</button>
-        <button type="button" class="reading-view-btn" data-view-btn="grid" aria-pressed="false" aria-label="Grid view">${THINKING_VIEW_ICONS.grid}</button>
+const renderReadingFavoriteItem = (r) =>
+  `          <li>
+            <a href="${escHtml(readingFavoriteLinkUrl(r))}" target="_blank" rel="noopener noreferrer">${escHtml(r.title)}</a>
+          </li>`;
+
+const readingFavoritesAllHtml = orderedReadingFavorites.map(renderReadingFavoriteItem).join("\n");
+
+const readingFavoritesGridHtml =
+  orderedReadingFavorites.length === 0
+    ? ""
+    : `        <div class="reading-grid">
+${orderedReadingFavorites.map((r) => readingGridItemHtml(r, readingFavoriteLinkUrl)).join("\n")}
+        </div>`;
+
+const readingFavoritesPanelHtml =
+  orderedReadingFavorites.length === 0
+    ? `      <p class="reading-favorites-empty">No books here yet — check back soon.</p>`
+    : `      <ol class="post-list reading-list">
+${readingFavoritesAllHtml}
+      </ol>
+      <div class="reading-grid-wrap">
+${readingFavoritesGridHtml}
       </div>`;
 
-const readingViewToggleScript = `    <script>(function(){var wrap=document.querySelector('.reading-views');var btns=document.querySelectorAll('.reading-view-btn');if(!wrap||!btns.length)return;function set(v){wrap.setAttribute('data-view',v);btns.forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-view-btn')===v?'true':'false');});localStorage.setItem('readingView',v);}set(localStorage.getItem('readingView')||'list');btns.forEach(function(b){b.addEventListener('click',function(){set(b.getAttribute('data-view-btn'));});});}());</script>`;
+const readingArchiveToolbarHtml = `      <div class="reading-archive-toolbar">
+        <nav class="reading-tabs" role="tablist" aria-label="Reading lists">
+          <button type="button" class="reading-tab" role="tab" data-tab-btn="latest" aria-selected="true">Latest</button>
+          <button type="button" class="reading-tab" role="tab" data-tab-btn="favorites" aria-selected="false">Books Everyone Should Read</button>
+        </nav>
+        <div class="reading-view-toggle" role="group" aria-label="Switch view">
+          <button type="button" class="reading-view-btn" data-view-btn="list" aria-pressed="true" aria-label="List view">${THINKING_VIEW_ICONS.list}</button>
+          <button type="button" class="reading-view-btn" data-view-btn="grid" aria-pressed="false" aria-label="Grid view">${THINKING_VIEW_ICONS.grid}</button>
+        </div>
+      </div>`;
+
+const readingArchiveScript = `    <script>(function(){var wrap=document.querySelector('.reading-views');if(!wrap)return;var tabBtns=wrap.querySelectorAll('[data-tab-btn]');var viewBtns=wrap.querySelectorAll('.reading-view-btn');var scrollObs=null;var scrollSentinel=null;function activePanel(){return wrap.querySelector('[data-tab-panel="'+wrap.getAttribute('data-tab')+'"]');}function setTab(t){wrap.setAttribute('data-tab',t);tabBtns.forEach(function(b){b.setAttribute('aria-selected',b.getAttribute('data-tab-btn')===t?'true':'false');});localStorage.setItem('readingTab',t);setupInfiniteScroll();}function setView(v){wrap.setAttribute('data-view',v);viewBtns.forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-view-btn')===v?'true':'false');});localStorage.setItem('readingView',v);}function setupInfiniteScroll(){if(scrollObs){scrollObs.disconnect();scrollObs=null;}if(scrollSentinel){scrollSentinel.remove();scrollSentinel=null;}var panel=activePanel();if(!panel)return;var list=panel.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');items.forEach(function(li){li.hidden=false;});var BATCH=10;if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++)items[i].hidden=true;var shown=BATCH;scrollSentinel=document.createElement('div');scrollSentinel.className='reading-scroll-sentinel';panel.appendChild(scrollSentinel);scrollObs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++)items[i].hidden=false;shown=next;if(shown>=items.length){scrollObs.disconnect();scrollObs=null;}},{rootMargin:'0px'});scrollObs.observe(scrollSentinel);}setTab(localStorage.getItem('readingTab')||'latest');setView(localStorage.getItem('readingView')||'list');tabBtns.forEach(function(b){b.addEventListener('click',function(){setTab(b.getAttribute('data-tab-btn'));});});viewBtns.forEach(function(b){b.addEventListener('click',function(){setView(b.getAttribute('data-view-btn'));});});setupInfiniteScroll();}());</script>`;
 
 const readingArchiveFoot = `      <footer class="site-footer">
         <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><a href="#" class="theme-toggle" id="theme-toggle"></a></p>
@@ -1524,21 +1606,25 @@ const readingArchiveFoot = `      <footer class="site-footer">
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
 ${portraitPhotoToggleScript}
-${readingViewToggleScript}
+${readingArchiveScript}
 ${thinkingLightboxScript}
-    <script>(function(){var BATCH=10;var list=document.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++)items[i].hidden=true;var shown=BATCH;var sentinel=document.createElement('div');document.body.appendChild(sentinel);var obs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++)items[i].hidden=false;shown=next;if(shown>=items.length)obs.disconnect();},{rootMargin:'0px'});obs.observe(sentinel);}());</script>
   </body>
 </html>
 `;
 
 const readingPageHtml = `${archiveHead("Reading", sectionHeading("Reading", "h1"))}
-    <div class="reading-views" data-view="list">
-${readingViewToggleHtml}
-      <ol class="post-list reading-list">
+    <div class="reading-views" data-view="list" data-tab="latest">
+${readingArchiveToolbarHtml}
+      <div class="reading-tab-panel" data-tab-panel="latest">
+        <ol class="post-list reading-list">
 ${readingAllHtml}
-      </ol>
-      <div class="reading-grid-wrap">
+        </ol>
+        <div class="reading-grid-wrap">
 ${readingGridHtml}
+        </div>
+      </div>
+      <div class="reading-tab-panel" data-tab-panel="favorites">
+${readingFavoritesPanelHtml}
       </div>
     </div>
 ${readingArchiveFoot}`;
@@ -1557,7 +1643,7 @@ ${thinkingArchiveFoot}`;
 
 const archiveUrls = [
   ...(hasMorePosts ? [`${base}/writing/`] : []),
-  ...(hasMoreReading ? [`${base}/reading/`] : []),
+  ...(hasReadingArchive ? [`${base}/reading/`] : []),
   ...(hasMoreLinklog ? [`${base}/sharing/`] : []),
 ];
 
@@ -1604,7 +1690,7 @@ const manageArchive = (needed, dir, html) => {
 };
 
 manageArchive(hasMorePosts, "writing", writingPageHtml);
-manageArchive(hasMoreReading, "reading", readingPageHtml);
+manageArchive(hasReadingArchive, "reading", readingPageHtml);
 manageArchive(hasMoreLinklog, "sharing", sharingPageHtml);
 
 mkdirSync(join(outDir, "now"), { recursive: true });

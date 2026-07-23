@@ -737,13 +737,72 @@ h2 {
   }
 }
 
-/* Reading view toggle (list / grid) — same look as the Thinking toggle */
+/* Reading archive — tabs (Latest / favorites) + list/grid toggle */
+.reading-archive-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0.5rem 0 1.5rem;
+  flex-wrap: wrap;
+}
+.reading-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.reading-tab {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 500;
+  line-height: 1.3;
+  padding: 0.35rem 0.65rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.15s, background-color 0.15s;
+}
+.reading-tab:hover {
+  color: var(--link-hover);
+}
+.reading-tab[aria-selected="true"] {
+  color: var(--text);
+  background: var(--thinking-delete-bg);
+}
+.reading-views[data-tab="latest"] .reading-tab-panel[data-tab-panel="favorites"] {
+  display: none;
+}
+.reading-views[data-tab="favorites"] .reading-tab-panel[data-tab-panel="latest"] {
+  display: none;
+}
+.reading-favorites-empty {
+  color: var(--muted);
+  margin: 0;
+}
 .reading-view-toggle {
   display: flex;
   justify-content: flex-start;
   gap: 0.4rem;
-  margin: 0.5rem 0 1.5rem;
+  flex-shrink: 0;
+  margin: 0;
 }
+@media (max-width: 480px) {
+  .reading-archive-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  .reading-view-toggle {
+    justify-content: flex-end;
+  }
+  .reading-tab {
+    font-size: 0.88rem;
+    padding: 0.35rem 0.5rem;
+  }
+}
+
 .reading-view-btn {
   display: inline-flex;
   align-items: center;
