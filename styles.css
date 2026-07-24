@@ -783,6 +783,12 @@ h2 {
   color: var(--muted);
   margin: 0;
 }
+.reading-tab-intro {
+  margin: 0 0 1.25rem;
+  color: var(--muted);
+  font-size: 0.98rem;
+  line-height: 1.65;
+}
 .reading-view-toggle {
   display: flex;
   justify-content: flex-end;
