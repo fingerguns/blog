@@ -1243,6 +1243,7 @@ if(filterBtns.length){
       if(active[k]){active[k]=false;}
       else{kinds.forEach(function(kind){active[kind]=(kind===k);});}
       applyFilters();
+      b.blur();
     });
   });
 }else{scanGridMedia();}

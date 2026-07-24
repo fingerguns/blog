@@ -512,8 +512,13 @@ h2 {
   width: 1.75rem;
   height: 1.25rem;
 }
-.thinking-filter-btn:hover {
-  opacity: 0.72;
+@media (hover: hover) and (pointer: fine) {
+  .thinking-filter-btn:hover {
+    opacity: 0.72;
+  }
+  .thinking-filter-btn[aria-pressed="true"]:hover {
+    opacity: 1;
+  }
 }
 .thinking-filter-btn[aria-pressed="true"] {
   opacity: 1;
