@@ -196,11 +196,12 @@ export default {
     if (action === "refresh-reading-tab-intros") {
       const tab = typeof payload.tab === "string" ? payload.tab.trim() : "";
       const tabs = tab && READING_TAB_KEYS.includes(tab) ? [tab] : [...READING_TAB_KEYS];
+      const results = [];
       for (const name of tabs) {
-        await refreshReadingTabIntro(env, db, name, null);
+        results.push(await refreshReadingTabIntro(env, db, name, null));
       }
       await triggerRebuild(env);
-      return json({ ok: true, intros: await loadReadingTabIntros(db) }, 200, cors);
+      return json({ ok: true, intros: await loadReadingTabIntros(db), refresh: results }, 200, cors);
     }
 
     if (action === "thinking") {

@@ -1,14 +1,16 @@
+import { extractAiText, WORKERS_AI_TEXT_MODEL } from "../scripts/lib/ai-text.mjs";
 import {
   DEFAULT_READING_TAB_INTROS,
   READING_TAB_KEYS,
   buildReadingTabIntroPrompt,
+  introsAreSimilar,
   mergeReadingTabIntros,
   normalizeReadingTabIntro,
 } from "../scripts/lib/reading-tab-intros.mjs";
 
 export { READING_TAB_KEYS };
 
-const AI_MODEL = "@cf/meta/llama-3.1-8b-instruct";
+const AI_MODEL = WORKERS_AI_TEXT_MODEL;
 const SITE_CONFIG_KEY = "reading_tab_intros";
 
 async function dbRun(db, sql, ...params) {
@@ -70,62 +72,104 @@ async function fetchTabSamples(db, tab) {
       currentYm,
       previousYm
     );
-    return (results || []).map(formatReadingSample);
+    return {
+      entries: (results || []).map(formatReadingSample),
+      months: [currentYm, previousYm],
+    };
   }
 
   if (tab === "mustReads") {
-    const { results } = await dbAll(
+    const { results: recentRows } = await dbAll(
       db,
-      "SELECT title, author FROM reading_favorites ORDER BY title COLLATE NOCASE ASC, id ASC"
+      "SELECT title, author FROM reading_favorites ORDER BY added_at DESC, id DESC LIMIT 8"
     );
-    return (results || []).map(formatFavoriteSample);
+    const { results: allRows } = await dbAll(
+      db,
+      "SELECT title FROM reading_favorites ORDER BY title COLLATE NOCASE ASC, id ASC"
+    );
+    const titles = (allRows || []).map((row) => row.title);
+    return {
+      count: titles.length,
+      recent: (recentRows || []).map(formatFavoriteSample),
+      titles,
+    };
   }
 
-  return [];
-}
-
-function extractAiText(result) {
-  if (typeof result === "string") return result;
-  if (typeof result?.response === "string") return result.response;
-  if (typeof result?.result?.response === "string") return result.result.response;
-  return "";
+  return null;
 }
 
 export async function generateReadingTabIntro(env, tab, samples, currentIntro) {
-  if (!env.AI) return null;
+  if (!env.AI) {
+    return { intro: null, reason: "Workers AI binding not configured" };
+  }
 
   const prompt = buildReadingTabIntroPrompt(tab, samples, currentIntro);
-  const result = await env.AI.run(AI_MODEL, {
-    messages: [
-      {
-        role: "system",
-        content:
-          "You write visitor-facing intro copy for a personal blog's reading lists. Output only the paragraph requested, with book titles in <em> tags.",
-      },
-      { role: "user", content: prompt },
-    ],
-    max_tokens: 480,
-  });
+  let result;
+  try {
+    result = await env.AI.run(AI_MODEL, {
+      messages: [
+        {
+          role: "system",
+          content:
+            "You write visitor-facing intro copy for a personal blog's reading lists. Output only the paragraph requested, with book titles in <em> tags.",
+        },
+        { role: "user", content: prompt },
+      ],
+      max_tokens: 480,
+    });
+  } catch (err) {
+    return { intro: null, reason: err?.message || "Workers AI request failed" };
+  }
 
-  const intro = normalizeReadingTabIntro(extractAiText(result));
-  return intro.length >= 80 ? intro : null;
+  const raw = extractAiText(result);
+  const intro = normalizeReadingTabIntro(raw);
+  if (intro.length < 80) {
+    return {
+      intro: null,
+      reason: raw ? `Model output too short (${intro.length} chars)` : "Empty model output",
+      rawPreview: truncate(raw, 200),
+    };
+  }
+  if (introsAreSimilar(intro, currentIntro)) {
+    return {
+      intro: null,
+      reason: "Model echoed the previous intro",
+      rawPreview: truncate(intro, 200),
+    };
+  }
+  return { intro, rawPreview: truncate(intro, 200) };
+}
+
+function truncate(text, max = 160) {
+  const s = String(text || "").trim();
+  if (s.length <= max) return s;
+  return `${s.slice(0, max - 1)}…`;
 }
 
 export async function refreshReadingTabIntro(env, db, tab, triggerRebuild) {
-  if (!READING_TAB_KEYS.includes(tab)) return;
+  if (!READING_TAB_KEYS.includes(tab)) {
+    return { tab, saved: false, reason: "Unknown tab" };
+  }
 
   try {
     const samples = await fetchTabSamples(db, tab);
     const intros = await loadReadingTabIntros(db);
-    const next = await generateReadingTabIntro(env, tab, samples, intros[tab]);
-    if (!next) return;
+    const currentIntro = intros[tab];
+    const generated = await generateReadingTabIntro(env, tab, samples, currentIntro);
+    if (!generated.intro) {
+      console.error(`reading tab intro refresh skipped (${tab}):`, generated.reason, generated.rawPreview || "");
+      return { tab, saved: false, reason: generated.reason, rawPreview: generated.rawPreview };
+    }
 
-    await saveReadingTabIntro(db, tab, next);
+    await saveReadingTabIntro(db, tab, generated.intro);
     if (typeof triggerRebuild === "function") {
       await triggerRebuild(env);
     }
+    return { tab, saved: true, preview: generated.rawPreview };
   } catch (err) {
-    console.error(`reading tab intro refresh failed (${tab}):`, err?.message || err);
+    const reason = err?.message || String(err);
+    console.error(`reading tab intro refresh failed (${tab}):`, reason);
+    return { tab, saved: false, reason };
   }
 }
 

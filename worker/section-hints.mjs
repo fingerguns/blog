@@ -5,10 +5,11 @@ import {
   mergeSectionHints,
   normalizeSectionHint,
 } from "../scripts/lib/section-hints.mjs";
+import { extractAiText, WORKERS_AI_TEXT_MODEL } from "../scripts/lib/ai-text.mjs";
 
 export { SECTION_NAMES };
 
-const AI_MODEL = "@cf/meta/llama-3.1-8b-instruct";
+const AI_MODEL = WORKERS_AI_TEXT_MODEL;
 const SAMPLE_LIMIT = 18;
 
 async function dbRun(db, sql, ...params) {
@@ -110,13 +111,6 @@ async function fetchSectionSamples(db, section) {
   }
 
   return [];
-}
-
-function extractAiText(result) {
-  if (typeof result === "string") return result;
-  if (typeof result?.response === "string") return result.response;
-  if (typeof result?.result?.response === "string") return result.result.response;
-  return "";
 }
 
 export async function generateSectionHint(env, section, samples, currentHint) {

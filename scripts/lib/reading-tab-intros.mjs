@@ -14,43 +14,64 @@ export const READING_TAB_CONTEXT = {
     "Must Reads tab: Rommy's curated personal canon—books he thinks everyone should read. Alphabetical list, not chronological.",
 };
 
+const STYLE_GUIDE =
+  "Third-person visitor voice about Rommy Ghaly (he/him/his): 'Rommy's reading…', 'Rommy's Must Reads list…'. One paragraph, 4–6 sentences, ~120–220 words. Warm, literate, specific—describe themes and taste, not every title. Wrap book titles in <em> tags. Only mention books that appear in the list below.";
+
+function truncate(text, max) {
+  const s = String(text || "").trim();
+  if (s.length <= max) return s;
+  return `${s.slice(0, max - 1)}…`;
+}
+
+function compactTitleList(titles, maxChars = 1800) {
+  const joined = titles.join(", ");
+  if (joined.length <= maxChars) return joined;
+  return `${joined.slice(0, maxChars - 20)}… (${titles.length} titles total)`;
+}
+
 export function mergeReadingTabIntros(stored) {
   if (!stored || typeof stored !== "object") return { ...DEFAULT_READING_TAB_INTROS };
   return { ...DEFAULT_READING_TAB_INTROS, ...stored };
 }
 
-export function buildReadingTabIntroPrompt(tab, samples, currentIntro) {
+export function buildReadingTabIntroPrompt(tab, sampleData, currentIntro) {
   const context = READING_TAB_CONTEXT[tab] || "";
-  const example = DEFAULT_READING_TAB_INTROS[tab] || DEFAULT_READING_TAB_INTROS.latest;
   const tabLabel = tab === "mustReads" ? "Must Reads" : "Latest";
-  const sampleBlock =
-    samples.length > 0
-      ? samples.map((s) => `- ${s}`).join("\n")
-      : "- (no entries yet)";
+  const prior = truncate(currentIntro, 320);
 
-  return `You write intro paragraphs for the "${tabLabel}" tab on rommy.blog/reading — a personal book log by Rommy Ghaly.
+  let bookBlock = "- (no entries yet)";
+  if (tab === "latest" && Array.isArray(sampleData?.entries) && sampleData.entries.length) {
+    bookBlock = sampleData.entries.map((s) => `- ${s}`).join("\n");
+  } else if (tab === "mustReads" && sampleData?.count) {
+    const recent =
+      sampleData.recent?.length > 0
+        ? sampleData.recent.map((s) => `- ${s}`).join("\n")
+        : "- (none)";
+    bookBlock = `Total books: ${sampleData.count}
+
+Recently added (reflect these in the new intro):
+${recent}
+
+All titles on the list:
+${compactTitleList(sampleData.titles || [])}`;
+  }
+
+  return `Write a fresh intro paragraph for the "${tabLabel}" tab on rommy.blog/reading.
 
 Tab: ${tabLabel}
 What this tab is: ${context}
 
-Voice and format rules:
-- Write for a blog visitor in third person ("Rommy's reading…", "Rommy's Must Reads list…")
-- One paragraph, 4–6 sentences, roughly 120–220 words
-- Describe themes, literary lean, and taste—not a catalog of every title
-- Wrap book titles in HTML <em> tags (e.g. <em>The House of the Spirits</em>); author names stay plain
-- Warm, specific, literate tone—not marketing copy
-${tab === "latest" ? "- Focus on the past month or so of entries; mention a few representative titles by month when helpful" : "- Reflect the full curated list: translation, rediscovery, regional voices, and what ties the canon together"}
+Style: ${STYLE_GUIDE}
 
-Example tone for this tab:
-${example}
+Do NOT copy the previous intro verbatim. Write new copy that reflects the books below—especially any recent additions—and captures the current shape of the list.
 
-Current intro (refresh to reflect the books below while keeping this voice):
-${currentIntro || example}
+Previous intro (for tone reference only—do not reuse sentences):
+${prior || "(none yet)"}
 
-Books on this tab:
-${sampleBlock}
+Books:
+${bookBlock}
 
-Write ONLY the new intro paragraph with <em> tags around book titles. No quotes, no heading, no explanation.`;
+Output ONLY the new paragraph with <em> tags around book titles. No quotes, heading, or explanation.`;
 }
 
 export function normalizeReadingTabIntro(text) {
@@ -63,6 +84,7 @@ export function normalizeReadingTabIntro(text) {
     s = s.slice(1, -1).trim();
   }
   s = s.replace(/^intro:\s*/i, "").trim();
+  s = s.replace(/^```(?:html|markdown|text)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
   // Convert markdown italics to <em> when the model ignores HTML instructions.
   s = s.replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
   s = s.replace(/_([^_\n]+)_/g, "<em>$1</em>");
@@ -70,4 +92,17 @@ export function normalizeReadingTabIntro(text) {
   s = s.replace(/<(?!\/?em\b)[^>]+>/gi, "");
   if (s.length > 2200) s = `${s.slice(0, 2197)}…`;
   return s;
+}
+
+export function introsAreSimilar(a, b) {
+  const norm = (s) =>
+    String(s || "")
+      .replace(/<\/?em>/gi, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  const left = norm(a);
+  const right = norm(b);
+  if (!left || !right) return false;
+  return left === right;
 }

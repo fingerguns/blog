@@ -30,6 +30,12 @@ if (!res.ok) {
 }
 
 console.log("Reading tab intros updated:\n");
+for (const result of data.refresh || []) {
+  const status = result.saved ? "saved" : `skipped (${result.reason || "unknown"})`;
+  console.log(`## ${result.tab} — ${status}`);
+  if (result.preview) console.log(result.preview);
+  console.log("");
+}
 for (const [tab, intro] of Object.entries(data.intros || {})) {
-  console.log(`## ${tab}\n${intro}\n`);
+  console.log(`### ${tab}\n${intro}\n`);
 }
