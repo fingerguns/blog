@@ -1039,7 +1039,7 @@ ${postListHtml}
         <ol class="post-list" reversed>
 ${readingHtml}
         </ol>
-        ${hasMoreReading ? '<a class="see-more" href="/reading/">→</a>' : ""}
+        ${hasMoreReading ? '<a class="see-more" href="/reading/latest/">→</a>' : ""}
       </section>
 
       <section aria-labelledby="linklog-heading">
@@ -1710,9 +1710,7 @@ ${thinkingArchiveFoot}`;
 
 const archiveUrls = [
   ...(hasMorePosts ? [`${base}/writing/`] : []),
-  ...(hasReadingArchive
-    ? [`${base}/reading/`, `${base}/reading/latest/`, `${base}/reading/must-reads/`]
-    : []),
+  ...(hasReadingArchive ? [`${base}/reading/latest/`, `${base}/reading/must-reads/`] : []),
   ...(hasMoreLinklog ? [`${base}/sharing/`] : []),
 ];
 
@@ -1759,14 +1757,17 @@ const manageArchive = (needed, dir, html) => {
 };
 
 manageArchive(hasMorePosts, "writing", writingPageHtml);
-manageArchive(hasReadingArchive, "reading", readingPageHtml("latest"));
 if (hasReadingArchive) {
-  mkdirSync(join(outDir, "reading", "latest"), { recursive: true });
-  writeFileSync(join(outDir, "reading", "latest", "index.html"), readingPageHtml("latest"), "utf8");
-  mkdirSync(join(outDir, "reading", "must-reads"), { recursive: true });
+  for (const [tab, slug] of [
+    ["latest", "latest"],
+    ["favorites", "must-reads"],
+  ]) {
+    mkdirSync(join(outDir, "reading", slug), { recursive: true });
+    writeFileSync(join(outDir, "reading", slug, "index.html"), readingPageHtml(tab), "utf8");
+  }
   writeFileSync(
-    join(outDir, "reading", "must-reads", "index.html"),
-    readingPageHtml("favorites"),
+    join(outDir, "_redirects"),
+    "/reading /reading/latest/ 301\n/reading/ /reading/latest/ 301\n",
     "utf8"
   );
 }
