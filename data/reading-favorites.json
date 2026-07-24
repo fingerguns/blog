@@ -4,12 +4,28 @@
     "url": "https://bookshop.org/a/126485/9780679744399"
   },
   {
+    "title": "An Episode in the Life of a Landscape Painter",
+    "url": "https://bookshop.org/a/126485/9780811216302",
+    "cover_url": "https://rommy.blog/media/reading/covers/an-episode-in-the-life-of-a-landscape-painter-cesar-aira.png"
+  },
+  {
     "title": "A Confederacy of Dunces",
-    "url": "https://bookshop.org/a/126485/9780802130204"
+    "url": "https://bookshop.org/a/126485/9780802130204",
+    "cover_url": "https://rommy.blog/media/reading/covers/a-confederacy-of-dunces-john-kennedy-toole.png"
+  },
+  {
+    "title": "Arthur Rimbaud",
+    "url": "https://bookshop.org/a/126485/9780811201971",
+    "cover_url": "https://rommy.blog/media/reading/covers/arthur-rimbaud-enid-starkie.png"
   },
   {
     "title": "Between the World and Me",
     "url": "https://bookshop.org/a/126485/9780812983814"
+  },
+  {
+    "title": "Big Sur",
+    "url": "https://bookshop.org/a/126485/9780140168129",
+    "cover_url": "https://rommy.blog/media/reading/covers/big-sur-jack-kerouac.png"
   },
   {
     "title": "Blood Meridian",
@@ -39,7 +55,8 @@
   },
   {
     "title": "Giovanni's Room",
-    "url": "https://bookshop.org/a/126485/9780345806567"
+    "url": "https://bookshop.org/a/126485/9780345806567",
+    "cover_url": "https://rommy.blog/media/reading/covers/giovannis-room-james-baldwin.png"
   },
   {
     "title": "Hard Rain Falling",
@@ -52,7 +69,8 @@
   },
   {
     "title": "Hopscotch",
-    "url": "https://bookshop.org/a/126485/9780394752846"
+    "url": "https://bookshop.org/a/126485/9780394752846",
+    "cover_url": "https://rommy.blog/media/reading/covers/hopscotch-julio-cortazar.png"
   },
   {
     "title": "In Cold Blood",
@@ -64,7 +82,13 @@
   },
   {
     "title": "Kafka on the Shore",
-    "url": "https://bookshop.org/a/126485/9781400079278"
+    "url": "https://bookshop.org/a/126485/9781400079278",
+    "cover_url": "https://rommy.blog/media/reading/covers/kafka-on-the-shore-haruki-murakami.png"
+  },
+  {
+    "title": "Last Exit to Brooklyn",
+    "url": "https://bookshop.org/a/126485/9780802131379",
+    "cover_url": "https://rommy.blog/media/reading/covers/last-exit-to-brooklyn-hubert-selby-jr.png"
   },
   {
     "title": "Moravagine",
@@ -85,7 +109,8 @@
   },
   {
     "title": "The Baron in the Trees",
-    "url": "https://bookshop.org/a/126485/9780544959118"
+    "url": "https://bookshop.org/a/126485/9780544959118",
+    "cover_url": "https://rommy.blog/media/reading/covers/the-baron-in-the-trees-italo-calvino.png"
   },
   {
     "title": "The Bell Jar",
@@ -116,11 +141,17 @@
   },
   {
     "title": "The Master and Margarita",
-    "url": "https://bookshop.org/a/126485/9780143108276"
+    "url": "https://bookshop.org/a/126485/9780143108276",
+    "cover_url": "https://rommy.blog/media/reading/covers/the-master-and-margarita-mikhail-bulgakov.jpg"
   },
   {
     "title": "The Murderess",
     "url": "https://bookshop.org/a/126485/9781590173503"
+  },
+  {
+    "title": "The Old Man and the Sea",
+    "url": "https://bookshop.org/a/126485/9781476787855",
+    "cover_url": "https://rommy.blog/media/reading/covers/the-old-man-and-the-sea-ernest-hemingway.png"
   },
   {
     "title": "The Savage Detectives",
@@ -128,11 +159,13 @@
   },
   {
     "title": "The Unbearable Lightness of Being",
-    "url": "https://bookshop.org/a/126485/9780060932138"
+    "url": "https://bookshop.org/a/126485/9780060932138",
+    "cover_url": "https://rommy.blog/media/reading/covers/the-unbearable-lightness-of-being-milan-kundera.png"
   },
   {
     "title": "Their Eyes Were Watching God",
-    "url": "https://bookshop.org/a/126485/9780060838676"
+    "url": "https://bookshop.org/a/126485/9780060838676",
+    "cover_url": "https://rommy.blog/media/reading/covers/their-eyes-were-watching-god-zora-neale-hurston.jpg"
   },
   {
     "title": "Three Summers",
@@ -140,7 +173,8 @@
   },
   {
     "title": "Tropic of Cancer",
-    "url": "https://bookshop.org/a/126485/9780802131782"
+    "url": "https://bookshop.org/a/126485/9780802131782",
+    "cover_url": "https://rommy.blog/media/reading/covers/tropic-of-cancer-henry-miller.png"
   },
   {
     "title": "When the Tree Sings",
