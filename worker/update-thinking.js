@@ -20,6 +20,7 @@ import {
   loadReadingTabIntros,
   READING_TAB_KEYS,
 } from "./reading-tab-intros.mjs";
+import { generateReadingTagClouds } from "./reading-tag-clouds.mjs";
 import { serveMedia } from "./media.mjs";
 import { createR2PresignedPutUrl } from "./r2-presign.mjs";
 import { thinkingVideoPosterKey, uploadVideoPosterToR2 } from "./video-poster.mjs";
@@ -205,6 +206,15 @@ export default {
       }
       await triggerRebuild(env);
       return json({ ok: true, intros: await loadReadingTabIntros(db), refresh: results }, 200, cors);
+    }
+
+    if (action === "generate-reading-tag-clouds") {
+      try {
+        const clouds = await generateReadingTagClouds(env, db);
+        return json({ ok: true, ...clouds }, 200, cors);
+      } catch (err) {
+        return json({ error: err.message || "Tag cloud generation failed" }, 500, cors);
+      }
     }
 
     if (action === "thinking") {

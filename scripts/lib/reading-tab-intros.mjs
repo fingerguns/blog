@@ -11,11 +11,14 @@ export const READING_TAB_CONTEXT = {
   latest:
     "Latest tab: books Rommy is reading now, grouped by month. A snapshot of recent taste—not reviews or ratings.",
   mustReads:
-    "Must Reads tab: Rommy's curated personal canon—books he thinks everyone should read. Alphabetical list, not chronological.",
+    "Must Reads tab: Rommy's curated personal canon—books he thinks everyone should read. Sorted A–Z by title, not ranked or chronological.",
 };
 
 const STYLE_GUIDE =
   "Third-person visitor voice about Rommy Ghaly (he/him/his): 'Rommy's reading…', 'Rommy's Must Reads list…'. One paragraph, 4–6 sentences, ~120–220 words. Warm, literate, specific—describe themes and taste, not every title. Wrap book titles in <em> tags. Only mention books that appear in the list below.";
+
+const MUST_READS_STYLE =
+  "For Must Reads: note that titles below are listed alphabetically (A–Z), not ranked. Do NOT mention when books were added or 'recent additions.' Focus on moods, genres, literary styles, geography, era, and what ties the canon together—translation, rediscovery, regional voices, atmosphere. Cite a few representative titles in <em> tags as examples, not a full catalog.";
 
 function truncate(text, max) {
   const s = String(text || "").trim();
@@ -43,27 +46,27 @@ export function buildReadingTabIntroPrompt(tab, sampleData, currentIntro) {
   if (tab === "latest" && Array.isArray(sampleData?.entries) && sampleData.entries.length) {
     bookBlock = sampleData.entries.map((s) => `- ${s}`).join("\n");
   } else if (tab === "mustReads" && sampleData?.count) {
-    const recent =
-      sampleData.recent?.length > 0
-        ? sampleData.recent.map((s) => `- ${s}`).join("\n")
-        : "- (none)";
     bookBlock = `Total books: ${sampleData.count}
+Order: alphabetical by title (A–Z), not ranked or chronological
 
-Recently added (reflect these in the new intro):
-${recent}
-
-All titles on the list:
+Titles on the list:
 ${compactTitleList(sampleData.titles || [])}`;
   }
+
+  const tabStyle = tab === "mustReads" ? `${STYLE_GUIDE}\n${MUST_READS_STYLE}` : STYLE_GUIDE;
+  const refreshNote =
+    tab === "mustReads"
+      ? "Write new copy that captures the literary character of the full list—moods, genres, styles, geography, and era—not when individual books were added."
+      : "Write new copy that reflects the books below—especially recent months—and captures the current shape of the list.";
 
   return `Write a fresh intro paragraph for the "${tabLabel}" tab on rommy.blog/reading.
 
 Tab: ${tabLabel}
 What this tab is: ${context}
 
-Style: ${STYLE_GUIDE}
+Style: ${tabStyle}
 
-Do NOT copy the previous intro verbatim. Write new copy that reflects the books below—especially any recent additions—and captures the current shape of the list.
+Do NOT copy the previous intro verbatim. ${refreshNote}
 
 Previous intro (for tone reference only—do not reuse sentences):
 ${prior || "(none yet)"}

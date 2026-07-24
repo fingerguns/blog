@@ -43,10 +43,6 @@ function formatReadingSample(row) {
   return `${row.ym}: ${row.title}${author}`;
 }
 
-function formatFavoriteSample(row) {
-  return row.author ? `${row.title} — ${row.author}` : row.title;
-}
-
 export async function loadReadingTabIntros(db) {
   const row = await dbFirst(db, "SELECT value FROM site_config WHERE key = ?", SITE_CONFIG_KEY);
   if (!row?.value) return { ...DEFAULT_READING_TAB_INTROS };
@@ -84,18 +80,13 @@ async function fetchTabSamples(db, tab) {
   }
 
   if (tab === "mustReads") {
-    const { results: recentRows } = await dbAll(
-      db,
-      "SELECT title, author FROM reading_favorites ORDER BY added_at DESC, id DESC LIMIT 8"
-    );
     const { results: allRows } = await dbAll(
       db,
-      "SELECT title FROM reading_favorites ORDER BY title COLLATE NOCASE ASC, id ASC"
+      "SELECT title, author FROM reading_favorites ORDER BY title COLLATE NOCASE ASC, id ASC"
     );
     const titles = (allRows || []).map((row) => row.title);
     return {
       count: titles.length,
-      recent: (recentRows || []).map(formatFavoriteSample),
       titles,
     };
   }
