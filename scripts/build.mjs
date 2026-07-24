@@ -1653,10 +1653,10 @@ ${readingFavoritesAllHtml}
 ${readingFavoritesGridHtml}
       </div>`;
 
-const readingArchiveToolbarHtml = `      <div class="reading-archive-toolbar">
+const readingArchiveToolbarHtml = (activeTab = "latest") => `      <div class="reading-archive-toolbar">
         <nav class="reading-tabs" role="tablist" aria-label="Reading lists">
-          <button type="button" class="reading-tab" role="tab" data-tab-btn="latest" aria-selected="true">Latest</button>
-          <button type="button" class="reading-tab" role="tab" data-tab-btn="favorites" aria-selected="false">Must Reads</button>
+          <button type="button" class="reading-tab" role="tab" data-tab-btn="latest" aria-selected="${activeTab === "latest" ? "true" : "false"}">Latest</button>
+          <button type="button" class="reading-tab" role="tab" data-tab-btn="favorites" aria-selected="${activeTab === "favorites" ? "true" : "false"}">Must Reads</button>
         </nav>
         <div class="reading-view-toggle" role="group" aria-label="Switch view">
           <button type="button" class="reading-view-btn" data-view-btn="list" aria-pressed="true" aria-label="List view">${THINKING_VIEW_ICONS.list}</button>
@@ -1664,7 +1664,7 @@ const readingArchiveToolbarHtml = `      <div class="reading-archive-toolbar">
         </div>
       </div>`;
 
-const readingArchiveScript = `    <script>(function(){var wrap=document.querySelector('.reading-views');if(!wrap)return;var tabBtns=wrap.querySelectorAll('[data-tab-btn]');var viewBtns=wrap.querySelectorAll('.reading-view-btn');var scrollObs=null;var scrollSentinel=null;var TAB_HASH={latest:'latest',favorites:'must-reads'};var HASH_TAB={latest:'latest','must-reads':'favorites'};function tabFromHash(){var h=location.hash.replace(/^#/,'');return HASH_TAB[h]||null;}function hashForTab(t){return TAB_HASH[t]||'latest';}function activePanel(){return wrap.querySelector('[data-tab-panel="'+wrap.getAttribute('data-tab')+'"]');}function setTab(t,skipHash){wrap.setAttribute('data-tab',t);tabBtns.forEach(function(b){b.setAttribute('aria-selected',b.getAttribute('data-tab-btn')===t?'true':'false');});localStorage.setItem('readingTab',t);if(!skipHash){var want='#'+hashForTab(t);if(location.hash!==want)history.replaceState(null,'',want);}setupInfiniteScroll();}function setView(v){wrap.setAttribute('data-view',v);viewBtns.forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-view-btn')===v?'true':'false');});localStorage.setItem('readingView',v);}function setupInfiniteScroll(){if(scrollObs){scrollObs.disconnect();scrollObs=null;}if(scrollSentinel){scrollSentinel.remove();scrollSentinel=null;}var panel=activePanel();if(!panel)return;var list=panel.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');items.forEach(function(li){li.hidden=false;});var BATCH=10;if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++)items[i].hidden=true;var shown=BATCH;scrollSentinel=document.createElement('div');scrollSentinel.className='reading-scroll-sentinel';panel.appendChild(scrollSentinel);scrollObs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++)items[i].hidden=false;shown=next;if(shown>=items.length){scrollObs.disconnect();scrollObs=null;}},{rootMargin:'0px'});scrollObs.observe(scrollSentinel);}var initialTab=tabFromHash()||localStorage.getItem('readingTab')||'latest';setTab(initialTab,!tabFromHash());setView(localStorage.getItem('readingView')||'list');tabBtns.forEach(function(b){b.addEventListener('click',function(){setTab(b.getAttribute('data-tab-btn'));});});viewBtns.forEach(function(b){b.addEventListener('click',function(){setView(b.getAttribute('data-view-btn'));});});window.addEventListener('hashchange',function(){var t=tabFromHash();if(t)setTab(t,true);});setupInfiniteScroll();}());</script>`;
+const readingArchiveScript = `    <script>(function(){var wrap=document.querySelector('.reading-views');if(!wrap)return;var tabBtns=wrap.querySelectorAll('[data-tab-btn]');var viewBtns=wrap.querySelectorAll('.reading-view-btn');var scrollObs=null;var scrollSentinel=null;var TAB_PATH={latest:'/reading/latest/',favorites:'/reading/must-reads/'};var HASH_TAB={latest:'latest','must-reads':'favorites'};function normPath(){return location.pathname.replace(/\\/+$/,'')||'/';}function tabFromPath(){var p=normPath();if(p==='/reading/latest')return'latest';if(p==='/reading/must-reads')return'favorites';return null;}function tabFromHash(){var h=location.hash.replace(/^#/,'');return HASH_TAB[h]||null;}function pathForTab(t){return TAB_PATH[t]||'/reading/latest/';}function activePanel(){return wrap.querySelector('[data-tab-panel="'+wrap.getAttribute('data-tab')+'"]');}function setTab(t,skipPath){wrap.setAttribute('data-tab',t);tabBtns.forEach(function(b){b.setAttribute('aria-selected',b.getAttribute('data-tab-btn')===t?'true':'false');});if(!skipPath){var want=pathForTab(t);if(location.pathname!==want||location.hash)history.replaceState(null,'',want);}setupInfiniteScroll();}function setView(v){wrap.setAttribute('data-view',v);viewBtns.forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-view-btn')===v?'true':'false');});localStorage.setItem('readingView',v);}function setupInfiniteScroll(){if(scrollObs){scrollObs.disconnect();scrollObs=null;}if(scrollSentinel){scrollSentinel.remove();scrollSentinel=null;}var panel=activePanel();if(!panel)return;var list=panel.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');items.forEach(function(li){li.hidden=false;});var BATCH=10;if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++)items[i].hidden=true;var shown=BATCH;scrollSentinel=document.createElement('div');scrollSentinel.className='reading-scroll-sentinel';panel.appendChild(scrollSentinel);scrollObs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++)items[i].hidden=false;shown=next;if(shown>=items.length){scrollObs.disconnect();scrollObs=null;}},{rootMargin:'0px'});scrollObs.observe(scrollSentinel);}var fromHash=tabFromHash();if(fromHash)history.replaceState(null,'',pathForTab(fromHash));var initialTab=tabFromPath()||'latest';setTab(initialTab,true);setView(localStorage.getItem('readingView')||'list');tabBtns.forEach(function(b){b.addEventListener('click',function(){setTab(b.getAttribute('data-tab-btn'));});});viewBtns.forEach(function(b){b.addEventListener('click',function(){setView(b.getAttribute('data-view-btn'));});});window.addEventListener('popstate',function(){setTab(tabFromPath()||'latest',true);});setupInfiniteScroll();}());</script>`;
 
 const readingArchiveFoot = `      <footer class="site-footer">
         <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><a href="#" class="theme-toggle" id="theme-toggle"></a></p>
@@ -1679,9 +1679,9 @@ ${thinkingLightboxScript}
 </html>
 `;
 
-const readingPageHtml = `${archiveHead("Reading", sectionHeading("Reading", "h1"))}
-    <div class="reading-views" data-view="list" data-tab="latest">
-${readingArchiveToolbarHtml}
+const readingPageHtml = (activeTab = "latest") => `${archiveHead("Reading", sectionHeading("Reading", "h1"))}
+    <div class="reading-views" data-view="list" data-tab="${activeTab}">
+${readingArchiveToolbarHtml(activeTab)}
       <div class="reading-tab-panel" data-tab-panel="latest">
         <ol class="post-list reading-list">
 ${readingAllHtml}
@@ -1710,7 +1710,9 @@ ${thinkingArchiveFoot}`;
 
 const archiveUrls = [
   ...(hasMorePosts ? [`${base}/writing/`] : []),
-  ...(hasReadingArchive ? [`${base}/reading/`] : []),
+  ...(hasReadingArchive
+    ? [`${base}/reading/`, `${base}/reading/latest/`, `${base}/reading/must-reads/`]
+    : []),
   ...(hasMoreLinklog ? [`${base}/sharing/`] : []),
 ];
 
@@ -1757,7 +1759,17 @@ const manageArchive = (needed, dir, html) => {
 };
 
 manageArchive(hasMorePosts, "writing", writingPageHtml);
-manageArchive(hasReadingArchive, "reading", readingPageHtml);
+manageArchive(hasReadingArchive, "reading", readingPageHtml("latest"));
+if (hasReadingArchive) {
+  mkdirSync(join(outDir, "reading", "latest"), { recursive: true });
+  writeFileSync(join(outDir, "reading", "latest", "index.html"), readingPageHtml("latest"), "utf8");
+  mkdirSync(join(outDir, "reading", "must-reads"), { recursive: true });
+  writeFileSync(
+    join(outDir, "reading", "must-reads", "index.html"),
+    readingPageHtml("favorites"),
+    "utf8"
+  );
+}
 manageArchive(hasMoreLinklog, "sharing", sharingPageHtml);
 
 mkdirSync(join(outDir, "now"), { recursive: true });
