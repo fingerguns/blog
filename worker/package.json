@@ -1,6 +1,10 @@
 {
   "name": "rommy-blog-admin-worker",
   "private": true,
+  "scripts": {
+    "refresh-section-hints": "node --env-file=../.env ../scripts/refresh-section-hints.mjs",
+    "refresh-reading-tab-intros": "node --env-file=../.env ../scripts/refresh-reading-tab-intros.mjs"
+  },
   "dependencies": {
     "aws4fetch": "^1.0.20"
   }

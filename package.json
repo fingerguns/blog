@@ -6,6 +6,7 @@
     "build": "node --env-file=.env scripts/build.mjs",
     "backfill-video-posters": "node --env-file=.env scripts/backfill-video-posters.mjs",
     "refresh-section-hints": "node --env-file=.env scripts/refresh-section-hints.mjs",
+    "refresh-reading-tab-intros": "node --env-file=.env scripts/refresh-reading-tab-intros.mjs",
     "preview": "npx serve dist -p 3000"
   },
   "devDependencies": {

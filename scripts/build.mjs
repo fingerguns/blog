@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { d1Configured, loadBlogDataFromD1 } from "./d1-client.mjs";
 import { escHtml, escXml } from "./lib/html.mjs";
 import { mergeSectionHints } from "./lib/section-hints.mjs";
+import { mergeReadingTabIntros } from "./lib/reading-tab-intros.mjs";
 import { thinkingGridThumbUrl, videoPosterKeyFromVideoUrl } from "./lib/media-url.mjs";
 import { renderThinkingContentHtml } from "./lib/thinking-html.mjs";
 import { bookshopAffiliateUrl, bookshopAffiliateIdFromEnv, isbnFromBookshopUrl } from "./lib/bookshop-affiliate.mjs";
@@ -58,9 +59,11 @@ const {
   links,
   optionalColophon,
   sectionHints,
+  readingTabIntros,
 } = data;
 
 const SECTION_HINTS = mergeSectionHints(sectionHints);
+const READING_TAB_INTROS = mergeReadingTabIntros(readingTabIntros);
 
 const base = site.url.replace(/\/$/, "");
 const toSortableMs = (p) => {
@@ -1653,10 +1656,6 @@ ${readingFavoritesAllHtml}
 ${readingFavoritesGridHtml}
       </div>`;
 
-const READING_LATEST_INTRO = `Over the past month, Rommy's reading has leaned hard into Mediterranean and European littoral fiction — quiet, place-saturated books where landscape and memory do as much work as plot. In July that meant Isabel Allende's generational Chile (<em>The House of the Spirits</em>), Greek coming-of-age and village life (<em>Three Summers</em>, <em>When the Tree Sings</em>, <em>The Murderess</em>), Jean Giono's pastoral Provence (<em>Hill</em>), and Patrick Modiano's spectral Paris (<em>In the Café of Lost Youth</em>); in June, Mercè Rodoreda's seaside Catalonia (<em>Garden by the Sea</em>) and Leonora Carrington's surrealism (<em>The Stone Door</em>). Nothing on the recent list is Anglo-American frontlist fiction — it is all translated or international, mostly mid-length, and tuned to mood, exile, and the texture of a specific world. Lately he seems to be chasing atmosphere and cultural rootedness more than narrative velocity.`;
-
-const READING_MUST_READS_INTRO = `Rommy's Must Reads list reads like a personal canon of literary fiction that favors translation, rediscovery, and depth over novelty. It is anchored in Latin American and European voices — García Márquez, Bolaño, Cortázar, Rulfo, Allende, Kundera, Bulgakov, Modiano — alongside American masters of moral weight and atmosphere (McCarthy, McCullers, Baldwin, Capote, <em>Stoner</em>). NYRB Classics and small-press sensibilities show up again and again: <em>Butcher's Crossing</em>, <em>Hard Rain Falling</em>, <em>Moravagine</em>, <em>The Door</em>, <em>The Murderess</em>. The list also reaches outward — Greek (<em>Three Summers</em>, <em>When the Tree Sings</em>), Japanese (<em>No Longer Human</em>, <em>Kafka on the Shore</em>), Arabic (<em>Woman at Point Zero</em>, <em>French Perfume</em>, <em>The Diesel</em>) — and makes room for a few outliers (<em>Jitterbug Perfume</em>, <em>In Cold Blood</em>, <em>The Great Bridge</em>) that share the same appetite for voice, place, and consequence. Overall, the taste is serious but not solemn: psychologically rich, often regional or outsider-centered, and allergic to bestseller churn.`;
-
 const readingArchiveToolbarHtml = (activeTab = "latest") => `      <div class="reading-archive-toolbar">
         <nav class="reading-tabs" role="tablist" aria-label="Reading lists">
           <button type="button" class="reading-tab" role="tab" data-tab-btn="latest" aria-selected="${activeTab === "latest" ? "true" : "false"}">Latest</button>
@@ -1687,7 +1686,7 @@ const readingPageHtml = (activeTab = "latest") => `${archiveHead("Reading", sect
     <div class="reading-views" data-view="list" data-tab="${activeTab}">
 ${readingArchiveToolbarHtml(activeTab)}
       <div class="reading-tab-panel" data-tab-panel="latest">
-        <p class="reading-tab-intro">${READING_LATEST_INTRO}</p>
+        <p class="reading-tab-intro">${READING_TAB_INTROS.latest}</p>
         <ol class="post-list reading-list">
 ${readingAllHtml}
         </ol>
@@ -1696,7 +1695,7 @@ ${readingGridHtml}
         </div>
       </div>
       <div class="reading-tab-panel" data-tab-panel="favorites">
-        <p class="reading-tab-intro">${READING_MUST_READS_INTRO}</p>
+        <p class="reading-tab-intro">${READING_TAB_INTROS.mustReads}</p>
 ${readingFavoritesPanelHtml}
       </div>
     </div>

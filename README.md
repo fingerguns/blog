@@ -19,6 +19,7 @@ Built with [Cursor](https://cursor.com). See the [colophon](https://rommy.blog/c
 - **Thinking archive views** — [`/thinking/`](https://rommy.blog/thinking/) offers List and Grid views (icon buttons under the heading; choice remembered in `localStorage`). Grid groups notes by month with one square thumbnail per post — photos via edge-resized 252px thumbs, native video via stored JPEG posters, YouTube via preview images, Spotify via album art, or a text-preview card with a type badge. Six type-filter buttons (photo, video, audio, YouTube, Spotify, text) solo-select one kind at a time; all posts show until a filter is chosen; filters apply to list and grid and reset on each visit. Grid images load lazily when grid view is active
 - **Reading archive views** — [`/reading/`](https://rommy.blog/reading/) is sorted by read month (`ym`), not date added. List/grid toggle (remembered in `localStorage`); grid is a storefront-style cover catalog grouped by month (3 columns desktop, 2 mobile). Optional author field and multi-source cover picker (Open Library, Apple Books, Google Books) in admin; custom covers can live in R2
 - **Section tooltips** — Homepage section headings have hover blurbs stored in D1; Workers AI regenerates them after content changes (`refresh-section-hints` admin action or `npm run refresh-section-hints`)
+- **Reading tab intros** — Latest and Must Reads tabs have visitor-facing taste summaries stored in D1; Workers AI redrafts them when books are added or removed (`refresh-reading-tab-intros` or `npm run refresh-reading-tab-intros` from repo root or `worker/`)
 - **Elsewhere → Socials** — Collapsible row on the homepage with links to Bluesky, Mastodon, and micro.blog
 - **Changelog** — Generated from Git history at build time
 - **Colophon** — [`/colophon/`](https://rommy.blog/colophon/) describes how the site is built, with an optional toggle to read it in the style of Walt Whitman
@@ -69,6 +70,7 @@ npm run build
 npm run preview   # serves dist/ at http://localhost:3000
 npm run backfill-video-posters   # capture JPEG posters for existing Thinking videos (R2)
 npm run refresh-section-hints    # regenerate homepage section tooltips via Workers AI
+npm run refresh-reading-tab-intros   # regenerate Reading tab intro copy via Workers AI
 ```
 
 Output goes to **`dist/`** (gitignored). Generated HTML is not committed; CI/Pages builds from source + D1.
@@ -155,6 +157,7 @@ wrangler deploy
 | `sharing` | Add Sharing (linklog) entry |
 | `fetch-title` | Fetch page title for Sharing |
 | `refresh-section-hints` | Regenerate homepage section tooltips with Workers AI |
+| `refresh-reading-tab-intros` | Regenerate Reading Latest / Must Reads tab intro copy with Workers AI |
 | `verify` | Check admin password |
 
 ## Photos

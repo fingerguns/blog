@@ -1,6 +1,6 @@
 # Cloudflare Worker: admin API for rommy.blog
 
-Content is stored in **Cloudflare D1**. Section hover tooltips (`section_hints` in `site_config`) are regenerated via **Workers AI** after Thinking, Writing, Reading, or Sharing changes, then the site rebuilds again with the updated copy.
+Content is stored in **Cloudflare D1**. Section hover tooltips (`section_hints` in `site_config`) and Reading tab intro copy (`reading_tab_intros`) are regenerated via **Workers AI** after content changes, then the site rebuilds again with the updated copy.
 
 The static site is rebuilt via a **Pages deploy hook**.
 
@@ -29,6 +29,12 @@ Seed section hover tooltips (optional — build falls back to defaults until Wor
 
 ```bash
 wrangler d1 execute rommy-blog-db --file=migrate-section-hints.sql --remote
+```
+
+Seed Reading tab intro copy (optional — build falls back to defaults until Worker regenerates):
+
+```bash
+wrangler d1 execute rommy-blog-db --file=migrate-reading-tab-intros.sql --remote
 ```
 
 Add Thinking audio posts (`media_type` column — image or audio):
@@ -119,6 +125,7 @@ Output directory: `dist`
 | `load-draft` | Load draft by id |
 | `delete-draft` | Delete draft |
 | `refresh-section-hints` | Regenerate homepage section tooltips (Workers AI) |
+| `refresh-reading-tab-intros` | Regenerate Reading Latest / Must Reads tab intro copy (Workers AI) |
 
 ## Architecture
 

@@ -187,5 +187,6 @@ export async function loadBlogDataFromD1() {
     ],
     optionalColophon: site.optionalColophon || "",
     sectionHints: site.section_hints || null,
+    readingTabIntros: site.reading_tab_intros || null,
   };
 }

@@ -14,6 +14,12 @@ import {
   loadSectionHints,
   SECTION_NAMES,
 } from "./section-hints.mjs";
+import {
+  scheduleReadingTabIntroRefresh,
+  refreshReadingTabIntro,
+  loadReadingTabIntros,
+  READING_TAB_KEYS,
+} from "./reading-tab-intros.mjs";
 import { serveMedia } from "./media.mjs";
 import { createR2PresignedPutUrl } from "./r2-presign.mjs";
 import { thinkingVideoPosterKey, uploadVideoPosterToR2 } from "./video-poster.mjs";
@@ -185,6 +191,16 @@ export default {
       }
       await triggerRebuild(env);
       return json({ ok: true, hints: await loadSectionHints(db) }, 200, cors);
+    }
+
+    if (action === "refresh-reading-tab-intros") {
+      const tab = typeof payload.tab === "string" ? payload.tab.trim() : "";
+      const tabs = tab && READING_TAB_KEYS.includes(tab) ? [tab] : [...READING_TAB_KEYS];
+      for (const name of tabs) {
+        await refreshReadingTabIntro(env, db, name, null);
+      }
+      await triggerRebuild(env);
+      return json({ ok: true, intros: await loadReadingTabIntros(db) }, 200, cors);
     }
 
     if (action === "thinking") {
@@ -2155,6 +2171,7 @@ async function handleReading(body, db, cors, env, ctx) {
 
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Reading", triggerRebuild);
+    scheduleReadingTabIntroRefresh(ctx, env, db, "latest", triggerRebuild);
     return json({ ok: true, entry, microblogWarning, blueskyWarning, mastodonWarning }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
@@ -2189,6 +2206,7 @@ async function handleDeleteReading(payload, db, cors, env, ctx) {
 
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Reading", triggerRebuild);
+    scheduleReadingTabIntroRefresh(ctx, env, db, "latest", triggerRebuild);
 
     return json({ ok: true }, 200, cors);
   } catch (err) {
@@ -2239,6 +2257,7 @@ async function handleReadingFavorite(body, db, cors, env, ctx) {
 
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Reading", triggerRebuild);
+    scheduleReadingTabIntroRefresh(ctx, env, db, "mustReads", triggerRebuild);
     return json({ ok: true, entry }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
@@ -2282,6 +2301,7 @@ async function handleDeleteReadingFavorite(payload, db, cors, env, ctx) {
 
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Reading", triggerRebuild);
+    scheduleReadingTabIntroRefresh(ctx, env, db, "mustReads", triggerRebuild);
 
     return json({ ok: true }, 200, cors);
   } catch (err) {
