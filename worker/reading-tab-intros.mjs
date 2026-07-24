@@ -1,4 +1,8 @@
-import { extractAiText, WORKERS_AI_TEXT_MODEL } from "../scripts/lib/ai-text.mjs";
+import {
+  anthropicConfigured,
+  extractAnthropicText,
+  runAnthropicText,
+} from "../scripts/lib/anthropic.mjs";
 import {
   DEFAULT_READING_TAB_INTROS,
   READING_TAB_KEYS,
@@ -10,8 +14,9 @@ import {
 
 export { READING_TAB_KEYS };
 
-const AI_MODEL = WORKERS_AI_TEXT_MODEL;
 const SITE_CONFIG_KEY = "reading_tab_intros";
+const INTRO_SYSTEM =
+  "You write visitor-facing intro copy for a personal blog's reading lists. Output only the paragraph requested, with book titles in <em> tags.";
 
 async function dbRun(db, sql, ...params) {
   return db.prepare(sql).bind(...params).run();
@@ -99,29 +104,23 @@ async function fetchTabSamples(db, tab) {
 }
 
 export async function generateReadingTabIntro(env, tab, samples, currentIntro) {
-  if (!env.AI) {
-    return { intro: null, reason: "Workers AI binding not configured" };
+  if (!anthropicConfigured(env)) {
+    return { intro: null, reason: "ANTHROPIC_API_KEY is not configured" };
   }
 
   const prompt = buildReadingTabIntroPrompt(tab, samples, currentIntro);
   let result;
   try {
-    result = await env.AI.run(AI_MODEL, {
-      messages: [
-        {
-          role: "system",
-          content:
-            "You write visitor-facing intro copy for a personal blog's reading lists. Output only the paragraph requested, with book titles in <em> tags.",
-        },
-        { role: "user", content: prompt },
-      ],
-      max_tokens: 480,
+    result = await runAnthropicText(env, {
+      system: INTRO_SYSTEM,
+      user: prompt,
+      maxTokens: 1024,
     });
   } catch (err) {
-    return { intro: null, reason: err?.message || "Workers AI request failed" };
+    return { intro: null, reason: err?.message || "Anthropic API request failed" };
   }
 
-  const raw = extractAiText(result);
+  const raw = extractAnthropicText(result);
   const intro = normalizeReadingTabIntro(raw);
   if (intro.length < 80) {
     return {

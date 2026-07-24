@@ -41,6 +41,7 @@ pattern = "rommy.blog/media/*"
 zone_name = "rommy.blog"
 
 # Set via: wrangler secret put ADMIN_PASSWORD
+# Set via: wrangler secret put ANTHROPIC_API_KEY   (Reading tab intro copy — Claude Opus)
 # Set via: wrangler secret put GITHUB_TOKEN
 # Set via: wrangler secret put PAGES_DEPLOY_HOOK  (Cloudflare Pages deploy hook URL)
 # Set via: wrangler secret put MICROBLOG_TOKEN  (micro.blog API token — optional, skipped if absent)

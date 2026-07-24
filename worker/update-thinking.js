@@ -48,6 +48,9 @@ import { thinkingVideoPosterKey, uploadVideoPosterToR2 } from "./video-poster.mj
  * Workers AI (section hover tooltips — auto-regenerated on content changes):
  *   Enable Workers AI in Cloudflare dashboard; [ai] binding in wrangler.toml
  *
+ * Anthropic (Reading tab intro copy — auto-regenerated on book add/remove):
+ *   ANTHROPIC_API_KEY — wrangler secret put ANTHROPIC_API_KEY
+ *
  * R2 (photos, audio, video on THINKING):
  *   Enable R2 in Cloudflare dashboard, then: wrangler r2 bucket create rommy-blog-media
  *   Enable public access on the bucket and set MEDIA_PUBLIC_URL in wrangler.toml [vars]
