@@ -456,6 +456,17 @@ const THINKING_MEDIA_ICONS = {
 };
 
 const THINKING_GRID_KINDS = ["photo", "video", "youtube", "spotify", "audio", "text"];
+const THINKING_FILTER_PATH = {
+  photo: "images",
+  video: "videos",
+  audio: "audio",
+  youtube: "youtube",
+  spotify: "music",
+  text: "text",
+};
+const THINKING_PATH_FILTER = Object.fromEntries(
+  Object.entries(THINKING_FILTER_PATH).map(([kind, segment]) => [segment, kind])
+);
 
 function thinkingGridKind(item, spotifyThumbnails = {}) {
   if (imageSrcAltFromHtml(item.content_html).src) return "photo";
@@ -1165,6 +1176,8 @@ var items=document.querySelectorAll('.thinking-grid-item');
 var listEntries=document.querySelectorAll('.microblog-feed .microblog-entry[data-kind]');
 var months=document.querySelectorAll('.thinking-grid-month');
 var kinds=${JSON.stringify(THINKING_GRID_KINDS)};
+var FILTER_PATH=${JSON.stringify(THINKING_FILTER_PATH)};
+var PATH_FILTER=${JSON.stringify(THINKING_PATH_FILTER)};
 var gridMediaObs=null;
 var mediaQueue=[];
 var mediaInflight=0;
@@ -1172,6 +1185,32 @@ var MEDIA_MAX=4;
 function defaultFilters(){var all={};kinds.forEach(function(k){all[k]=false;});return all;}
 var active=defaultFilters();
 function anyFilterActive(){return kinds.some(function(k){return active[k];});}
+function normPath(){return location.pathname.replace(/\\/+$/,'')||'/';}
+function filterFromPath(){
+  var p=normPath();
+  if(p==='/thinking')return null;
+  if(p.indexOf('/thinking/')!==0)return null;
+  var seg=p.slice('/thinking/'.length);
+  if(!seg||seg.indexOf('/')>=0)return null;
+  return PATH_FILTER[seg]||null;
+}
+function pathForFilters(){
+  for(var i=0;i<kinds.length;i++){
+    var k=kinds[i];
+    if(active[k]){var seg=FILTER_PATH[k];if(seg)return'/thinking/'+seg+'/';}
+  }
+  return'/thinking/';
+}
+function syncPath(skipPath){
+  if(skipPath)return;
+  var want=pathForFilters();
+  if(location.pathname!==want)history.replaceState(null,'',want);
+}
+function setFiltersFromPath(){
+  var fromPath=filterFromPath();
+  if(fromPath){kinds.forEach(function(kind){active[kind]=(kind===fromPath);});}
+  else{active=defaultFilters();}
+}
 function drainMediaQueue(){
   if(wrap.getAttribute('data-view')!=='grid')return;
   while(mediaInflight<MEDIA_MAX&&mediaQueue.length){
@@ -1239,6 +1278,7 @@ if(viewBtns.length){
   viewBtns.forEach(function(b){b.addEventListener('click',function(){setView(b.getAttribute('data-view-btn'));});});
 }
 if(filterBtns.length){
+  setFiltersFromPath();
   applyFilters();
   filterBtns.forEach(function(b){
     b.addEventListener('click',function(){
@@ -1246,9 +1286,11 @@ if(filterBtns.length){
       if(active[k]){active[k]=false;}
       else{kinds.forEach(function(kind){active[kind]=(kind===k);});}
       applyFilters();
+      syncPath();
       b.blur();
     });
   });
+  window.addEventListener('popstate',function(){setFiltersFromPath();applyFilters();});
 }else{scanGridMedia();}
 }());</script>`;
 
@@ -1728,6 +1770,7 @@ const urls = [
   `${base}/now/`,
   `${base}/changelog/`,
   `${base}/thinking/`,
+  ...Object.values(THINKING_FILTER_PATH).map((segment) => `${base}/thinking/${segment}/`),
   ...microblogItems.map((item) => `${base}/thinking/${thinkingSlug(item)}/`),
   ...archiveUrls,
   ...ordered.map((p) => `${base}/posts/${safeSlug(p.slug)}/`),
@@ -1762,6 +1805,7 @@ const manageArchive = (needed, dir, html) => {
 };
 
 manageArchive(hasMorePosts, "writing", writingPageHtml);
+const redirectLines = [];
 if (hasReadingArchive) {
   for (const [tab, slug] of [
     ["latest", "latest"],
@@ -1770,11 +1814,13 @@ if (hasReadingArchive) {
     mkdirSync(join(outDir, "reading", slug), { recursive: true });
     writeFileSync(join(outDir, "reading", slug, "index.html"), readingPageHtml(tab), "utf8");
   }
-  writeFileSync(
-    join(outDir, "_redirects"),
-    "/reading /reading/latest/ 301\n/reading/ /reading/latest/ 301\n",
-    "utf8"
-  );
+  redirectLines.push("/reading /reading/latest/ 301", "/reading/ /reading/latest/ 301");
+}
+for (const segment of Object.values(THINKING_FILTER_PATH)) {
+  redirectLines.push(`/thinking/${segment} /thinking/${segment}/ 301`);
+}
+if (redirectLines.length) {
+  writeFileSync(join(outDir, "_redirects"), `${redirectLines.join("\n")}\n`, "utf8");
 }
 manageArchive(hasMoreLinklog, "sharing", sharingPageHtml);
 
@@ -1786,6 +1832,10 @@ writeFileSync(join(outDir, "changelog/index.html"), changelogPageHtml, "utf8");
 
 mkdirSync(join(outDir, "thinking"), { recursive: true });
 writeFileSync(join(outDir, "thinking/index.html"), microblogPageHtml, "utf8");
+for (const segment of Object.values(THINKING_FILTER_PATH)) {
+  mkdirSync(join(outDir, "thinking", segment), { recursive: true });
+  writeFileSync(join(outDir, "thinking", segment, "index.html"), microblogPageHtml, "utf8");
+}
 
 // Individual thinking post pages — preload video on detail pages for faster playback start
 for (const item of microblogItems) {
