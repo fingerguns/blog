@@ -1289,7 +1289,7 @@ ${hasThinking(thinking) ? `        <h2>Thinking</h2>
 ` : ""}${currentBook ? `        <h2>Reading</h2>
         <p><a href="${escHtml(readingLinkUrl(currentBook))}" target="_blank" rel="noopener">${escHtml(currentBook.title)}</a></p>
 ` : ""}        <h2>Working</h2>
-        <p>On summer holiday in Sifnos.</p>
+        <p>Back in Brooklyn.</p>
         <h2>Living</h2>
         <p>Brooklyn, NY.</p>
       </div>
