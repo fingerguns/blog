@@ -16,8 +16,8 @@ Built with [Cursor](https://cursor.com). See the [colophon](https://rommy.blog/c
 - **Writing editor** — [Quill](https://quilljs.com/) with image upload, text wrap (left / right / center / full), drafts, and post version history
 - **Social previews** — Open Graph / Twitter meta on Writing and Thinking permalinks (first in-post image when available)
 - **Plain links in Thinking** — URLs in notes are normal hyperlinks on the site (no on-site unfurl cards), except YouTube links (native video embed) and Spotify links (native track/album/playlist/episode/show/artist embed), which render below the note
-- **Thinking archive views** — [`/thinking/`](https://rommy.blog/thinking/) offers List and Grid views (icon buttons under the heading; choice remembered in `localStorage`). Grid groups notes by month with one square thumbnail per post — photos via edge-resized 252px thumbs, native video via stored JPEG posters, YouTube via preview images, Spotify via album art, or a text-preview card with a type badge. Six type-filter buttons (photo, video, audio, YouTube, Spotify, text) solo-select one kind at a time; all posts show until a filter is chosen; filters apply to list and grid and reset on each visit. Grid images load lazily when grid view is active
-- **Reading archive views** — [`/reading/`](https://rommy.blog/reading/) is sorted by read month (`ym`), not date added. List/grid toggle (remembered in `localStorage`); grid is a storefront-style cover catalog grouped by month (3 columns desktop, 2 mobile). Optional author field and multi-source cover picker (Open Library, Apple Books, Google Books) in admin; custom covers can live in R2
+- **Thinking archive views** — [`/thinking/`](https://rommy.blog/thinking/) offers List and Grid views (icon buttons under the heading; choice remembered in `localStorage`). Grid groups notes by month with one square thumbnail per post — photos via edge-resized 252px thumbs, native video via stored JPEG posters, YouTube via preview images, Spotify via album art, or a text-preview card with a type badge. Six type-filter buttons (photo, video, audio, YouTube, Spotify, text) solo-select one kind at a time; all posts show until a filter is chosen; filters apply to list and grid. Links to the archive always land on `/thinking/` unfiltered; choosing a filter updates the URL to a shareable path (`/thinking/images/`, `/thinking/videos/`, `/thinking/audio/`, `/thinking/youtube/`, `/thinking/music/`, `/thinking/text/`). Grid images load lazily when grid view is active
+- **Reading archive views** — [`/reading/latest/`](https://rommy.blog/reading/latest/) and [`/reading/must-reads/`](https://rommy.blog/reading/must-reads/) are path-based tabs (URL updates on switch). Sorted by read month (`ym`), not date added. List/grid toggle (remembered in `localStorage`); grid is a storefront-style cover catalog grouped by month (3 columns desktop, 2 mobile). Each tab opens with a taste summary redrafted by Claude Opus when books change. Optional author field and multi-source cover picker (Open Library, Apple Books, Google Books) in admin; custom covers can live in R2 under `reading/covers/`
 - **Section tooltips** — Homepage section headings have hover blurbs stored in D1; Workers AI regenerates them after content changes (`refresh-section-hints` admin action or `npm run refresh-section-hints`)
 - **Reading tab intros** — Latest and Must Reads tabs have visitor-facing taste summaries stored in D1; Claude Opus redrafts them when books are added or removed (`refresh-reading-tab-intros` or `npm run refresh-reading-tab-intros` from repo root or `worker/`)
 - **Elsewhere → Socials** — Collapsible row on the homepage with links to Bluesky, Mastodon, and micro.blog
@@ -36,9 +36,9 @@ Pages build → D1 HTTP API (read) → scripts/build.mjs → dist/ → rommy.blo
 
 The Thinking **archive** and permalink pages are built from the `thinking_posts` table in D1 at deploy time (same source as the homepage blurb). Slugs use US Eastern time. External links in Thinking are rendered as basic `<a>` tags — no on-site unfurl cards — with two exceptions: YouTube links (`youtube.com/watch`, `/shorts/`, `/live/`, `youtu.be`) get a responsive `youtube-nocookie.com` iframe embed appended after the note text (see `scripts/lib/youtube.mjs`), and Spotify links (`open.spotify.com/track|album|playlist|episode|show|artist/...`) get a compact `open.spotify.com/embed` iframe the same way (see `scripts/lib/spotify.mjs`) — so both play natively on rommy.blog without leaving the page. A `t=`/`start=` timestamp on a YouTube URL is carried into the embed's start time.
 
-The archive at `/thinking/` renders both a List view (chronological feed) and a Grid view (posts grouped by month, one square thumbnail each) in the same page load; icon buttons swap `data-view` on a wrapper via CSS, and the choice persists in `localStorage`. Type filters (photo, video, audio, YouTube, Spotify, text) show all posts by default; clicking one solo-selects that kind (click again to clear). Filters apply to both views and reset on each archive visit. Grid thumbnails use the post's first photo (Worker-resized via `/media/thumb/252/...`), a stored JPEG poster for native video, YouTube's `mqdefault` image, Spotify album art when available, or a text-preview card with a corner badge. Grid images defer loading until grid view is active and the tile is near the viewport.
+The archive at `/thinking/` renders both a List view (chronological feed) and a Grid view (posts grouped by month, one square thumbnail each) in the same page load; icon buttons swap `data-view` on a wrapper via CSS, and the choice persists in `localStorage`. Type filters (photo, video, audio, YouTube, Spotify, text) show all posts by default; clicking one solo-selects that kind (click again to clear). Filters apply to both views. Links to the archive from elsewhere always open `/thinking/` unfiltered; choosing a filter updates the URL to a shareable path (`/thinking/images/`, `/thinking/videos/`, `/thinking/audio/`, `/thinking/youtube/`, `/thinking/music/`, `/thinking/text/`). Static pages are generated at each filter path at build time. Grid thumbnails use the post's first photo (Worker-resized via `/media/thumb/252/...`), a stored JPEG poster for native video, YouTube's `mqdefault` image, Spotify album art when available, or a text-preview card with a corner badge. Grid images defer loading until grid view is active and the tile is near the viewport.
 
-Reading at `/reading/` uses the same list/grid pattern (view choice in `localStorage`). Entries sort by `ym` descending. Grid covers come from D1 (`cover_url`), with build-time Open Library fallback for entries still missing art.
+Reading at `/reading/latest/` and `/reading/must-reads/` uses path-based tabs (URL updates on switch) and the same list/grid pattern (view choice in `localStorage`). Each tab has visitor-facing intro copy stored in D1, redrafted by Claude Opus when books are added or removed. Entries sort by `ym` descending. Grid covers come from D1 (`cover_url`), with build-time Open Library fallback for entries still missing art; Must Reads titles can use custom cover art in R2.
 
 Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on their own platforms when you include links there.
 
@@ -48,12 +48,14 @@ Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on the
 |------|---------|
 | `admin/` | Admin UI (static HTML + JS) |
 | `scripts/build.mjs` | Regenerates site into `dist/` |
-| `scripts/lib/` | Shared HTML, slug, thinking, linkify, media-URL/thumb helpers, section hints, and YouTube/Spotify-embed helpers (build + Worker) |
+| `scripts/lib/` | Shared HTML, slug, thinking, linkify, media-URL/thumb helpers, section hints, reading-tab intros, and YouTube/Spotify-embed helpers (build + Worker) |
 | `scripts/d1-client.mjs` | D1 queries for local/Pages builds |
 | `build-pages.mjs` | Cloudflare Pages entrypoint (git unshallow + build) |
 | `worker/` | Cloudflare Worker (`update-thinking.js`) — admin API |
 | `remark42/` | Legacy Remark42 server config, theme CSS, Docker / Fly deploy — unused now that Writing comments run on Webmentions, kept for reference |
 | `data/posts.json` | Legacy fallback if D1 env vars are not set |
+| `data/reading-covers.json` | Build-time cover URL overrides keyed by Bookshop URL |
+| `data/reading-favorites.json` | Must Reads seed data and custom `cover_url` values for build |
 | `styles.css` | Site styles (light/dark) |
 | `about/`, `admin/`, `colophon/`, `contact/` | Hand-authored static pages (copied into `dist/` at build) |
 
@@ -121,6 +123,7 @@ See [`worker/README.md`](worker/README.md) for D1 schema, secrets, and deploy st
 |--------|----------|---------|
 | `ADMIN_PASSWORD` | Yes | Admin login |
 | `PAGES_DEPLOY_HOOK` | Yes | Trigger Pages rebuild after writes |
+| `ANTHROPIC_API_KEY` | No | Reading tab intro copy (Claude Opus) |
 | `MICROBLOG_TOKEN` | No | Micropub for Thinking |
 | `BLUESKY_HANDLE` | No | Bluesky cross-post |
 | `BLUESKY_APP_PASSWORD` | No | Bluesky cross-post |
@@ -158,6 +161,7 @@ wrangler deploy
 | `fetch-title` | Fetch page title for Sharing |
 | `refresh-section-hints` | Regenerate homepage section tooltips with Workers AI |
 | `refresh-reading-tab-intros` | Regenerate Reading Latest / Must Reads tab intro copy with Claude Opus |
+| `generate-reading-tag-clouds` | Dev helper: thematic tag clouds for Latest and Must Reads (stdout only) |
 | `verify` | Check admin password |
 
 ## Photos
@@ -171,11 +175,13 @@ wrangler deploy
 
 ## Reading
 
+- Path-based tabs at `/reading/latest/` and `/reading/must-reads/` (URL updates on switch)
 - Sorted by read month (`ym` DESC), not date added
+- Each tab opens with intro copy stored in D1; Claude Opus redrafts it when books are added or removed
 - List view: month + title linking to Bookshop.org
 - Grid view: cover art grouped by month (3 columns desktop, 2 mobile); list/grid choice in `localStorage`
 - Admin: optional **author** field improves cover search; **Find cover art** queries Open Library, Apple Books, and Google Books; covers can be changed later from the archive list
-- `cover_url` in D1 wins over build-time Open Library lookup; custom covers can be uploaded to R2 under `reading/covers/`
+- `cover_url` in D1 wins over build-time Open Library lookup; custom covers can be uploaded to R2 under `reading/covers/` (referenced in `data/reading-covers.json` and `data/reading-favorites.json` for build)
 
 ## Audio & Video Syndication
 
