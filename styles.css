@@ -789,6 +789,47 @@ h2 {
   font-size: 0.98rem;
   line-height: 1.65;
 }
+.reading-genre-filters {
+  display: flex;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0 0 1.25rem;
+  min-width: 0;
+}
+.reading-genre-btn {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  line-height: 1.3;
+  padding: 0.35rem 0.65rem;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s, background-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+@media (hover: hover) and (pointer: fine) {
+  .reading-genre-btn:hover {
+    opacity: 0.85;
+    color: var(--link-hover);
+  }
+  .reading-genre-btn[aria-pressed="true"]:hover {
+    opacity: 1;
+  }
+}
+.reading-genre-btn[aria-pressed="true"] {
+  opacity: 1;
+  color: var(--text);
+  background: var(--thinking-delete-bg);
+}
+.post-list.reading-list li[hidden],
+.reading-grid-item[hidden] {
+  display: none !important;
+}
 .reading-view-toggle {
   display: flex;
   justify-content: flex-end;

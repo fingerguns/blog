@@ -108,6 +108,30 @@ export async function loadBlogDataFromD1() {
     readingFavorites = [];
   }
 
+  let readingGenres = [];
+  let readingFavoriteGenreRows = [];
+  try {
+    readingGenres = await d1Query(
+      "SELECT id, slug, label FROM reading_genres ORDER BY label COLLATE NOCASE ASC, id ASC"
+    );
+    readingFavoriteGenreRows = await d1Query(
+      `SELECT rfg.favorite_id, rg.slug, rfg.rank
+       FROM reading_favorite_genres rfg
+       JOIN reading_genres rg ON rg.id = rfg.genre_id
+       ORDER BY rfg.favorite_id ASC, rfg.rank ASC`
+    );
+  } catch {
+    readingGenres = [];
+    readingFavoriteGenreRows = [];
+  }
+
+  const genresByFavoriteId = new Map();
+  for (const row of readingFavoriteGenreRows) {
+    const list = genresByFavoriteId.get(row.favorite_id) || [];
+    list.push(row.slug);
+    genresByFavoriteId.set(row.favorite_id, list);
+  }
+
   const linklog = await d1Query(
     "SELECT url, title, date, datetime FROM linklog ORDER BY datetime DESC"
   );
@@ -172,6 +196,11 @@ export async function loadBlogDataFromD1() {
       added_at: r.added_at,
       cover_url: r.cover_url || "",
       author: r.author || "",
+      genres: genresByFavoriteId.get(r.id) || [],
+    })),
+    readingGenres: readingGenres.map((g) => ({
+      slug: g.slug,
+      label: g.label,
     })),
     linklog: linklog.map((l) => ({
       url: l.url,
