@@ -858,38 +858,47 @@
 
       <!-- ── READING ──────────────────────────────── -->
       <div class="admin-section" id="tab-reading">
-        <p class="lead">Add a book to the READING section.</p>
+        <div class="writing-subtabs" id="reading-subtabs">
+          <button type="button" class="writing-subtab active" data-reading-sub="latest">Latest</button>
+          <button type="button" class="writing-subtab" data-reading-sub="must-reads">Must Reads</button>
+        </div>
 
-        <form class="admin-form" id="reading-form">
-          <label for="r-title">Book Title</label>
-          <input id="r-title" type="text" required placeholder="e.g. Inside the Box" />
+        <div class="writing-subpanel active" id="reading-latest">
+          <p class="lead">Add a book to Latest.</p>
 
-          <label for="r-author">Author (optional)</label>
-          <input id="r-author" type="text" placeholder="e.g. David Epstein" />
-          <p class="admin-hint" style="margin-top:-0.9rem">Helps cover search when the title alone is too generic or ambiguous.</p>
+          <form class="admin-form" id="reading-form">
+            <label for="r-title">Book Title</label>
+            <input id="r-title" type="text" required placeholder="e.g. Inside the Box" />
 
-          <label for="r-url">Bookshop.org URL</label>
-          <input id="r-url" type="url" required placeholder="https://bookshop.org/p/books/…" />
+            <label for="r-author">Author (optional)</label>
+            <input id="r-author" type="text" placeholder="e.g. David Epstein" />
+            <p class="admin-hint" style="margin-top:-0.9rem">Helps cover search when the title alone is too generic or ambiguous.</p>
 
-          <label for="r-ym">Month (YYYY-MM)</label>
-          <input id="r-ym" type="text" pattern="\d{4}-\d{2}" placeholder="2026-05" />
-          <p class="admin-hint" style="margin-top:-0.9rem">Defaults to the current month if left blank.</p>
+            <label for="r-url">Bookshop.org URL</label>
+            <input id="r-url" type="url" required placeholder="https://bookshop.org/p/books/…" />
 
-          <button type="button" id="r-find-cover">Find cover art</button>
-          <p class="admin-hint" style="margin-top:0.5rem">Checks Open Library, Apple Books, and Google Books — pick whichever looks right, or none.</p>
-          <div id="r-cover-picker" class="cover-picker" hidden></div>
+            <label for="r-ym">Month (YYYY-MM)</label>
+            <input id="r-ym" type="text" pattern="\d{4}-\d{2}" placeholder="2026-05" />
+            <p class="admin-hint" style="margin-top:-0.9rem">Defaults to the current month if left blank.</p>
 
-          <button type="submit" id="r-submit">Add Book</button>
-          <p class="admin-status" id="r-status" hidden></p>
-        </form>
+            <button type="button" id="r-find-cover">Find cover art</button>
+            <p class="admin-hint" style="margin-top:0.5rem">Checks Open Library, Apple Books, and Google Books — pick whichever looks right, or none.</p>
+            <div id="r-cover-picker" class="cover-picker" hidden></div>
 
-        <div id="reading-archive-admin" hidden>
-          <h3 class="thinking-archive-heading">All entries</h3>
+            <button type="submit" id="r-submit">Add Book</button>
+            <p class="admin-status" id="r-status" hidden></p>
+          </form>
 
-          <h4 class="reading-admin-subheading">Latest</h4>
-          <ul class="drafts-list" id="reading-archive-list"></ul>
+          <div id="reading-latest-archive" hidden>
+            <h3 class="thinking-archive-heading">All entries</h3>
+            <ul class="drafts-list" id="reading-archive-list"></ul>
+            <p class="admin-status" id="reading-archive-status" hidden></p>
+          </div>
+        </div>
 
-          <h4 class="reading-admin-subheading">Books Everyone Should Read</h4>
+        <div class="writing-subpanel" id="reading-must-reads">
+          <p class="lead">Add a book to Must Reads.</p>
+
           <form class="admin-form reading-favorite-form" id="reading-favorite-form">
             <label for="rf-title">Book Title</label>
             <input id="rf-title" type="text" required placeholder="e.g. Stoner" />
@@ -903,12 +912,15 @@
             <button type="button" id="rf-find-cover">Find cover art</button>
             <div id="rf-cover-picker" class="cover-picker" hidden></div>
 
-            <button type="submit" id="rf-submit">Add to favorites</button>
+            <button type="submit" id="rf-submit">Add to Must Reads</button>
             <p class="admin-status" id="rf-status" hidden></p>
           </form>
-          <ul class="drafts-list" id="reading-favorites-list"></ul>
 
-          <p class="admin-status" id="reading-archive-status" hidden></p>
+          <div id="reading-favorites-archive" hidden>
+            <h3 class="thinking-archive-heading">All entries</h3>
+            <ul class="drafts-list" id="reading-favorites-list"></ul>
+            <p class="admin-status" id="reading-favorites-archive-status" hidden></p>
+          </div>
         </div>
       </div>
 
@@ -1032,8 +1044,10 @@
         } else {
           var archiveWrap = document.getElementById("thinking-archive-admin");
           if (archiveWrap) archiveWrap.hidden = true;
-          var readingWrap = document.getElementById("reading-archive-admin");
-          if (readingWrap) readingWrap.hidden = true;
+          var readingLatestWrap = document.getElementById("reading-latest-archive");
+          if (readingLatestWrap) readingLatestWrap.hidden = true;
+          var readingFavoritesWrap = document.getElementById("reading-favorites-archive");
+          if (readingFavoritesWrap) readingFavoritesWrap.hidden = true;
         }
       }
 
@@ -2509,7 +2523,7 @@
         }
 
         function showWritingSub(name) {
-          document.querySelectorAll(".writing-subtab").forEach(function (t) {
+          document.querySelectorAll("[data-writing-sub]").forEach(function (t) {
             t.classList.toggle("active", t.getAttribute("data-writing-sub") === name);
           });
           document.getElementById("writing-compose").classList.toggle("active", name === "compose");
@@ -2518,7 +2532,7 @@
         }
         window._showWritingSub = showWritingSub;
 
-        document.querySelectorAll(".writing-subtab").forEach(function (tab) {
+        document.querySelectorAll("[data-writing-sub]").forEach(function (tab) {
           tab.addEventListener("click", function () {
             showWritingSub(tab.getAttribute("data-writing-sub"));
           });
@@ -2788,7 +2802,26 @@
         });
       })();
 
-      // ── Reading archive (Latest + Books Everyone Should Read) ─────────────
+      // ── Reading sub-tabs ───────────────────────────────────────────────────
+
+      (function () {
+        function showReadingSub(name) {
+          document.querySelectorAll("[data-reading-sub]").forEach(function (t) {
+            t.classList.toggle("active", t.getAttribute("data-reading-sub") === name);
+          });
+          document.getElementById("reading-latest").classList.toggle("active", name === "latest");
+          document.getElementById("reading-must-reads").classList.toggle("active", name === "must-reads");
+        }
+        window._showReadingSub = showReadingSub;
+
+        document.querySelectorAll("[data-reading-sub]").forEach(function (tab) {
+          tab.addEventListener("click", function () {
+            showReadingSub(tab.getAttribute("data-reading-sub"));
+          });
+        });
+      })();
+
+      // ── Reading archive (Latest + Must Reads) ─────────────────────────────
 
       function appendReadingAdminEntry(list, item, status, config) {
         var li = document.createElement("li");
@@ -2976,16 +3009,24 @@
       }
 
       async function loadReadingArchive() {
-        var wrap = document.getElementById("reading-archive-admin");
+        var latestWrap = document.getElementById("reading-latest-archive");
+        var favoritesWrap = document.getElementById("reading-favorites-archive");
         var latestList = document.getElementById("reading-archive-list");
         var favoritesList = document.getElementById("reading-favorites-list");
-        var status = document.getElementById("reading-archive-status");
-        if (!wrap || !latestList || !favoritesList) return;
-        if (!loadSession()) { wrap.hidden = true; return; }
-        wrap.hidden = false;
-        if (status) status.hidden = true;
+        var latestStatus = document.getElementById("reading-archive-status");
+        var favoritesStatus = document.getElementById("reading-favorites-archive-status");
+        if (!latestWrap || !favoritesWrap || !latestList || !favoritesList) return;
+        if (!loadSession()) {
+          latestWrap.hidden = true;
+          favoritesWrap.hidden = true;
+          return;
+        }
+        latestWrap.hidden = false;
+        favoritesWrap.hidden = false;
+        if (latestStatus) latestStatus.hidden = true;
+        if (favoritesStatus) favoritesStatus.hidden = true;
         try {
-          await loadReadingArchiveList(latestList, "list-reading", status, {
+          await loadReadingArchiveList(latestList, "list-reading", latestStatus, {
             deleteAction: "delete-reading",
             updateCoverAction: "update-reading-cover",
             emptyMessage: "No latest entries yet.",
@@ -2993,18 +3034,22 @@
               return item.ym + (item.added_at ? " · added " + item.added_at.slice(0, 10) : "");
             },
           });
-          await loadReadingArchiveList(favoritesList, "list-reading-favorites", status, {
+        } catch (err) {
+          latestList.innerHTML = "";
+          if (latestStatus) showStatus(latestStatus, err.message || "Could not load entries", true);
+        }
+        try {
+          await loadReadingArchiveList(favoritesList, "list-reading-favorites", favoritesStatus, {
             deleteAction: "delete-reading-favorite",
             updateCoverAction: "update-reading-favorite-cover",
-            emptyMessage: "No favorites yet.",
+            emptyMessage: "No Must Reads yet.",
             metaText: function (item) {
               return item.added_at ? "added " + item.added_at.slice(0, 10) : "";
             },
           });
         } catch (err) {
-          latestList.innerHTML = "";
           favoritesList.innerHTML = "";
-          if (status) showStatus(status, err.message || "Could not load entries", true);
+          if (favoritesStatus) showStatus(favoritesStatus, err.message || "Could not load entries", true);
         }
       }
 
