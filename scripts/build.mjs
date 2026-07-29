@@ -46,6 +46,7 @@ if (d1Configured()) {
   } else {
     data.readingFavorites = [];
   }
+  data.readingGenres = [];
 }
 
 const {
@@ -55,6 +56,7 @@ const {
   posts,
   reading,
   readingFavorites: readingFavoritesRaw = [],
+  readingGenres: readingGenresRaw = [],
   linklog,
   links,
   optionalColophon,
@@ -868,6 +870,12 @@ const orderedReadingFavorites = [...readingFavorites]
   .filter((r) => r && r.title && r.url)
   .sort(sortReadingFavoritesByTitle);
 
+const readingGenres = Array.isArray(readingGenresRaw)
+  ? [...readingGenresRaw].sort((a, b) =>
+      String(a.label || "").localeCompare(String(b.label || ""), undefined, { sensitivity: "base" })
+    )
+  : [];
+
 for (const r of orderedReadingFavorites) {
   if (!r.cover_url || !r.url) continue;
   readingCoverCache[r.url] = r.cover_url;
@@ -1646,12 +1654,14 @@ function readingMonthLabel(ym) {
   );
 }
 
-function readingGridItemHtml(r, linkUrlFn = readingLinkUrl) {
+function readingGridItemHtml(r, linkUrlFn = readingLinkUrl, genres = []) {
   const cover = coverForReadingEntry(r);
   const coverInner = cover
     ? `<img src="${escHtml(cover)}" alt="${escHtml(r.title)}" loading="lazy" decoding="async" />`
     : `<span class="reading-grid-cover-fallback">${escHtml(r.title)}</span>`;
-  return `          <a class="reading-grid-item" href="${escHtml(linkUrlFn(r))}" target="_blank" rel="noopener noreferrer">
+  const genreSlugs = Array.isArray(genres) ? genres.filter(Boolean) : [];
+  const genreAttr = genreSlugs.length ? ` data-genres="${escHtml(genreSlugs.join(" "))}"` : "";
+  return `          <a class="reading-grid-item"${genreAttr} href="${escHtml(linkUrlFn(r))}" target="_blank" rel="noopener noreferrer">
     <span class="reading-grid-cover">${coverInner}</span>
     <span class="reading-grid-title">${escHtml(r.title)}</span>
   </a>`;
@@ -1685,10 +1695,13 @@ ${g.items.map((r) => readingGridItemHtml(r)).join("\n")}
 
 const readingGridHtml = readingGridGroupsHtml(orderedReading);
 
-const renderReadingFavoriteItem = (r) =>
-  `          <li>
+const renderReadingFavoriteItem = (r) => {
+  const genreSlugs = Array.isArray(r.genres) ? r.genres.filter(Boolean) : [];
+  const genreAttr = genreSlugs.length ? ` data-genres="${escHtml(genreSlugs.join(" "))}"` : "";
+  return `          <li${genreAttr}>
             <a href="${escHtml(readingFavoriteLinkUrl(r))}" target="_blank" rel="noopener noreferrer">${escHtml(r.title)}</a>
           </li>`;
+};
 
 const readingFavoritesAllHtml = orderedReadingFavorites.map(renderReadingFavoriteItem).join("\n");
 
@@ -1696,13 +1709,26 @@ const readingFavoritesGridHtml =
   orderedReadingFavorites.length === 0
     ? ""
     : `        <div class="reading-grid">
-${orderedReadingFavorites.map((r) => readingGridItemHtml(r, readingFavoriteLinkUrl)).join("\n")}
+${orderedReadingFavorites.map((r) => readingGridItemHtml(r, readingFavoriteLinkUrl, r.genres)).join("\n")}
         </div>`;
+
+const readingGenreFiltersHtml =
+  readingGenres.length > 0
+    ? `      <div class="reading-genre-filters" role="group" aria-label="Filter by genre">
+${readingGenres
+  .map(
+    (genre) =>
+      `        <button type="button" class="reading-genre-btn" data-filter="${escHtml(genre.slug)}" aria-pressed="false">${escHtml(genre.label)}</button>`
+  )
+  .join("\n")}
+      </div>`
+    : "";
 
 const readingFavoritesPanelHtml =
   orderedReadingFavorites.length === 0
     ? `      <p class="reading-favorites-empty">No books here yet — check back soon.</p>`
-    : `      <ol class="post-list reading-list">
+    : `${readingGenreFiltersHtml}
+      <ol class="post-list reading-list">
 ${readingFavoritesAllHtml}
       </ol>
       <div class="reading-grid-wrap">
@@ -1720,7 +1746,9 @@ const readingArchiveToolbarHtml = (activeTab = "latest") => `      <div class="r
         </div>
       </div>`;
 
-const readingArchiveScript = `    <script>(function(){var wrap=document.querySelector('.reading-views');if(!wrap)return;var tabBtns=wrap.querySelectorAll('[data-tab-btn]');var viewBtns=wrap.querySelectorAll('.reading-view-btn');var scrollObs=null;var scrollSentinel=null;var TAB_PATH={latest:'/reading/latest/',favorites:'/reading/must-reads/'};var HASH_TAB={latest:'latest','must-reads':'favorites'};function normPath(){return location.pathname.replace(/\\/+$/,'')||'/';}function tabFromPath(){var p=normPath();if(p==='/reading/latest')return'latest';if(p==='/reading/must-reads')return'favorites';return null;}function tabFromHash(){var h=location.hash.replace(/^#/,'');return HASH_TAB[h]||null;}function pathForTab(t){return TAB_PATH[t]||'/reading/latest/';}function activePanel(){return wrap.querySelector('[data-tab-panel="'+wrap.getAttribute('data-tab')+'"]');}function setTab(t,skipPath){wrap.setAttribute('data-tab',t);tabBtns.forEach(function(b){b.setAttribute('aria-selected',b.getAttribute('data-tab-btn')===t?'true':'false');});if(!skipPath){var want=pathForTab(t);if(location.pathname!==want||location.hash)history.replaceState(null,'',want);}setupInfiniteScroll();}function setView(v){wrap.setAttribute('data-view',v);viewBtns.forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-view-btn')===v?'true':'false');});localStorage.setItem('readingView',v);}function setupInfiniteScroll(){if(scrollObs){scrollObs.disconnect();scrollObs=null;}if(scrollSentinel){scrollSentinel.remove();scrollSentinel=null;}var panel=activePanel();if(!panel)return;var list=panel.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');items.forEach(function(li){li.hidden=false;});var BATCH=10;if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++)items[i].hidden=true;var shown=BATCH;scrollSentinel=document.createElement('div');scrollSentinel.className='reading-scroll-sentinel';panel.appendChild(scrollSentinel);scrollObs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++)items[i].hidden=false;shown=next;if(shown>=items.length){scrollObs.disconnect();scrollObs=null;}},{rootMargin:'0px'});scrollObs.observe(scrollSentinel);}var fromHash=tabFromHash();if(fromHash)history.replaceState(null,'',pathForTab(fromHash));var initialTab=tabFromPath()||'latest';setTab(initialTab,true);setView(localStorage.getItem('readingView')||'list');tabBtns.forEach(function(b){b.addEventListener('click',function(){setTab(b.getAttribute('data-tab-btn'));});});viewBtns.forEach(function(b){b.addEventListener('click',function(){setView(b.getAttribute('data-view-btn'));});});window.addEventListener('popstate',function(){setTab(tabFromPath()||'latest',true);});setupInfiniteScroll();}());</script>`;
+const READING_GENRE_SLUGS = readingGenres.map((g) => g.slug);
+
+const readingArchiveScript = `    <script>(function(){var wrap=document.querySelector('.reading-views');if(!wrap)return;var tabBtns=wrap.querySelectorAll('[data-tab-btn]');var viewBtns=wrap.querySelectorAll('.reading-view-btn');var scrollObs=null;var scrollSentinel=null;var favoritesPanel=wrap.querySelector('[data-tab-panel="favorites"]');var genreFilterBtns=favoritesPanel?favoritesPanel.querySelectorAll('.reading-genre-btn'):[];var genreSlugs=${JSON.stringify(READING_GENRE_SLUGS)};var activeGenre=null;var genreFilterActive=false;var TAB_PATH={latest:'/reading/latest/',favorites:'/reading/must-reads/'};var HASH_TAB={latest:'latest','must-reads':'favorites'};function normPath(){return location.pathname.replace(/\\/+$/,'')||'/';}function genreFromPath(){var p=normPath();if(p.indexOf('/reading/must-reads/')!==0)return null;var seg=p.slice('/reading/must-reads/'.length).replace(/\\/+$/,'');if(!seg)return null;return genreSlugs.indexOf(seg)>=0?seg:null;}function pathForGenre(){return activeGenre?'/reading/must-reads/'+activeGenre+'/':'/reading/must-reads/';}function tabFromPath(){var p=normPath();if(p==='/reading/latest')return'latest';if(p==='/reading/must-reads')return'favorites';if(p.indexOf('/reading/must-reads/')===0)return'favorites';return null;}function tabFromHash(){var h=location.hash.replace(/^#/,'');return HASH_TAB[h]||null;}function pathForTab(t){return TAB_PATH[t]||'/reading/latest/';}function activePanel(){return wrap.querySelector('[data-tab-panel="'+wrap.getAttribute('data-tab')+'"]');}function genreItemMatches(el){if(!genreFilterActive||!activeGenre)return true;var tags=(el.getAttribute('data-genres')||'').split(/\\s+/).filter(Boolean);return tags.indexOf(activeGenre)>=0;}function applyGenreFilters(){if(!favoritesPanel)return;var on=genreFilterActive&&activeGenre;genreFilterBtns.forEach(function(b){var slug=b.getAttribute('data-filter');b.setAttribute('aria-pressed',on&&slug===activeGenre?'true':'false');});favoritesPanel.querySelectorAll('.post-list li').forEach(function(el){el.hidden=on&&!genreItemMatches(el);});favoritesPanel.querySelectorAll('.reading-grid-item').forEach(function(el){el.hidden=on&&!genreItemMatches(el);});}function syncGenrePath(skipPath){if(skipPath||wrap.getAttribute('data-tab')!=='favorites')return;var want=pathForGenre();if(location.pathname!==want)history.replaceState(null,'',want);}function setGenreFromPath(){activeGenre=genreFromPath();genreFilterActive=Boolean(activeGenre);}function setTab(t,skipPath){wrap.setAttribute('data-tab',t);tabBtns.forEach(function(b){b.setAttribute('aria-selected',b.getAttribute('data-tab-btn')===t?'true':'false');});if(!skipPath){var want=pathForTab(t);if(location.pathname!==want||location.hash)history.replaceState(null,'',want);if(t!=='favorites'){activeGenre=null;genreFilterActive=false;}}applyGenreFilters();setupInfiniteScroll();}function setView(v){wrap.setAttribute('data-view',v);viewBtns.forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-view-btn')===v?'true':'false');});localStorage.setItem('readingView',v);}function setupInfiniteScroll(){if(scrollObs){scrollObs.disconnect();scrollObs=null;}if(scrollSentinel){scrollSentinel.remove();scrollSentinel=null;}if(wrap.getAttribute('data-tab')==='favorites'&&genreFilterActive&&activeGenre){return;}var panel=activePanel();if(!panel)return;var list=panel.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');items.forEach(function(li){if(!genreFilterActive||!activeGenre)li.hidden=false;});var BATCH=10;if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++){if(!genreFilterActive||!activeGenre)items[i].hidden=true;}var shown=BATCH;scrollSentinel=document.createElement('div');scrollSentinel.className='reading-scroll-sentinel';panel.appendChild(scrollSentinel);scrollObs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++){if(!genreFilterActive||!activeGenre)items[i].hidden=false;}shown=next;if(shown>=items.length){scrollObs.disconnect();scrollObs=null;}},{rootMargin:'0px'});scrollObs.observe(scrollSentinel);}var fromHash=tabFromHash();if(fromHash)history.replaceState(null,'',pathForTab(fromHash));setGenreFromPath();var initialTab=tabFromPath()||'latest';setTab(initialTab,true);setView(localStorage.getItem('readingView')||'list');tabBtns.forEach(function(b){b.addEventListener('click',function(){if(b.getAttribute('data-tab-btn')==='favorites'){activeGenre=null;genreFilterActive=false;}setTab(b.getAttribute('data-tab-btn'));});});viewBtns.forEach(function(b){b.addEventListener('click',function(){setView(b.getAttribute('data-view-btn'));});});genreFilterBtns.forEach(function(b){b.addEventListener('click',function(){var slug=b.getAttribute('data-filter');if(activeGenre===slug){activeGenre=null;genreFilterActive=false;}else{activeGenre=slug;genreFilterActive=true;}applyGenreFilters();setupInfiniteScroll();syncGenrePath();});});window.addEventListener('popstate',function(){setGenreFromPath();setTab(tabFromPath()||'latest',true);});}());</script>`;
 
 const readingArchiveFoot = `      <footer class="site-footer">
         <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><a href="#" class="theme-toggle" id="theme-toggle"></a></p>
@@ -1768,7 +1796,13 @@ ${thinkingArchiveFoot}`;
 
 const archiveUrls = [
   ...(hasMorePosts ? [`${base}/writing/`] : []),
-  ...(hasReadingArchive ? [`${base}/reading/latest/`, `${base}/reading/must-reads/`] : []),
+  ...(hasReadingArchive
+    ? [
+        `${base}/reading/latest/`,
+        `${base}/reading/must-reads/`,
+        ...readingGenres.map((g) => `${base}/reading/must-reads/${g.slug}/`),
+      ]
+    : []),
   ...(hasMoreLinklog ? [`${base}/sharing/`] : []),
 ];
 
@@ -1824,6 +1858,15 @@ if (hasReadingArchive) {
   ]) {
     mkdirSync(join(outDir, "reading", slug), { recursive: true });
     writeFileSync(join(outDir, "reading", slug, "index.html"), readingPageHtml(tab), "utf8");
+  }
+  for (const genre of readingGenres) {
+    mkdirSync(join(outDir, "reading", "must-reads", genre.slug), { recursive: true });
+    writeFileSync(
+      join(outDir, "reading", "must-reads", genre.slug, "index.html"),
+      readingPageHtml("favorites"),
+      "utf8"
+    );
+    redirectLines.push(`/reading/must-reads/${genre.slug} /reading/must-reads/${genre.slug}/ 301`);
   }
   redirectLines.push("/reading /reading/latest/ 301", "/reading/ /reading/latest/ 301");
 }

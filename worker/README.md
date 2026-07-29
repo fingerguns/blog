@@ -127,6 +127,7 @@ Output directory: `dist`
 | `delete-draft` | Delete draft |
 | `refresh-section-hints` | Regenerate homepage section tooltips (Workers AI) |
 | `refresh-reading-tab-intros` | Regenerate Reading Latest / Must Reads tab intro copy (Claude Opus) |
+| `backfill-reading-genres` | Assign genre tags to Must Reads favorites missing a primary genre (Claude Opus) |
 
 ## Architecture
 
@@ -156,3 +157,19 @@ node scripts/seed-reading-favorites.mjs --remote
 ```
 
 If step 1 fails with “Unable to read SQL text file”, you're not in `worker/` or the migration file isn't in your checkout yet.
+
+### Must Reads genre tags
+
+After deploying the Worker with genre support:
+
+```bash
+# 1. Create reading_genres + reading_favorite_genres tables
+cd worker
+wrangler d1 execute rommy-blog-db --file=migrate-reading-genres.sql --remote
+
+# 2. Tag existing favorites (requires ANTHROPIC_API_KEY in Worker secrets)
+cd ..
+npm run backfill-reading-genres
+```
+
+New favorites get genre tags automatically on add (async, via Claude Opus). Removing a favorite prunes any genre no longer used by another book.

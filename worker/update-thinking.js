@@ -21,6 +21,11 @@ import {
   READING_TAB_KEYS,
 } from "./reading-tab-intros.mjs";
 import { generateReadingTagClouds } from "./reading-tag-clouds.mjs";
+import {
+  backfillReadingGenres,
+  scheduleReadingGenreAssignment,
+  scheduleReadingGenrePrune,
+} from "./reading-genres.mjs";
 import { serveMedia } from "./media.mjs";
 import { createR2PresignedPutUrl } from "./r2-presign.mjs";
 import { thinkingVideoPosterKey, uploadVideoPosterToR2 } from "./video-poster.mjs";
@@ -214,6 +219,15 @@ export default {
         return json({ ok: true, ...clouds }, 200, cors);
       } catch (err) {
         return json({ error: err.message || "Tag cloud generation failed" }, 500, cors);
+      }
+    }
+
+    if (action === "backfill-reading-genres") {
+      try {
+        const result = await backfillReadingGenres(env, db, triggerRebuild);
+        return json({ ok: true, ...result }, 200, cors);
+      } catch (err) {
+        return json({ error: err.message || "Genre backfill failed" }, 500, cors);
       }
     }
 
@@ -2269,10 +2283,16 @@ async function handleReadingFavorite(body, db, cors, env, ctx) {
       now.toISOString()
     );
 
+    const inserted = await dbFirst(db, "SELECT id FROM reading_favorites WHERE rowid = last_insert_rowid()");
+    const favoriteId = inserted?.id;
+
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Reading", triggerRebuild);
     scheduleReadingTabIntroRefresh(ctx, env, db, "mustReads", triggerRebuild);
-    return json({ ok: true, entry }, 200, cors);
+    if (favoriteId) {
+      scheduleReadingGenreAssignment(ctx, env, db, favoriteId, triggerRebuild);
+    }
+    return json({ ok: true, entry, id: favoriteId ?? null }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
   }
@@ -2316,6 +2336,7 @@ async function handleDeleteReadingFavorite(payload, db, cors, env, ctx) {
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Reading", triggerRebuild);
     scheduleReadingTabIntroRefresh(ctx, env, db, "mustReads", triggerRebuild);
+    scheduleReadingGenrePrune(ctx, env, db, triggerRebuild);
 
     return json({ ok: true }, 200, cors);
   } catch (err) {

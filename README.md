@@ -20,6 +20,7 @@ Built with [Cursor](https://cursor.com). See the [colophon](https://rommy.blog/c
 - **Reading archive views** — [`/reading/latest/`](https://rommy.blog/reading/latest/) and [`/reading/must-reads/`](https://rommy.blog/reading/must-reads/) are path-based tabs (URL updates on switch). Sorted by read month (`ym`), not date added. List/grid toggle (remembered in `localStorage`); grid is a storefront-style cover catalog grouped by month (3 columns desktop, 2 mobile). Each tab opens with a taste summary redrafted by Claude Opus when books change. Optional author field and multi-source cover picker (Open Library, Apple Books, Google Books) in admin; custom covers can live in R2 under `reading/covers/`
 - **Section tooltips** — Homepage section headings have hover blurbs stored in D1; Workers AI regenerates them after content changes (`refresh-section-hints` admin action or `npm run refresh-section-hints`)
 - **Reading tab intros** — Latest and Must Reads tabs have visitor-facing taste summaries stored in D1; Claude Opus redrafts them when books are added or removed (`refresh-reading-tab-intros` or `npm run refresh-reading-tab-intros` from repo root or `worker/`)
+- **Must Reads genre tags** — Each curated favorite gets 1–3 AI-assigned genre tags (primary required) stored in D1; genre filter chips on `/reading/must-reads/` solo-select one genre at a time, with shareable paths like `/reading/must-reads/literary-realism/`. Tags are assigned automatically when books are added and pruned when unused after removal (`backfill-reading-genres` or `npm run backfill-reading-genres` for existing titles)
 - **Elsewhere → Socials** — Collapsible row on the homepage with links to Bluesky, Mastodon, and micro.blog
 - **Changelog** — Generated from Git history at build time
 - **Colophon** — [`/colophon/`](https://rommy.blog/colophon/) describes how the site is built, with an optional toggle to read it in the style of Walt Whitman
@@ -161,6 +162,7 @@ wrangler deploy
 | `fetch-title` | Fetch page title for Sharing |
 | `refresh-section-hints` | Regenerate homepage section tooltips with Workers AI |
 | `refresh-reading-tab-intros` | Regenerate Reading Latest / Must Reads tab intro copy with Claude Opus |
+| `backfill-reading-genres` | Assign genre tags to Must Reads books missing a primary genre (Claude Opus) |
 | `generate-reading-tag-clouds` | Dev helper: thematic tag clouds for Latest and Must Reads (stdout only) |
 | `verify` | Check admin password |
 
@@ -182,6 +184,7 @@ wrangler deploy
 - Grid view: cover art grouped by month (3 columns desktop, 2 mobile); list/grid choice in `localStorage`
 - Admin: optional **author** field improves cover search; **Find cover art** queries Open Library, Apple Books, and Google Books; covers can be changed later from the archive list
 - `cover_url` in D1 wins over build-time Open Library lookup; custom covers can be uploaded to R2 under `reading/covers/` (referenced in `data/reading-covers.json` and `data/reading-favorites.json` for build)
+- **Must Reads genres:** Each favorite gets 1–3 ranked genre tags in D1 (`reading_genres`, `reading_favorite_genres`), assigned by Claude Opus on add. Filter chips on `/reading/must-reads/` filter the list client-side; tags are not shown under individual titles. Run migration + backfill once (see `worker/README.md`)
 
 ## Audio & Video Syndication
 
