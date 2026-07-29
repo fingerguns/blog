@@ -3,6 +3,7 @@ import {
   extractAnthropicText,
   runAnthropicText,
 } from "../scripts/lib/anthropic.mjs";
+import { logAnthropicUsage } from "./anthropic-usage.mjs";
 import {
   DEFAULT_READING_TAB_INTROS,
   READING_TAB_KEYS,
@@ -94,7 +95,7 @@ async function fetchTabSamples(db, tab) {
   return null;
 }
 
-export async function generateReadingTabIntro(env, tab, samples, currentIntro) {
+export async function generateReadingTabIntro(env, db, tab, samples, currentIntro) {
   if (!anthropicConfigured(env)) {
     return { intro: null, reason: "ANTHROPIC_API_KEY is not configured" };
   }
@@ -109,6 +110,14 @@ export async function generateReadingTabIntro(env, tab, samples, currentIntro) {
     });
   } catch (err) {
     return { intro: null, reason: err?.message || "Anthropic API request failed" };
+  }
+
+  if (db) {
+    await logAnthropicUsage(db, {
+      feature: "reading-tab-intro",
+      context: tab,
+      result,
+    });
   }
 
   const raw = extractAnthropicText(result);
@@ -145,7 +154,7 @@ export async function refreshReadingTabIntro(env, db, tab, triggerRebuild) {
     const samples = await fetchTabSamples(db, tab);
     const intros = await loadReadingTabIntros(db);
     const currentIntro = intros[tab];
-    const generated = await generateReadingTabIntro(env, tab, samples, currentIntro);
+    const generated = await generateReadingTabIntro(env, db, tab, samples, currentIntro);
     if (!generated.intro) {
       console.error(`reading tab intro refresh skipped (${tab}):`, generated.reason, generated.rawPreview || "");
       return { tab, saved: false, reason: generated.reason, rawPreview: generated.rawPreview };

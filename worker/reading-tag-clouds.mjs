@@ -1,4 +1,5 @@
 import { extractAnthropicText, runAnthropicText } from "../scripts/lib/anthropic.mjs";
+import { logAnthropicUsage } from "./anthropic-usage.mjs";
 import {
   buildTagCloudPrompt,
   parseTagCloudResponse,
@@ -42,7 +43,7 @@ async function loadMustReadsBooks(db) {
   }));
 }
 
-async function generateTagCloud(env, tab, books) {
+async function generateTagCloud(env, db, tab, books) {
   const prompt = buildTagCloudPrompt(tab, books);
   const result = await runAnthropicText(env, {
     system:
@@ -50,6 +51,13 @@ async function generateTagCloud(env, tab, books) {
     user: prompt,
     maxTokens: 1024,
   });
+  if (db) {
+    await logAnthropicUsage(db, {
+      feature: "reading-tag-cloud",
+      context: tab,
+      result,
+    });
+  }
   return parseTagCloudResponse(extractAnthropicText(result));
 }
 
@@ -58,8 +66,8 @@ export async function generateReadingTagClouds(env, db) {
   const mustReadsBooks = await loadMustReadsBooks(db);
 
   const [latest, mustReads] = await Promise.all([
-    generateTagCloud(env, "latest", latestBooks),
-    generateTagCloud(env, "mustReads", mustReadsBooks),
+    generateTagCloud(env, db, "latest", latestBooks),
+    generateTagCloud(env, db, "mustReads", mustReadsBooks),
   ]);
 
   return {

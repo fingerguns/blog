@@ -17,6 +17,39 @@ export function extractAnthropicText(result) {
     .trim();
 }
 
+/** Rough Opus list rates (USD per million tokens) for estimates only. */
+export const ANTHROPIC_OPUS_RATES = {
+  inputPerM: 15,
+  outputPerM: 75,
+};
+
+export function estimateAnthropicCostUsd(usage, rates = ANTHROPIC_OPUS_RATES) {
+  const input =
+    (usage.input_tokens || 0) +
+    (usage.cache_creation_input_tokens || 0) +
+    (usage.cache_read_input_tokens || 0);
+  const output = usage.output_tokens || 0;
+  return (input * rates.inputPerM + output * rates.outputPerM) / 1_000_000;
+}
+
+export function extractAnthropicUsage(result) {
+  const usage = result?.usage;
+  if (!usage || typeof usage !== "object") {
+    return {
+      input_tokens: 0,
+      output_tokens: 0,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+    };
+  }
+  return {
+    input_tokens: Number(usage.input_tokens) || 0,
+    output_tokens: Number(usage.output_tokens) || 0,
+    cache_creation_input_tokens: Number(usage.cache_creation_input_tokens) || 0,
+    cache_read_input_tokens: Number(usage.cache_read_input_tokens) || 0,
+  };
+}
+
 /**
  * @param {object} env Worker env with ANTHROPIC_API_KEY
  * @param {{ system?: string, user: string, maxTokens?: number, model?: string }} opts

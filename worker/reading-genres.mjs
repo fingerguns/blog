@@ -1,4 +1,5 @@
 import { anthropicConfigured, extractAnthropicText, runAnthropicText } from "../scripts/lib/anthropic.mjs";
+import { logAnthropicUsage } from "./anthropic-usage.mjs";
 import {
   buildGenreAssignmentPrompt,
   parseGenreAssignmentResponse,
@@ -117,6 +118,12 @@ export async function evaluateAndAssignGenres(env, db, favoriteId) {
   } catch (err) {
     return { favoriteId, saved: false, reason: err?.message || "Anthropic API request failed" };
   }
+
+  await logAnthropicUsage(db, {
+    feature: "reading-genre",
+    context: book.title,
+    result,
+  });
 
   try {
     const tags = parseGenreAssignmentResponse(extractAnthropicText(result));

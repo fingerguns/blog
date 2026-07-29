@@ -74,6 +74,7 @@ npm run preview   # serves dist/ at http://localhost:3000
 npm run backfill-video-posters   # capture JPEG posters for existing Thinking videos (R2)
 npm run refresh-section-hints    # regenerate homepage section tooltips via Workers AI
 npm run refresh-reading-tab-intros   # regenerate Reading tab intro copy via Claude Opus
+npm run anthropic-usage              # Anthropic token usage summary (last 30 days)
 ```
 
 Output goes to **`dist/`** (gitignored). Generated HTML is not committed; CI/Pages builds from source + D1.
@@ -163,6 +164,7 @@ wrangler deploy
 | `refresh-section-hints` | Regenerate homepage section tooltips with Workers AI |
 | `refresh-reading-tab-intros` | Regenerate Reading Latest / Must Reads tab intro copy with Claude Opus |
 | `backfill-reading-genres` | Assign genre tags to Must Reads books missing a primary genre (Claude Opus) |
+| `anthropic-usage-summary` | Token usage totals from logged Anthropic API calls |
 | `generate-reading-tag-clouds` | Dev helper: thematic tag clouds for Latest and Must Reads (stdout only) |
 | `verify` | Check admin password |
 

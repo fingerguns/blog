@@ -4,7 +4,8 @@
   "scripts": {
     "refresh-section-hints": "node --env-file=../.env ../scripts/refresh-section-hints.mjs",
     "refresh-reading-tab-intros": "node --env-file=../.env ../scripts/refresh-reading-tab-intros.mjs",
-    "backfill-reading-genres": "node --env-file=../.env ../scripts/backfill-reading-genres.mjs"
+    "backfill-reading-genres": "node --env-file=../.env ../scripts/backfill-reading-genres.mjs",
+    "anthropic-usage": "node --env-file=../.env ../scripts/anthropic-usage.mjs"
   },
   "dependencies": {
     "aws4fetch": "^1.0.20"

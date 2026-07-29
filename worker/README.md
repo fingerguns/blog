@@ -128,6 +128,7 @@ Output directory: `dist`
 | `refresh-section-hints` | Regenerate homepage section tooltips (Workers AI) |
 | `refresh-reading-tab-intros` | Regenerate Reading Latest / Must Reads tab intro copy (Claude Opus) |
 | `backfill-reading-genres` | Assign genre tags to Must Reads favorites missing a primary genre (Claude Opus) |
+| `anthropic-usage-summary` | Token usage totals from D1 (`anthropic_usage` table) |
 
 ## Architecture
 
@@ -173,3 +174,21 @@ npm run backfill-reading-genres
 ```
 
 New favorites get genre tags automatically on add (async, via Claude Opus). Removing a favorite prunes any genre no longer used by another book.
+
+### Anthropic usage logging
+
+After deploying the Worker with usage logging:
+
+```bash
+cd worker
+wrangler d1 execute rommy-blog-db --file=migrate-anthropic-usage.sql --remote
+```
+
+Each Claude Opus call (genre tags, Reading tab intros, tag clouds) logs input/output tokens to D1 and the Worker console. View totals:
+
+```bash
+npm run anthropic-usage        # last 30 days
+npm run anthropic-usage -- 7   # last 7 days
+```
+
+Estimates use approximate Opus list rates; check [Anthropic Console → Cost](https://platform.claude.com/cost) for billed amounts.

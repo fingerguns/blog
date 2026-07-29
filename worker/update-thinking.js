@@ -26,6 +26,7 @@ import {
   scheduleReadingGenreAssignment,
   scheduleReadingGenrePrune,
 } from "./reading-genres.mjs";
+import { getAnthropicUsageSummary } from "./anthropic-usage.mjs";
 import { serveMedia } from "./media.mjs";
 import { createR2PresignedPutUrl } from "./r2-presign.mjs";
 import { thinkingVideoPosterKey, uploadVideoPosterToR2 } from "./video-poster.mjs";
@@ -228,6 +229,16 @@ export default {
         return json({ ok: true, ...result }, 200, cors);
       } catch (err) {
         return json({ error: err.message || "Genre backfill failed" }, 500, cors);
+      }
+    }
+
+    if (action === "anthropic-usage-summary") {
+      try {
+        const days = Math.min(Math.max(Number(payload.days) || 30, 1), 365);
+        const summary = await getAnthropicUsageSummary(db, { days });
+        return json({ ok: true, ...summary }, 200, cors);
+      } catch (err) {
+        return json({ error: err.message || "Usage summary failed" }, 500, cors);
       }
     }
 
