@@ -760,8 +760,19 @@ function coverFromCache(url) {
   return null;
 }
 
+// Open Library URLs in reading-covers.json are auto-fetched fallbacks and
+// must not override an admin-picked cover_url. Non-Open-Library entries are
+// intentional edition overrides (R2 uploads, Booksense, AbeBooks, etc.) and
+// should win at build time even before a D1 SQL migration runs.
+function isCommittedCoverOverride(coverUrl) {
+  if (!coverUrl) return false;
+  return !/covers\.openlibrary\.org\//i.test(coverUrl);
+}
+
 function coverForReadingEntry(r) {
-  return r.cover_url || coverFromCache(r.url) || null;
+  const cached = coverFromCache(r.url);
+  if (cached && isCommittedCoverOverride(cached)) return cached;
+  return r.cover_url || cached || null;
 }
 
 // Cover lookup, most precise first:
@@ -1636,7 +1647,7 @@ function readingMonthLabel(ym) {
 }
 
 function readingGridItemHtml(r, linkUrlFn = readingLinkUrl) {
-  const cover = r.cover_url || coverFromCache(r.url);
+  const cover = coverForReadingEntry(r);
   const coverInner = cover
     ? `<img src="${escHtml(cover)}" alt="${escHtml(r.title)}" loading="lazy" decoding="async" />`
     : `<span class="reading-grid-cover-fallback">${escHtml(r.title)}</span>`;
