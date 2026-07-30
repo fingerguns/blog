@@ -136,15 +136,6 @@ export async function loadBlogDataFromD1() {
     "SELECT url, title, date, datetime FROM linklog ORDER BY datetime DESC"
   );
 
-  let watching = [];
-  try {
-    watching = await d1Query(
-      "SELECT id, ym, title, url, watched_at, rating, added_at FROM watching ORDER BY watched_at DESC, id DESC"
-    );
-  } catch {
-    watching = [];
-  }
-
   const thinkingPostRows = await d1Query(
     "SELECT slug, text, media_url, media_alt, media_type, media_urls, content_html, datetime, microblog_url FROM thinking_posts ORDER BY datetime DESC"
   );
@@ -216,15 +207,6 @@ export async function loadBlogDataFromD1() {
       title: l.title,
       date: l.date,
       datetime: l.datetime,
-    })),
-    watching: watching.map((w) => ({
-      id: w.id,
-      ym: w.ym,
-      title: w.title,
-      url: w.url,
-      watched_at: w.watched_at,
-      rating: w.rating ?? null,
-      added_at: w.added_at,
     })),
     links: site.links || [
       { label: "Now", url: "/now/", internal: true },
