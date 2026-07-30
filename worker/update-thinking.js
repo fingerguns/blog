@@ -1,3 +1,4 @@
+import { parseWatchingRating } from "../scripts/lib/watching-rating.mjs";
 import { bookshopAffiliateUrl, isbnFromBookshopUrl } from "../scripts/lib/bookshop-affiliate.mjs";
 import {
   buildLatestCoverLookup,
@@ -292,6 +293,18 @@ export default {
 
     if (action === "update-reading-favorite-cover") {
       return handleUpdateReadingFavoriteCover(payload, db, cors, env);
+    }
+
+    if (action === "watching") {
+      return handleWatching(payload, db, cors, env, ctx);
+    }
+
+    if (action === "list-watching") {
+      return handleListWatching(db, cors);
+    }
+
+    if (action === "delete-watching") {
+      return handleDeleteWatching(payload, db, cors, env, ctx);
     }
 
     if (action === "sharing") {
@@ -2246,6 +2259,92 @@ async function handleDeleteReading(payload, db, cors, env, ctx) {
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Reading", triggerRebuild);
     scheduleReadingTabIntroRefresh(ctx, env, db, "latest", triggerRebuild);
+
+    return json({ ok: true }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Delete failed" }, 500, cors);
+  }
+}
+
+function etTodayYmd() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
+}
+
+// ─── Watching ─────────────────────────────────────────────────────────────────
+
+async function handleWatching(body, db, cors, env, ctx) {
+  const { title, url, rating: ratingRaw } = body;
+
+  if (typeof title !== "string" || !title.trim()) {
+    return json({ error: "Missing title" }, 400, cors);
+  }
+  if (typeof url !== "string" || !url.trim()) {
+    return json({ error: "Missing url" }, 400, cors);
+  }
+
+  const parsedRating = parseWatchingRating(ratingRaw);
+  if (parsedRating && typeof parsedRating === "object" && parsedRating.error) {
+    return json({ error: parsedRating.error }, 400, cors);
+  }
+
+  const watchedAt = etTodayYmd();
+  const now = new Date();
+  const entry = {
+    ym: watchedAt.slice(0, 7),
+    title: title.trim(),
+    url: url.trim(),
+    watchedAt,
+    rating: parsedRating,
+  };
+
+  try {
+    await dbRun(
+      db,
+      "INSERT INTO watching (ym, title, url, watched_at, rating, added_at) VALUES (?, ?, ?, ?, ?, ?)",
+      entry.ym,
+      entry.title,
+      entry.url,
+      entry.watchedAt,
+      entry.rating,
+      now.toISOString()
+    );
+
+    await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Watching", triggerRebuild);
+    return json({ ok: true, entry }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Update failed" }, 500, cors);
+  }
+}
+
+async function handleListWatching(db, cors) {
+  try {
+    const { results: rows } = await dbAll(
+      db,
+      "SELECT id, ym, title, url, watched_at, rating, added_at FROM watching ORDER BY watched_at DESC, id DESC"
+    );
+    return json({ ok: true, items: rows || [] }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Could not list watching entries" }, 500, cors);
+  }
+}
+
+async function handleDeleteWatching(payload, db, cors, env, ctx) {
+  const id = payload.id;
+  if (!id || typeof id !== "number") {
+    return json({ error: "Missing or invalid id" }, 400, cors);
+  }
+
+  try {
+    const existing = await dbFirst(db, "SELECT id FROM watching WHERE id = ?", id);
+    if (!existing) {
+      return json({ error: "Watching entry not found" }, 404, cors);
+    }
+
+    await dbRun(db, "DELETE FROM watching WHERE id = ?", id);
+
+    await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Watching", triggerRebuild);
 
     return json({ ok: true }, 200, cors);
   } catch (err) {

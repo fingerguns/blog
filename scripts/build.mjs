@@ -57,6 +57,7 @@ const {
   reading,
   readingFavorites: readingFavoritesRaw = [],
   readingGenres: readingGenresRaw = [],
+  watching = [],
   linklog,
   links,
   optionalColophon,
@@ -705,6 +706,45 @@ const renderReadingItem = (r) =>
             <a href="${escHtml(readingLinkUrl(r))}" target="_blank" rel="noopener noreferrer">${escHtml(r.title)}</a>
           </li>`;
 
+function sortWatchingDesc(a, b) {
+  const aw = String(a.watched_at || "");
+  const bw = String(b.watched_at || "");
+  if (aw !== bw) return bw.localeCompare(aw);
+  const aAt = a.added_at ? new Date(a.added_at).getTime() : 0;
+  const bAt = b.added_at ? new Date(b.added_at).getTime() : 0;
+  if (aAt !== bAt) return bAt - aAt;
+  return (b.id || 0) - (a.id || 0);
+}
+
+/** Public Watching lists: one row per film title (earliest watched_at wins). D1 keeps every watch. */
+function dedupeWatchingByTitle(items) {
+  const byTitle = new Map();
+  for (const item of items) {
+    const key = String(item.title || "")
+      .trim()
+      .toLowerCase();
+    if (!key) continue;
+    const existing = byTitle.get(key);
+    if (!existing) {
+      byTitle.set(key, item);
+      continue;
+    }
+    const itemDate = String(item.watched_at || "");
+    const existingDate = String(existing.watched_at || "");
+    if (itemDate < existingDate || (itemDate === existingDate && (item.id || 0) < (existing.id || 0))) {
+      byTitle.set(key, item);
+    }
+  }
+  return [...byTitle.values()];
+}
+
+const orderedWatching = [...dedupeWatchingByTitle(watching || [])].sort(sortWatchingDesc);
+const renderWatchingItem = (w) =>
+  `          <li>
+            <span class="post-date">${escHtml(w.ym)}</span>
+            <a href="${escHtml(w.url)}" target="_blank" rel="noopener noreferrer">${escHtml(w.title)}</a>
+          </li>`;
+
 // Reading grid: book cover art isn't stored in D1 (reading rows only have
 // title/url/ym), so covers are looked up at build time via Open Library's
 // public search + covers API and cached locally, so we don't refetch on
@@ -958,6 +998,10 @@ const hasMoreReading = orderedReading.length > MAX_PER_SECTION;
 const hasReadingArchive = orderedReading.length > 0 || orderedReadingFavorites.length > 0;
 const readingAllHtml = orderedReading.map(renderReadingItem).join("\n");
 
+const watchingHtml = orderedWatching.slice(0, MAX_PER_SECTION).map(renderWatchingItem).join("\n");
+const hasMoreWatching = orderedWatching.length > MAX_PER_SECTION;
+const watchingAllHtml = orderedWatching.map(renderWatchingItem).join("\n");
+
 const linklogHtml = orderedLinklog.slice(0, MAX_PER_SECTION).map(renderLinklogItem).join("\n");
 const hasMoreLinklog = orderedLinklog.length > MAX_PER_SECTION;
 const linklogAllHtml = orderedLinklog.map(renderLinklogItem).join("\n");
@@ -1073,6 +1117,14 @@ ${postListHtml}
 ${readingHtml}
         </ol>
         ${hasMoreReading ? '<a class="see-more" href="/reading/latest/">→</a>' : ""}
+      </section>
+
+      <section aria-labelledby="watching-heading">
+        ${sectionHeading("Watching", "h2", "watching-heading")}
+        <ol class="post-list" reversed>
+${watchingHtml}
+        </ol>
+        ${hasMoreWatching ? '<a class="see-more" href="/watching/">→</a>' : ""}
       </section>
 
       <section aria-labelledby="linklog-heading">
@@ -1336,6 +1388,12 @@ ${archiveFoot}`;
 const sharingPageHtml = `${archiveHead("Sharing", sectionHeading("Sharing", "h1"))}
       <ol class="post-list" reversed>
 ${linklogAllHtml}
+      </ol>
+${archiveFoot}`;
+
+const watchingPageHtml = `${archiveHead("Watching", sectionHeading("Watching", "h1"))}
+      <ol class="post-list" reversed>
+${watchingAllHtml}
       </ol>
 ${archiveFoot}`;
 
@@ -1807,6 +1865,7 @@ const archiveUrls = [
       ]
     : []),
   ...(hasMoreLinklog ? [`${base}/sharing/`] : []),
+  ...(hasMoreWatching ? [`${base}/watching/`] : []),
 ];
 
 const urls = [
@@ -1880,6 +1939,7 @@ if (redirectLines.length) {
   writeFileSync(join(outDir, "_redirects"), `${redirectLines.join("\n")}\n`, "utf8");
 }
 manageArchive(hasMoreLinklog, "sharing", sharingPageHtml);
+manageArchive(hasMoreWatching, "watching", watchingPageHtml);
 
 mkdirSync(join(outDir, "now"), { recursive: true });
 writeFileSync(join(outDir, "now/index.html"), nowPageHtml, "utf8");

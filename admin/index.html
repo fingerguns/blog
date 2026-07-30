@@ -688,6 +688,7 @@
         <button class="admin-tab auth-only" data-tab="thinking" hidden>Thinking</button>
         <button class="admin-tab auth-only" data-tab="post" hidden>Writing</button>
         <button class="admin-tab auth-only" data-tab="reading" hidden>Reading</button>
+        <button class="admin-tab auth-only" data-tab="watching" hidden>Watching</button>
         <button class="admin-tab auth-only" data-tab="sharing" hidden>Sharing</button>
       </div>
 
@@ -924,6 +925,32 @@
         </div>
       </div>
 
+      <!-- ── WATCHING ─────────────────────────────── -->
+      <div class="admin-section" id="tab-watching">
+        <p class="lead">Add a film to the WATCHING section.</p>
+
+        <form class="admin-form" id="watching-form">
+          <label for="w-title">Film Name</label>
+          <input id="w-title" type="text" required placeholder="e.g. In the Mood for Love" />
+
+          <label for="w-url">Letterboxd URL</label>
+          <input id="w-url" type="url" required placeholder="https://boxd.it/…" />
+
+          <label for="w-rating">Rating (optional)</label>
+          <input id="w-rating" type="text" inputmode="decimal" placeholder="4.5" />
+          <p class="admin-hint" style="margin-top:-0.9rem">Optional. Letterboxd-style: 0.5, 1, 1.5, … 5</p>
+
+          <button type="submit" id="w-submit">Add Film</button>
+          <p class="admin-status" id="w-status" hidden></p>
+        </form>
+
+        <div id="watching-archive" hidden>
+          <h3 class="thinking-archive-heading">All entries</h3>
+          <ul class="drafts-list" id="watching-archive-list"></ul>
+          <p class="admin-status" id="watching-archive-status" hidden></p>
+        </div>
+      </div>
+
       <!-- ── SHARING ──────────────────────────────── -->
       <div class="admin-section" id="tab-sharing">
         <p class="lead">Add a link to the SHARING section.</p>
@@ -1041,6 +1068,7 @@
         if (signedIn) {
           loadThinkingArchive();
           loadReadingArchive();
+          loadWatchingArchive();
         } else {
           var archiveWrap = document.getElementById("thinking-archive-admin");
           if (archiveWrap) archiveWrap.hidden = true;
@@ -1048,6 +1076,8 @@
           if (readingLatestWrap) readingLatestWrap.hidden = true;
           var readingFavoritesWrap = document.getElementById("reading-favorites-archive");
           if (readingFavoritesWrap) readingFavoritesWrap.hidden = true;
+          var watchingWrap = document.getElementById("watching-archive");
+          if (watchingWrap) watchingWrap.hidden = true;
         }
       }
 
@@ -1116,6 +1146,7 @@
             document.getElementById("tab-" + target).classList.add("active");
             if (target === "thinking") loadThinkingArchive();
             if (target === "reading") loadReadingArchive();
+            if (target === "watching") loadWatchingArchive();
           });
         });
       })();
@@ -3104,6 +3135,136 @@
             picker.hidden = true;
             picker.innerHTML = "";
             loadReadingArchive();
+          } catch (err) {
+            showStatus(status, err.message, true);
+          } finally {
+            submit.disabled = false;
+          }
+        });
+      })();
+
+      // ── Watching form ──────────────────────────────────────────────────────
+
+      function parseWatchingRatingInput(raw) {
+        var s = String(raw || "").trim();
+        if (!s) return { ok: true, value: null };
+        var n = Number(s);
+        if (!Number.isFinite(n) || n < 0.5 || n > 5) {
+          return { ok: false, error: "Rating must be between 0.5 and 5 in 0.5 increments." };
+        }
+        var steps = Math.round(n * 2);
+        if (Math.abs(steps / 2 - n) > 1e-9) {
+          return { ok: false, error: "Rating must be between 0.5 and 5 in 0.5 increments." };
+        }
+        return { ok: true, value: steps / 2 };
+      }
+
+      function appendWatchingAdminEntry(list, item, status) {
+        var li = document.createElement("li");
+        li.className = "draft-item";
+
+        var row = document.createElement("div");
+        row.className = "draft-item-row";
+
+        var title = document.createElement("span");
+        title.className = "draft-item-title";
+        var ratingPrefix = item.rating != null ? item.rating + " · " : "";
+        title.textContent = ratingPrefix + item.title;
+
+        var meta = document.createElement("span");
+        meta.className = "draft-item-meta";
+        meta.textContent =
+          item.ym + (item.watched_at ? " · watched " + item.watched_at : "");
+
+        row.appendChild(title);
+        row.appendChild(meta);
+
+        var actions = document.createElement("div");
+        actions.className = "draft-item-actions";
+
+        var del = document.createElement("button");
+        del.type = "button";
+        del.className = "draft-item-delete";
+        del.textContent = "Delete";
+        del.addEventListener("click", async function () {
+          if (!confirm('Delete "' + item.title + '"?')) return;
+          del.disabled = true;
+          try {
+            await callAPI({ action: "delete-watching", id: item.id });
+            li.remove();
+            if (!list.children.length) {
+              list.innerHTML = '<li><span class="admin-hint">No watching entries yet.</span></li>';
+            }
+          } catch (err) {
+            del.disabled = false;
+            if (status) showStatus(status, err.message || "Delete failed", true);
+          }
+        });
+
+        actions.appendChild(del);
+        li.appendChild(row);
+        li.appendChild(actions);
+        list.appendChild(li);
+      }
+
+      async function loadWatchingArchive() {
+        var wrap = document.getElementById("watching-archive");
+        var list = document.getElementById("watching-archive-list");
+        var status = document.getElementById("watching-archive-status");
+        if (!wrap || !list) return;
+        if (!loadSession()) {
+          wrap.hidden = true;
+          return;
+        }
+        wrap.hidden = false;
+        if (status) status.hidden = true;
+        list.innerHTML = '<li><span class="admin-hint">Loading…</span></li>';
+        try {
+          var data = await callAPI({ action: "list-watching" });
+          var items = data.items || [];
+          list.innerHTML = "";
+          if (!items.length) {
+            list.innerHTML = '<li><span class="admin-hint">No watching entries yet.</span></li>';
+            return;
+          }
+          items.forEach(function (item) {
+            appendWatchingAdminEntry(list, item, status);
+          });
+        } catch (err) {
+          list.innerHTML = "";
+          if (status) showStatus(status, err.message || "Could not load entries", true);
+        }
+      }
+
+      (function () {
+        var form = document.getElementById("watching-form");
+        if (!form) return;
+        var status = document.getElementById("w-status");
+        var submit = document.getElementById("w-submit");
+
+        form.addEventListener("submit", async function (e) {
+          e.preventDefault();
+          var ratingRaw = document.getElementById("w-rating").value;
+          var parsed = parseWatchingRatingInput(ratingRaw);
+          if (!parsed.ok) {
+            showStatus(status, parsed.error, true);
+            return;
+          }
+          submit.disabled = true;
+          showStatus(status, "Saving…", false);
+          try {
+            var payload = {
+              action: "watching",
+              title: document.getElementById("w-title").value,
+              url: document.getElementById("w-url").value,
+            };
+            if (parsed.value != null) payload.rating = parsed.value;
+            await callAPI(payload);
+            showStatus(status, "Added. Site will rebuild shortly.", false, true);
+            document.getElementById("w-title").value = "";
+            document.getElementById("w-url").value = "";
+            document.getElementById("w-rating").value = "";
+            loadWatchingArchive();
           } catch (err) {
             showStatus(status, err.message, true);
           } finally {

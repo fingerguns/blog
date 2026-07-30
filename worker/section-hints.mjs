@@ -101,6 +101,15 @@ async function fetchSectionSamples(db, section) {
     return (results || []).map((row) => `${row.ym}: ${row.title}`);
   }
 
+  if (section === "Watching") {
+    const { results } = await dbAll(
+      db,
+      "SELECT title, ym FROM watching ORDER BY watched_at DESC, id DESC LIMIT ?",
+      SAMPLE_LIMIT
+    );
+    return (results || []).map((row) => `${row.ym}: ${row.title}`);
+  }
+
   if (section === "Sharing") {
     const { results } = await dbAll(
       db,
@@ -113,10 +122,34 @@ async function fetchSectionSamples(db, section) {
   return [];
 }
 
-export async function generateSectionHint(env, section, samples, currentHint) {
+async function fetchWatchingHintOptions(db) {
+  const { results: statsRows } = await dbAll(
+    db,
+    "SELECT COUNT(*) AS total, MIN(watched_at) AS first FROM watching"
+  );
+  const stats = statsRows?.[0] || {};
+
+  const { results: topRated } = await dbAll(
+    db,
+    `SELECT title, rating FROM watching
+     WHERE rating IS NOT NULL AND rating >= 4.5
+     ORDER BY rating DESC, watched_at ASC, id ASC
+     LIMIT 30`
+  );
+
+  return {
+    archiveStats: {
+      total: stats.total || 0,
+      first: stats.first || null,
+    },
+    topRatedSamples: (topRated || []).map((row) => `${row.rating}★ ${row.title}`),
+  };
+}
+
+export async function generateSectionHint(env, section, samples, currentHint, options = {}) {
   if (!env.AI) return null;
 
-  const prompt = buildSectionHintPrompt(section, samples, currentHint);
+  const prompt = buildSectionHintPrompt(section, samples, currentHint, options);
   const result = await env.AI.run(AI_MODEL, {
     messages: [
       {
@@ -137,7 +170,9 @@ export async function refreshSectionHint(env, db, section, triggerRebuild) {
   try {
     const samples = await fetchSectionSamples(db, section);
     const hints = await loadSectionHints(db);
-    const next = await generateSectionHint(env, section, samples, hints[section]);
+    const options =
+      section === "Watching" ? await fetchWatchingHintOptions(db) : {};
+    const next = await generateSectionHint(env, section, samples, hints[section], options);
     if (!next) return;
 
     await saveSectionHint(db, section, next);
