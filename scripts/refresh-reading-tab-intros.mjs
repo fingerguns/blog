@@ -1,5 +1,5 @@
 /**
- * Regenerate Reading tab intro copy via Claude Opus and trigger a rebuild.
+ * Regenerate Reading tab intro copy via Claude Fable and trigger a rebuild.
  * Run from project root: node --env-file=.env scripts/refresh-reading-tab-intros.mjs
  *
  * Optional tab argument: latest | mustReads (default: both)

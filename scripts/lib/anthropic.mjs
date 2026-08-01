@@ -1,6 +1,6 @@
 /** Anthropic Messages API helper (Worker + scripts). */
 
-export const ANTHROPIC_OPUS_MODEL = "claude-opus-5";
+export const ANTHROPIC_MODEL = "claude-fable-5";
 export const ANTHROPIC_API_VERSION = "2023-06-01";
 
 export function anthropicConfigured(env) {
@@ -17,13 +17,13 @@ export function extractAnthropicText(result) {
     .trim();
 }
 
-/** Rough Opus list rates (USD per million tokens) for estimates only. */
-export const ANTHROPIC_OPUS_RATES = {
-  inputPerM: 15,
-  outputPerM: 75,
+/** Rough Fable list rates (USD per million tokens) for estimates only. */
+export const ANTHROPIC_MODEL_RATES = {
+  inputPerM: 10,
+  outputPerM: 50,
 };
 
-export function estimateAnthropicCostUsd(usage, rates = ANTHROPIC_OPUS_RATES) {
+export function estimateAnthropicCostUsd(usage, rates = ANTHROPIC_MODEL_RATES) {
   const input =
     (usage.input_tokens || 0) +
     (usage.cache_creation_input_tokens || 0) +
@@ -68,7 +68,7 @@ export async function runAnthropicText(env, opts) {
       "anthropic-version": ANTHROPIC_API_VERSION,
     },
     body: JSON.stringify({
-      model: opts.model || ANTHROPIC_OPUS_MODEL,
+      model: opts.model || ANTHROPIC_MODEL,
       max_tokens: opts.maxTokens ?? 1024,
       system: opts.system || "",
       messages: [{ role: "user", content: opts.user }],

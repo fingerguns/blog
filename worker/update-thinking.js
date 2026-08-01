@@ -52,10 +52,7 @@ import { thinkingVideoPosterKey, uploadVideoPosterToR2 } from "./video-poster.mj
  *   R2_SECRET_ACCESS_KEY    — R2 S3 API token secret
  *   Apply bucket CORS: wrangler r2 bucket cors set rommy-blog-media --file=r2-cors.json
  *
- * Workers AI (section hover tooltips — auto-regenerated on content changes):
- *   Enable Workers AI in Cloudflare dashboard; [ai] binding in wrangler.toml
- *
- * Anthropic (Reading tab intro copy — auto-regenerated on book add/remove):
+ * Anthropic (section hover tooltips + Reading tab intro copy — auto-regenerated on content changes):
  *   ANTHROPIC_API_KEY — wrangler secret put ANTHROPIC_API_KEY
  *
  * R2 (photos, audio, video on THINKING):

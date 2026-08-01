@@ -1,5 +1,5 @@
 /**
- * Regenerate all section hover tooltips via Workers AI and trigger a rebuild.
+ * Regenerate all section hover tooltips via Claude Fable and trigger a rebuild.
  * Run from project root: node --env-file=.env scripts/refresh-section-hints.mjs
  */
 const API_URL = process.env.ADMIN_API_URL || "https://rommy.blog/api/admin";

@@ -1,5 +1,5 @@
 /**
- * Generate thematic tag clouds for Reading Latest and Must Reads via Claude Opus.
+ * Generate thematic tag clouds for Reading Latest and Must Reads via Claude Fable.
  * Run from project root: node --env-file=.env scripts/generate-reading-tag-clouds.mjs
  *
  * Calls the Worker admin API (Anthropic key lives in wrangler secrets, not .env).

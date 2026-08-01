@@ -1,6 +1,6 @@
 # Cloudflare Worker: admin API for rommy.blog
 
-Content is stored in **Cloudflare D1**. Section hover tooltips (`section_hints`) are regenerated via **Workers AI** after content changes. Reading tab intro copy (`reading_tab_intros`) is regenerated via **Claude Opus** (Anthropic API) when books are added or removed. Both trigger a second site rebuild with the updated copy.
+Content is stored in **Cloudflare D1**. Section hover tooltips (`section_hints`) and Reading tab intro copy (`reading_tab_intros`) are regenerated via **Claude Fable** (Anthropic API) after content changes. Both trigger a second site rebuild with the updated copy.
 
 The static site is rebuilt via a **Pages deploy hook**.
 
@@ -60,7 +60,7 @@ node scripts/migrate-to-d1.mjs
 ```bash
 cd worker
 wrangler secret put ADMIN_PASSWORD
-wrangler secret put ANTHROPIC_API_KEY   # Reading tab intro copy (Claude Opus)
+wrangler secret put ANTHROPIC_API_KEY   # Reading tab intro copy (Claude Fable)
 wrangler secret put PAGES_DEPLOY_HOOK   # Cloudflare Pages → Settings → Deploy hooks
 wrangler secret put MICROBLOG_TOKEN     # optional
 wrangler secret put BLUESKY_HANDLE        # optional
@@ -125,9 +125,9 @@ Output directory: `dist`
 | `save-draft` | Create/update draft |
 | `load-draft` | Load draft by id |
 | `delete-draft` | Delete draft |
-| `refresh-section-hints` | Regenerate homepage section tooltips (Workers AI) |
-| `refresh-reading-tab-intros` | Regenerate Reading Latest / Must Reads tab intro copy (Claude Opus) |
-| `backfill-reading-genres` | Assign genre tags to Must Reads favorites missing a primary genre (Claude Opus) |
+| `refresh-section-hints` | Regenerate homepage section tooltips (Claude Fable) |
+| `refresh-reading-tab-intros` | Regenerate Reading Latest / Must Reads tab intro copy (Claude Fable) |
+| `backfill-reading-genres` | Assign genre tags to Must Reads favorites missing a primary genre (Claude Fable) |
 | `anthropic-usage-summary` | Token usage totals from D1 (`anthropic_usage` table) |
 
 ## Architecture
@@ -173,7 +173,7 @@ cd ..
 npm run backfill-reading-genres
 ```
 
-New favorites get genre tags automatically on add (async, via Claude Opus). Removing a favorite prunes any genre no longer used by another book.
+New favorites get genre tags automatically on add (async, via Claude Fable). Removing a favorite prunes any genre no longer used by another book.
 
 ### Anthropic usage logging
 
@@ -184,11 +184,11 @@ cd worker
 wrangler d1 execute rommy-blog-db --file=migrate-anthropic-usage.sql --remote
 ```
 
-Each Claude Opus call (genre tags, Reading tab intros, tag clouds) logs input/output tokens to D1 and the Worker console. View totals:
+Each Claude Fable call (genre tags, Reading tab intros, tag clouds) logs input/output tokens to D1 and the Worker console. View totals:
 
 ```bash
 npm run anthropic-usage        # last 30 days
 npm run anthropic-usage -- 7   # last 7 days
 ```
 
-Estimates use approximate Opus list rates; check [Anthropic Console → Cost](https://platform.claude.com/cost) for billed amounts.
+Estimates use approximate Fable list rates; check [Anthropic Console → Cost](https://platform.claude.com/cost) for billed amounts.

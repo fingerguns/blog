@@ -1,4 +1,4 @@
-/** Prompt + parsing for Opus-generated Reading tag clouds. */
+/** Prompt + parsing for Fable-generated Reading tag clouds. */
 
 export const TAG_CLOUD_TABS = {
   latest: "Latest",

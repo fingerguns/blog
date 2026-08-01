@@ -17,9 +17,9 @@ Built with [Cursor](https://cursor.com). See the [colophon](https://rommy.blog/c
 - **Social previews** — Open Graph / Twitter meta on Writing and Thinking permalinks (first in-post image when available)
 - **Plain links in Thinking** — URLs in notes are normal hyperlinks on the site (no on-site unfurl cards), except YouTube links (native video embed) and Spotify links (native track/album/playlist/episode/show/artist embed), which render below the note
 - **Thinking archive views** — [`/thinking/`](https://rommy.blog/thinking/) offers List and Grid views (icon buttons under the heading; choice remembered in `localStorage`). Grid groups notes by month with one square thumbnail per post — photos via edge-resized 252px thumbs, native video via stored JPEG posters, YouTube via preview images, Spotify via album art, or a text-preview card with a type badge. Six type-filter buttons (photo, video, audio, YouTube, Spotify, text) solo-select one kind at a time; all posts show until a filter is chosen; filters apply to list and grid. Links to the archive always land on `/thinking/` unfiltered; choosing a filter updates the URL to a shareable path (`/thinking/images/`, `/thinking/videos/`, `/thinking/audio/`, `/thinking/youtube/`, `/thinking/music/`, `/thinking/text/`). Grid images load lazily when grid view is active
-- **Reading archive views** — [`/reading/latest/`](https://rommy.blog/reading/latest/) and [`/reading/must-reads/`](https://rommy.blog/reading/must-reads/) are path-based tabs (URL updates on switch). Sorted by read month (`ym`), not date added. List/grid toggle (remembered in `localStorage`); grid is a storefront-style cover catalog grouped by month (3 columns desktop, 2 mobile). Each tab opens with a taste summary redrafted by Claude Opus when books change. Optional author field and multi-source cover picker (Open Library, Apple Books, Google Books) in admin; custom covers can live in R2 under `reading/covers/`
-- **Section tooltips** — Homepage section headings have hover blurbs stored in D1; Workers AI regenerates them after content changes (`refresh-section-hints` admin action or `npm run refresh-section-hints`)
-- **Reading tab intros** — Latest and Must Reads tabs have visitor-facing taste summaries stored in D1; Claude Opus redrafts them when books are added or removed (`refresh-reading-tab-intros` or `npm run refresh-reading-tab-intros` from repo root or `worker/`)
+- **Reading archive views** — [`/reading/latest/`](https://rommy.blog/reading/latest/) and [`/reading/must-reads/`](https://rommy.blog/reading/must-reads/) are path-based tabs (URL updates on switch). Sorted by read month (`ym`), not date added. List/grid toggle (remembered in `localStorage`); grid is a storefront-style cover catalog grouped by month (3 columns desktop, 2 mobile). Each tab opens with a taste summary redrafted by Claude Fable when books change. Optional author field and multi-source cover picker (Open Library, Apple Books, Google Books) in admin; custom covers can live in R2 under `reading/covers/`
+- **Section tooltips** — Homepage section headings have hover blurbs stored in D1; Claude Fable regenerates them after content changes (`refresh-section-hints` admin action or `npm run refresh-section-hints`)
+- **Reading tab intros** — Latest and Must Reads tabs have visitor-facing taste summaries stored in D1; Claude Fable redrafts them when books are added or removed (`refresh-reading-tab-intros` or `npm run refresh-reading-tab-intros` from repo root or `worker/`)
 - **Must Reads genre tags** — Each curated favorite gets 1–3 AI-assigned genre tags (primary required) stored in D1; a genre dropdown on `/reading/must-reads/` filters the list, with shareable paths like `/reading/must-reads/literary-realism/`. Tags are assigned automatically when books are added and pruned when unused after removal (`backfill-reading-genres` or `npm run backfill-reading-genres` for existing titles)
 - **Elsewhere → Socials** — Collapsible row on the homepage with links to Bluesky, Mastodon, and micro.blog
 - **Changelog** — Generated from Git history at build time
@@ -39,7 +39,7 @@ The Thinking **archive** and permalink pages are built from the `thinking_posts`
 
 The archive at `/thinking/` renders both a List view (chronological feed) and a Grid view (posts grouped by month, one square thumbnail each) in the same page load; icon buttons swap `data-view` on a wrapper via CSS, and the choice persists in `localStorage`. Type filters (photo, video, audio, YouTube, Spotify, text) show all posts by default; clicking one solo-selects that kind (click again to clear). Filters apply to both views. Links to the archive from elsewhere always open `/thinking/` unfiltered; choosing a filter updates the URL to a shareable path (`/thinking/images/`, `/thinking/videos/`, `/thinking/audio/`, `/thinking/youtube/`, `/thinking/music/`, `/thinking/text/`). Static pages are generated at each filter path at build time. Grid thumbnails use the post's first photo (Worker-resized via `/media/thumb/252/...`), a stored JPEG poster for native video, YouTube's `mqdefault` image, Spotify album art when available, or a text-preview card with a corner badge. Grid images defer loading until grid view is active and the tile is near the viewport.
 
-Reading at `/reading/latest/` and `/reading/must-reads/` uses path-based tabs (URL updates on switch) and the same list/grid pattern (view choice in `localStorage`). Each tab has visitor-facing intro copy stored in D1, redrafted by Claude Opus when books are added or removed. Entries sort by `ym` descending. Grid covers come from D1 (`cover_url`), with build-time Open Library fallback for entries still missing art; Must Reads titles can use custom cover art in R2.
+Reading at `/reading/latest/` and `/reading/must-reads/` uses path-based tabs (URL updates on switch) and the same list/grid pattern (view choice in `localStorage`). Each tab has visitor-facing intro copy stored in D1, redrafted by Claude Fable when books are added or removed. Entries sort by `ym` descending. Grid covers come from D1 (`cover_url`), with build-time Open Library fallback for entries still missing art; Must Reads titles can use custom cover art in R2.
 
 Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on their own platforms when you include links there.
 
@@ -72,8 +72,8 @@ Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on the
 npm run build
 npm run preview   # serves dist/ at http://localhost:3000
 npm run backfill-video-posters   # capture JPEG posters for existing Thinking videos (R2)
-npm run refresh-section-hints    # regenerate homepage section tooltips via Workers AI
-npm run refresh-reading-tab-intros   # regenerate Reading tab intro copy via Claude Opus
+npm run refresh-section-hints    # regenerate homepage section tooltips via Claude Fable
+npm run refresh-reading-tab-intros   # regenerate Reading tab intro copy via Claude Fable
 npm run anthropic-usage              # Anthropic token usage summary (last 30 days)
 ```
 
@@ -125,7 +125,7 @@ See [`worker/README.md`](worker/README.md) for D1 schema, secrets, and deploy st
 |--------|----------|---------|
 | `ADMIN_PASSWORD` | Yes | Admin login |
 | `PAGES_DEPLOY_HOOK` | Yes | Trigger Pages rebuild after writes |
-| `ANTHROPIC_API_KEY` | No | Reading tab intro copy (Claude Opus) |
+| `ANTHROPIC_API_KEY` | No | Reading tab intro copy (Claude Fable) |
 | `MICROBLOG_TOKEN` | No | Micropub for Thinking |
 | `BLUESKY_HANDLE` | No | Bluesky cross-post |
 | `BLUESKY_APP_PASSWORD` | No | Bluesky cross-post |
@@ -161,9 +161,9 @@ wrangler deploy
 | `delete-reading` | Delete Reading entry |
 | `sharing` | Add Sharing (linklog) entry |
 | `fetch-title` | Fetch page title for Sharing |
-| `refresh-section-hints` | Regenerate homepage section tooltips with Workers AI |
-| `refresh-reading-tab-intros` | Regenerate Reading Latest / Must Reads tab intro copy with Claude Opus |
-| `backfill-reading-genres` | Assign genre tags to Must Reads books missing a primary genre (Claude Opus) |
+| `refresh-section-hints` | Regenerate homepage section tooltips with Claude Fable |
+| `refresh-reading-tab-intros` | Regenerate Reading Latest / Must Reads tab intro copy with Claude Fable |
+| `backfill-reading-genres` | Assign genre tags to Must Reads books missing a primary genre (Claude Fable) |
 | `anthropic-usage-summary` | Token usage totals from logged Anthropic API calls |
 | `generate-reading-tag-clouds` | Dev helper: thematic tag clouds for Latest and Must Reads (stdout only) |
 | `verify` | Check admin password |
@@ -181,12 +181,12 @@ wrangler deploy
 
 - Path-based tabs at `/reading/latest/` and `/reading/must-reads/` (URL updates on switch)
 - Sorted by read month (`ym` DESC), not date added
-- Each tab opens with intro copy stored in D1; Claude Opus redrafts it when books are added or removed
+- Each tab opens with intro copy stored in D1; Claude Fable redrafts it when books are added or removed
 - List view: month + title linking to Bookshop.org
 - Grid view: cover art grouped by month (3 columns desktop, 2 mobile); list/grid choice in `localStorage`
 - Admin: optional **author** field improves cover search; **Find cover art** queries Open Library, Apple Books, and Google Books; covers can be changed later from the archive list
 - `cover_url` in D1 wins over build-time Open Library lookup; custom covers can be uploaded to R2 under `reading/covers/` (referenced in `data/reading-covers.json` and `data/reading-favorites.json` for build)
-- **Must Reads genres:** Each favorite gets 1–3 ranked genre tags in D1 (`reading_genres`, `reading_favorite_genres`), assigned by Claude Opus on add. A genre dropdown on `/reading/must-reads/` filters the list client-side; tags are not shown under individual titles. Run migration + backfill once (see `worker/README.md`)
+- **Must Reads genres:** Each favorite gets 1–3 ranked genre tags in D1 (`reading_genres`, `reading_favorite_genres`), assigned by Claude Fable on add. A genre dropdown on `/reading/must-reads/` filters the list client-side; tags are not shown under individual titles. Run migration + backfill once (see `worker/README.md`)
 
 ## Audio & Video Syndication
 

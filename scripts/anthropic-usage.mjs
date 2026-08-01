@@ -27,7 +27,7 @@ function printSummary(data) {
   console.log(
     `Total: ${totals.calls} call(s), ${fmtTokens(totals.input_tokens)} input + ${fmtTokens(totals.output_tokens)} output tokens`
   );
-  console.log(`Estimated cost: ${fmtUsd(totals.estimated_cost_usd)} (Opus list rates, approximate)\n`);
+  console.log(`Estimated cost: ${fmtUsd(totals.estimated_cost_usd)} (Fable list rates, approximate)\n`);
 
   if (byFeature.length) {
     console.log("By feature:");

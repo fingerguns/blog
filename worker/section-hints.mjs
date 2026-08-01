@@ -5,11 +5,17 @@ import {
   mergeSectionHints,
   normalizeSectionHint,
 } from "../scripts/lib/section-hints.mjs";
-import { extractAiText, WORKERS_AI_TEXT_MODEL } from "../scripts/lib/ai-text.mjs";
+import {
+  anthropicConfigured,
+  extractAnthropicText,
+  runAnthropicText,
+} from "../scripts/lib/anthropic.mjs";
+import { logAnthropicUsage } from "./anthropic-usage.mjs";
 
 export { SECTION_NAMES };
 
-const AI_MODEL = WORKERS_AI_TEXT_MODEL;
+const HINT_SYSTEM =
+  "You write concise tooltip copy for a personal blog. Output only the paragraph requested.";
 const SAMPLE_LIMIT = 18;
 
 async function dbRun(db, sql, ...params) {
@@ -113,23 +119,31 @@ async function fetchSectionSamples(db, section) {
   return [];
 }
 
-export async function generateSectionHint(env, section, samples, currentHint) {
-  if (!env.AI) return null;
+export async function generateSectionHint(env, db, section, samples, currentHint) {
+  if (!anthropicConfigured(env)) return null;
 
   const prompt = buildSectionHintPrompt(section, samples, currentHint);
-  const result = await env.AI.run(AI_MODEL, {
-    messages: [
-      {
-        role: "system",
-        content:
-          "You write concise tooltip copy for a personal blog. Output only the paragraph requested.",
-      },
-      { role: "user", content: prompt },
-    ],
-    max_tokens: 220,
-  });
+  let result;
+  try {
+    result = await runAnthropicText(env, {
+      system: HINT_SYSTEM,
+      user: prompt,
+      maxTokens: 220,
+    });
+  } catch (err) {
+    console.error(`section hint generation failed (${section}):`, err?.message || err);
+    return null;
+  }
 
-  const hint = normalizeSectionHint(extractAiText(result));
+  if (db) {
+    await logAnthropicUsage(db, {
+      feature: "section-hint",
+      context: section,
+      result,
+    });
+  }
+
+  const hint = normalizeSectionHint(extractAnthropicText(result));
   return hint.length >= 40 ? hint : null;
 }
 
@@ -137,7 +151,7 @@ export async function refreshSectionHint(env, db, section, triggerRebuild) {
   try {
     const samples = await fetchSectionSamples(db, section);
     const hints = await loadSectionHints(db);
-    const next = await generateSectionHint(env, section, samples, hints[section]);
+    const next = await generateSectionHint(env, db, section, samples, hints[section]);
     if (!next) return;
 
     await saveSectionHint(db, section, next);

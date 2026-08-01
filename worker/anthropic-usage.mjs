@@ -1,5 +1,5 @@
 import {
-  ANTHROPIC_OPUS_MODEL,
+  ANTHROPIC_MODEL,
   extractAnthropicUsage,
 } from "../scripts/lib/anthropic.mjs";
 import { getAnthropicUsageSummary } from "../scripts/lib/anthropic-usage.mjs";
@@ -10,7 +10,7 @@ export async function logAnthropicUsage(db, { feature, context, result, model })
   if (!db || !feature || !result) return null;
 
   const usage = extractAnthropicUsage(result);
-  const modelId = model || result.model || ANTHROPIC_OPUS_MODEL;
+  const modelId = model || result.model || ANTHROPIC_MODEL;
   const contextLabel = context ? String(context) : null;
 
   console.log(
