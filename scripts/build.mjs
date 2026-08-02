@@ -324,8 +324,16 @@ const thinkingDeleteLinkScript = `    <script>(function(){
           a.href=entry.classList.contains("post")?("?delete"):("/thinking/"+slug+"/?delete");
           a.className="thinking-delete";
           a.textContent="delete";
-          var time=entry.querySelector("time.post-date");
-          if(time){time.appendChild(document.createTextNode(" · "));time.appendChild(a);}
+          var meta=entry.querySelector(".post-meta");
+          if(!meta)meta=entry.querySelector("time.post-date");
+          if(meta){
+            var sep=document.createElement("span");
+            sep.className="post-meta-sep";
+            sep.setAttribute("aria-hidden","true");
+            sep.textContent="·";
+            meta.appendChild(sep);
+            meta.appendChild(a);
+          }
         });
       }
       if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",attachDeleteLinks);else attachDeleteLinks();
@@ -1496,11 +1504,11 @@ const thinkingSlug = (item) => item._slug || thinkingSlugFromIso(item.date_publi
 function thinkingPostLocationHtml(item) {
   const label = String(item.location_label || "").trim();
   if (!label) return "";
-  return `<span class="post-location"> // ${escHtml(label)}</span>`;
+  return `<span class="post-meta-sep" aria-hidden="true">·</span><span class="post-location">${escHtml(label)}</span>`;
 }
 
-function thinkingPostDateHtml(item, slug) {
-  return `<time class="post-date" datetime="${escHtml(item.date_published)}"><a href="/thinking/${escHtml(slug)}/">${escHtml(formatMbDate(item.date_published))}</a>${thinkingPostLocationHtml(item)}</time>`;
+function thinkingPostMetaHtml(item, slug) {
+  return `<p class="post-meta"><time class="post-date" datetime="${escHtml(item.date_published)}"><a href="/thinking/${escHtml(slug)}/">${escHtml(formatMbDate(item.date_published))}</a></time>${thinkingPostLocationHtml(item)}</p>`;
 }
 
 function thinkingPostCrumb(iso) {
@@ -1561,7 +1569,7 @@ const microblogListHtml = (items, spotifyThumbnails = {}) =>
           const kind = thinkingGridKind(item, spotifyThumbnails);
           return `        <div class="microblog-entry" data-slug="${escHtml(slug)}" data-kind="${escHtml(kind)}" data-microblog-url="${escHtml(item.url || "")}">
           <div class="microblog-body">${item.content_html}</div>
-          ${thinkingPostDateHtml(item, slug)}
+          ${thinkingPostMetaHtml(item, slug)}
         </div>`;
         })
         .join("\n")
@@ -2029,7 +2037,7 @@ for (const item of microblogItems) {
     : item.content_html;
   const postHtml = `${thinkingPostHead(item.date_published, item, slug)}
       <div class="microblog-body">${detailContent}</div>
-      ${thinkingPostDateHtml(item, slug)}
+      ${thinkingPostMetaHtml(item, slug)}
 ${thinkingDeletePanelHtml}
 ${thinkingPostFoot}`;
   mkdirSync(join(outDir, "thinking", slug), { recursive: true });

@@ -956,6 +956,24 @@ h2 {
 }
 .microblog-entry:first-child { padding-top: 0; }
 .microblog-entry:last-child  { border-bottom: none; }
+.microblog-entry .post-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0.75rem 0 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+.microblog-entry .post-meta .post-date {
+  display: inline;
+  margin: 0;
+}
+.microblog-entry .post-meta-sep {
+  color: var(--muted);
+  user-select: none;
+}
 .microblog-entry .post-date {
   display: block;
   font-size: 0.85rem;
@@ -963,21 +981,24 @@ h2 {
   margin-bottom: 0.5rem;
   font-variant-numeric: tabular-nums;
 }
-.microblog-entry .post-date a {
+.microblog-entry .post-date a,
+.microblog-entry .post-meta a {
   color: inherit;
   font-weight: inherit;
   text-decoration: underline;
   text-decoration-color: var(--rule);
   text-underline-offset: 0.2em;
 }
-.microblog-entry .post-date a:hover {
+.microblog-entry .post-date a:hover,
+.microblog-entry .post-meta a:hover {
   color: var(--link-hover);
   text-decoration-color: currentColor;
 }
-.microblog-entry .post-date a.thinking-delete {
+.microblog-entry .post-meta a.thinking-delete {
   color: inherit;
   font-weight: inherit;
 }
+.microblog-entry .post-meta .post-location,
 .microblog-entry .post-location {
   color: inherit;
 }
@@ -1066,7 +1087,7 @@ h2 {
 [data-theme="dark"] .thinking-delete-status.err { color: #e88; }
 .microblog-body p  { margin: 0 0 0.65rem; line-height: 1.65; overflow-wrap: anywhere; }
 .microblog-body p:last-child { margin-bottom: 0; }
-.microblog-entry time:not(.thinking-crumb-date) { margin-top: 0.75rem; display: block; }
+.microblog-entry .post-meta { margin-top: 0.75rem; }
 .microblog-body img {
   max-width: 100%;
   height: auto;
@@ -1537,7 +1558,7 @@ html[data-colophon="whitman"] #colophon-whitman {
   margin: 0 0 0.5rem;
 }
 
-.post time:not(.thinking-crumb-date) {
+.post:not(.microblog-entry) > time:not(.thinking-crumb-date) {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
