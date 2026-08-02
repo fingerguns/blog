@@ -47,18 +47,20 @@ function geocodeCacheKey(lat, lon) {
 function neighborhoodLabelFromAddress(address = {}) {
   const neighborhood =
     address.neighbourhood ||
-    address.suburb ||
     address.city_district ||
     address.quarter ||
     address.hamlet ||
     "";
-  const borough =
-    address.borough ||
-    address.city ||
-    address.town ||
-    address.village ||
-    address.county ||
-    "";
+  const suburb = address.suburb || address.borough || "";
+  const city = address.city || address.town || address.village || "";
+  // NYC: OSM often puts the borough in `suburb` (e.g. Brooklyn) while `city` is New York.
+  if (suburb && suburb.toLowerCase() !== "new york") {
+    if (neighborhood && neighborhood.toLowerCase() !== suburb.toLowerCase()) {
+      return `${neighborhood}, ${suburb}`;
+    }
+    return suburb;
+  }
+  const borough = address.borough || city || address.county || "";
   if (neighborhood && borough && neighborhood.toLowerCase() !== borough.toLowerCase()) {
     return `${neighborhood}, ${borough}`;
   }

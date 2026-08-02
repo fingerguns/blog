@@ -676,7 +676,128 @@
       .admin-secondary-btn:hover {
         border-color: var(--text);
       }
+      .location-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: 0.75rem 1rem;
+        margin: 1rem 0 0.75rem;
+      }
+      .location-toolbar label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .location-toolbar input[type="date"] {
+        font: inherit;
+        color: var(--text);
+        background: var(--bg);
+        border: 1px solid var(--rule);
+        border-radius: 0.25rem;
+        padding: 0.45rem 0.55rem;
+        margin: 0;
+      }
+      .location-toolbar button {
+        font: inherit;
+        font-weight: 600;
+        color: var(--bg);
+        background: var(--text);
+        border: 0;
+        border-radius: 0.25rem;
+        padding: 0.5rem 1rem;
+        cursor: pointer;
+        margin-bottom: 0.1rem;
+      }
+      .location-stats {
+        font-size: 0.85rem;
+        color: var(--muted);
+        margin: 0 0 0.75rem;
+        font-variant-numeric: tabular-nums;
+      }
+      #loc-map {
+        width: 100%;
+        height: min(420px, 55vh);
+        border: 1px solid var(--rule);
+        border-radius: 0.35rem;
+        margin-bottom: 1.25rem;
+        z-index: 0;
+      }
+      .location-timeline {
+        border-top: 1px solid var(--rule);
+        padding-top: 1rem;
+      }
+      .location-day {
+        margin-bottom: 1.25rem;
+      }
+      .location-day-label {
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0 0 0.5rem;
+      }
+      .location-point-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .location-point-item {
+        display: grid;
+        grid-template-columns: 5.5rem 1fr auto;
+        gap: 0.5rem 0.75rem;
+        align-items: baseline;
+        padding: 0.35rem 0.5rem;
+        margin: 0 -0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.85rem;
+        cursor: pointer;
+      }
+      .location-point-item:hover,
+      .location-point-item.is-active {
+        background: color-mix(in srgb, var(--text) 8%, transparent);
+      }
+      .location-point-time {
+        font-variant-numeric: tabular-nums;
+        color: var(--muted);
+      }
+      .location-point-coords {
+        font-variant-numeric: tabular-nums;
+        color: var(--text);
+      }
+      .location-point-meta {
+        font-size: 0.75rem;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+      }
+      @media (max-width: 520px) {
+        .location-point-item {
+          grid-template-columns: 1fr auto;
+        }
+        .location-point-time {
+          grid-column: 1;
+        }
+        .location-point-coords {
+          grid-column: 1 / -1;
+        }
+        .location-point-meta {
+          grid-column: 2;
+          grid-row: 1;
+        }
+      }
     </style>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
   </head>
   <body>
     <main>
@@ -689,6 +810,7 @@
         <button class="admin-tab auth-only" data-tab="post" hidden>Writing</button>
         <button class="admin-tab auth-only" data-tab="reading" hidden>Reading</button>
         <button class="admin-tab auth-only" data-tab="sharing" hidden>Sharing</button>
+        <button class="admin-tab auth-only" data-tab="location" hidden>Location</button>
       </div>
 
       <!-- ── LOGIN ────────────────────────────────── -->
@@ -940,12 +1062,38 @@
         </form>
       </div>
 
+      <!-- ── LOCATION ─────────────────────────────── -->
+      <div class="admin-section" id="tab-location">
+        <p class="lead">Private GPS log from Overland. Coordinates stay in admin only — public Thinking posts show neighborhood labels.</p>
+
+        <div class="location-toolbar">
+          <label for="loc-from">From
+            <input id="loc-from" type="date" />
+          </label>
+          <label for="loc-to">To
+            <input id="loc-to" type="date" />
+          </label>
+          <button type="button" id="loc-load">Load track</button>
+        </div>
+        <p class="location-stats" id="loc-stats">Choose a date range and load.</p>
+        <div id="loc-map" role="region" aria-label="Location map"></div>
+        <div class="location-timeline" id="loc-timeline" hidden>
+          <div id="loc-timeline-days"></div>
+        </div>
+        <p class="admin-status" id="loc-status" hidden></p>
+      </div>
+
       <footer class="site-footer">
         <p class="footer-row">&copy; 2026 Rommy Ghaly<a href="#" class="theme-toggle" id="theme-toggle"></a></p>
       </footer>
     </main>
 
     <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
     <script>
       const API_URL = (function () {
         var h = location.hostname;
@@ -1116,8 +1264,257 @@
             document.getElementById("tab-" + target).classList.add("active");
             if (target === "thinking") loadThinkingArchive();
             if (target === "reading") loadReadingArchive();
+            if (target === "location") loadLocationViewer();
           });
         });
+      })();
+
+      // ── Location viewer (Overland GPS log) ───────────────────────────────
+
+      (function () {
+        var locMap = null;
+        var locTrackLayer = null;
+        var locMarkerLayer = null;
+        var locPoints = [];
+        var locActiveIdx = -1;
+        var locEtDateFmt = new Intl.DateTimeFormat("en-US", {
+          timeZone: "America/New_York",
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        });
+        var locEtTimeFmt = new Intl.DateTimeFormat("en-US", {
+          timeZone: "America/New_York",
+          hour: "numeric",
+          minute: "2-digit",
+        });
+        var locDayKeyFmt = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "America/New_York",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        });
+
+        function locDefaultDates() {
+          var to = new Date();
+          var from = new Date(to);
+          from.setDate(from.getDate() - 6);
+          var iso = function (d) {
+            return d.toISOString().slice(0, 10);
+          };
+          document.getElementById("loc-from").value = iso(from);
+          document.getElementById("loc-to").value = iso(to);
+        }
+
+        function locDayBounds(fromDate, toDate) {
+          var from = new Date(fromDate + "T00:00:00");
+          var to = new Date(toDate + "T23:59:59.999");
+          return { from: from.toISOString(), to: to.toISOString() };
+        }
+
+        function locHaversineKm(a, b) {
+          var r = 6371;
+          var dLat = ((b.lat - a.lat) * Math.PI) / 180;
+          var dLon = ((b.lon - a.lon) * Math.PI) / 180;
+          var lat1 = (a.lat * Math.PI) / 180;
+          var lat2 = (b.lat * Math.PI) / 180;
+          var h =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+          return 2 * r * Math.asin(Math.sqrt(h));
+        }
+
+        function locTotalDistanceKm(points) {
+          var total = 0;
+          for (var i = 1; i < points.length; i++) {
+            total += locHaversineKm(points[i - 1], points[i]);
+          }
+          return total;
+        }
+
+        function ensureLocMap() {
+          if (locMap) return locMap;
+          locMap = L.map("loc-map", { scrollWheelZoom: true });
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          }).addTo(locMap);
+          locTrackLayer = L.layerGroup().addTo(locMap);
+          locMarkerLayer = L.layerGroup().addTo(locMap);
+          return locMap;
+        }
+
+        function locClearMap() {
+          if (!locTrackLayer) return;
+          locTrackLayer.clearLayers();
+          locMarkerLayer.clearLayers();
+        }
+
+        function locHighlightPoint(idx) {
+          locActiveIdx = idx;
+          document.querySelectorAll(".location-point-item").forEach(function (el) {
+            el.classList.toggle("is-active", Number(el.getAttribute("data-idx")) === idx);
+          });
+          if (idx < 0 || !locPoints[idx] || !locMap) return;
+          var p = locPoints[idx];
+          locMap.setView([p.lat, p.lon], Math.max(locMap.getZoom(), 15), { animate: true });
+        }
+
+        function locRenderTimeline(points) {
+          var wrap = document.getElementById("loc-timeline");
+          var daysEl = document.getElementById("loc-timeline-days");
+          daysEl.innerHTML = "";
+          if (!points.length) {
+            wrap.hidden = true;
+            return;
+          }
+          wrap.hidden = false;
+
+          var groups = [];
+          var groupMap = {};
+          points.forEach(function (p, idx) {
+            var key = locDayKeyFmt.format(new Date(p.recorded_at));
+            if (!groupMap[key]) {
+              groupMap[key] = { key: key, label: locEtDateFmt.format(new Date(p.recorded_at)), items: [] };
+              groups.push(groupMap[key]);
+            }
+            groupMap[key].items.push({ p: p, idx: idx });
+          });
+
+          groups.forEach(function (g) {
+            var section = document.createElement("section");
+            section.className = "location-day";
+            var h = document.createElement("h3");
+            h.className = "location-day-label";
+            h.textContent = g.label;
+            section.appendChild(h);
+
+            var ul = document.createElement("ul");
+            ul.className = "location-point-list";
+            g.items.forEach(function (item) {
+              var li = document.createElement("li");
+              li.className = "location-point-item";
+              li.setAttribute("data-idx", String(item.idx));
+              var acc =
+                item.p.horizontal_accuracy != null
+                  ? "±" + Math.round(item.p.horizontal_accuracy) + " m"
+                  : "";
+              li.innerHTML =
+                '<span class="location-point-time">' +
+                locEtTimeFmt.format(new Date(item.p.recorded_at)) +
+                "</span>" +
+                '<span class="location-point-coords">' +
+                item.p.lat.toFixed(5) +
+                ", " +
+                item.p.lon.toFixed(5) +
+                (item.p.device_id ? " · " + item.p.device_id : "") +
+                "</span>" +
+                '<span class="location-point-meta">' +
+                acc +
+                "</span>";
+              li.addEventListener("click", function () {
+                locHighlightPoint(item.idx);
+              });
+              ul.appendChild(li);
+            });
+            section.appendChild(ul);
+            daysEl.appendChild(section);
+          });
+        }
+
+        function locRenderMap(points) {
+          ensureLocMap();
+          locClearMap();
+          if (!points.length) {
+            locMap.setView([40.69, -73.97], 13);
+            return;
+          }
+
+          var latlngs = points.map(function (p) {
+            return [p.lat, p.lon];
+          });
+          if (latlngs.length > 1) {
+            L.polyline(latlngs, { color: "#2563eb", weight: 4, opacity: 0.85 }).addTo(locTrackLayer);
+          }
+          L.circleMarker(latlngs[0], {
+            radius: 7,
+            color: "#16a34a",
+            fillColor: "#16a34a",
+            fillOpacity: 0.9,
+            weight: 2,
+          })
+            .bindTooltip("Start", { direction: "top" })
+            .addTo(locMarkerLayer);
+          if (latlngs.length > 1) {
+            L.circleMarker(latlngs[latlngs.length - 1], {
+              radius: 7,
+              color: "#dc2626",
+              fillColor: "#dc2626",
+              fillOpacity: 0.9,
+              weight: 2,
+            })
+              .bindTooltip("End", { direction: "top" })
+              .addTo(locMarkerLayer);
+          }
+          locMap.fitBounds(L.latLngBounds(latlngs), { padding: [28, 28], maxZoom: 16 });
+        }
+
+        window.loadLocationViewer = async function loadLocationViewer() {
+          var status = document.getElementById("loc-status");
+          var stats = document.getElementById("loc-stats");
+          status.hidden = true;
+          if (!document.getElementById("loc-from").value) locDefaultDates();
+
+          var fromDate = document.getElementById("loc-from").value;
+          var toDate = document.getElementById("loc-to").value;
+          if (!fromDate || !toDate) {
+            showStatus(status, "Choose a from and to date.", true);
+            return;
+          }
+
+          stats.textContent = "Loading…";
+          try {
+            var bounds = locDayBounds(fromDate, toDate);
+            var data = await callAPI({
+              action: "list-locations",
+              from: bounds.from,
+              to: bounds.to,
+              limit: 5000,
+            });
+            locPoints = data.points || [];
+            locRenderMap(locPoints);
+            locRenderTimeline(locPoints);
+            locActiveIdx = -1;
+
+            if (!locPoints.length) {
+              stats.textContent = "No points in this range. Check Overland is sending to /api/locations.";
+              return;
+            }
+
+            var km = locTotalDistanceKm(locPoints);
+            var mi = km * 0.621371;
+            stats.textContent =
+              locPoints.length +
+              " point" +
+              (locPoints.length === 1 ? "" : "s") +
+              " · " +
+              mi.toFixed(1) +
+              " mi (" +
+              km.toFixed(1) +
+              " km) path length";
+            setTimeout(function () {
+              if (locMap) locMap.invalidateSize();
+            }, 50);
+          } catch (err) {
+            stats.textContent = "Could not load locations.";
+            showStatus(status, err.message, true);
+          }
+        };
+
+        document.getElementById("loc-load").addEventListener("click", function () {
+          loadLocationViewer();
+        });
+        locDefaultDates();
       })();
 
       // ── Theme toggle ───────────────────────────────────────────────────────
