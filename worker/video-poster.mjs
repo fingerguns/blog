@@ -8,7 +8,7 @@ export function isValidThinkingVideoPosterKey(key) {
   );
 }
 
-/** Store a 252×252 JPEG poster alongside a thinking video in R2. */
+/** Store a 512×512 JPEG poster alongside a thinking video in R2. */
 export async function uploadVideoPosterToR2(env, videoKey, posterFile) {
   if (!env.MEDIA || !posterFile || posterFile.size <= 0) return null;
 

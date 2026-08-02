@@ -11,7 +11,7 @@ import { d1Configured, loadBlogDataFromD1 } from "./d1-client.mjs";
 import { escHtml, escXml } from "./lib/html.mjs";
 import { mergeSectionHints } from "./lib/section-hints.mjs";
 import { mergeReadingTabIntros } from "./lib/reading-tab-intros.mjs";
-import { thinkingGridThumbUrl, videoPosterKeyFromVideoUrl } from "./lib/media-url.mjs";
+import { thinkingGridThumbUrl, upgradeSpotifyImageUrl, videoPosterKeyFromVideoUrl } from "./lib/media-url.mjs";
 import { renderThinkingContentHtml } from "./lib/thinking-html.mjs";
 import { bookshopAffiliateUrl, bookshopAffiliateIdFromEnv, isbnFromBookshopUrl } from "./lib/bookshop-affiliate.mjs";
 import {
@@ -498,7 +498,9 @@ async function fetchSpotifyThumbnail(type, id) {
     clearTimeout(timer);
     if (!res.ok) return null;
     const data = await res.json();
-    return typeof data?.thumbnail_url === "string" ? data.thumbnail_url : null;
+    return typeof data?.thumbnail_url === "string"
+      ? upgradeSpotifyImageUrl(data.thumbnail_url)
+      : null;
   } catch {
     return null;
   }
@@ -1565,7 +1567,7 @@ function thinkingGridItemHtml(item, spotifyThumbnails = {}, videoPosterCache = {
   if (kind === "photo" && src) {
     const thumb = thinkingGridThumbUrl(src, base);
     return `          <a class="thinking-grid-item thinking-grid-photo" data-kind="photo" href="${href}" aria-label="${label}">
-            <img data-src="${escHtml(thumb)}" alt="${escHtml(alt || "Photo")}" width="252" height="252" decoding="async" />
+            <img data-src="${escHtml(thumb)}" alt="${escHtml(alt || "Photo")}" width="126" height="126" decoding="async" />
             ${thinkingGridBadgeHtml("photo")}
           </a>`;
   }
@@ -1575,7 +1577,7 @@ function thinkingGridItemHtml(item, spotifyThumbnails = {}, videoPosterCache = {
     if (posterKey && videoPosterCache[videoSrc]) {
       const thumb = thinkingGridThumbUrl(`${base}/media/${posterKey}`, base);
       return `          <a class="thinking-grid-item thinking-grid-video" data-kind="video" href="${href}" aria-label="${label}">
-            <img data-src="${escHtml(thumb)}" alt="" width="252" height="252" decoding="async" />
+            <img data-src="${escHtml(thumb)}" alt="" width="126" height="126" decoding="async" />
             ${thinkingGridBadgeHtml("video")}
           </a>`;
     }
@@ -1589,7 +1591,7 @@ function thinkingGridItemHtml(item, spotifyThumbnails = {}, videoPosterCache = {
     if (cover) {
       const thumb = thinkingGridThumbUrl(cover, base);
       return `          <a class="thinking-grid-item thinking-grid-spotify" data-kind="spotify" href="${href}" aria-label="${label}">
-            <img data-src="${escHtml(thumb)}" alt="" width="252" height="252" decoding="async" />
+            <img data-src="${escHtml(thumb)}" alt="" width="126" height="126" decoding="async" />
             ${thinkingGridBadgeHtml("spotify")}
           </a>`;
     }
@@ -1597,7 +1599,7 @@ function thinkingGridItemHtml(item, spotifyThumbnails = {}, videoPosterCache = {
   if (kind === "youtube") {
     const youtubeId = youtubeIdFromHtml(item.content_html);
     return `          <a class="thinking-grid-item thinking-grid-youtube" data-kind="youtube" href="${href}" aria-label="${label}">
-            <img data-src="${escHtml(youtubeThumbnailUrl(youtubeId))}" alt="" width="252" height="252" decoding="async" />
+            <img data-src="${escHtml(youtubeThumbnailUrl(youtubeId))}" alt="" width="126" height="126" decoding="async" />
             ${thinkingGridBadgeHtml("youtube")}
       </a>`;
   }
@@ -1644,6 +1646,15 @@ if (existsSync(spotifyThumbnailsPath)) {
   }
 }
 
+let upgradedSpotifyCache = false;
+for (const [key, url] of Object.entries(spotifyThumbnailCache)) {
+  const next = upgradeSpotifyImageUrl(url);
+  if (next !== url) {
+    spotifyThumbnailCache[key] = next;
+    upgradedSpotifyCache = true;
+  }
+}
+
 const spotifyKeysNeeded = new Set();
 for (const item of microblogItems) {
   const embed = spotifyEmbedFromHtml(item.content_html);
@@ -1667,6 +1678,8 @@ if (missingSpotifyThumbnails.length > 0) {
   if (fetchedAny) {
     writeFileSync(spotifyThumbnailsPath, `${JSON.stringify(spotifyThumbnailCache, null, 2)}\n`);
   }
+} else if (upgradedSpotifyCache) {
+  writeFileSync(spotifyThumbnailsPath, `${JSON.stringify(spotifyThumbnailCache, null, 2)}\n`);
 }
 
 const videoPostersPath = join(root, "data/video-posters.json");

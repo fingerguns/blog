@@ -1,5 +1,5 @@
 /**
- * Generate 252×252 JPEG posters for existing Thinking videos and upload to R2.
+ * Generate 512×512 JPEG posters for existing Thinking videos and upload to R2.
  * Run from project root: node --env-file=.env scripts/backfill-video-posters.mjs
  */
 import { spawnSync } from "node:child_process";
@@ -52,7 +52,7 @@ function extractPoster(videoUrl, outPath) {
       "-frames:v",
       "1",
       "-vf",
-      "scale=252:252:force_original_aspect_ratio=increase,crop=252:252",
+      "scale=512:512:force_original_aspect_ratio=increase,crop=512:512",
       "-q:v",
       "4",
       "-y",

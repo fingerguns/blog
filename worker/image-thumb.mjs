@@ -25,7 +25,7 @@ async function generateThumbBytes(env, width, sourceKey) {
     const response = (
       await env.IMAGES.input(object.body)
         .transform({ width, height: width, fit: "cover" })
-        .output({ format: "image/jpeg", quality: 82 })
+        .output({ format: "image/jpeg", quality: 88 })
     ).response();
     if (!response.ok) return null;
     const bytes = new Uint8Array(await response.arrayBuffer());
@@ -42,7 +42,7 @@ async function generateThumbBytes(env, width, sourceKey) {
         height: width,
         fit: "cover",
         format: "jpeg",
-        quality: 82,
+        quality: 88,
       },
     },
   });
