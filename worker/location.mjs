@@ -44,6 +44,10 @@ function geocodeCacheKey(lat, lon) {
   return `${lat.toFixed(GEOCODE_DECIMALS)},${lon.toFixed(GEOCODE_DECIMALS)}`;
 }
 
+function isNycArea(lat, lon) {
+  return lat >= 40.49 && lat <= 40.92 && lon >= -74.26 && lon <= -73.7;
+}
+
 function neighborhoodLabelFromAddress(address = {}) {
   const neighborhood =
     address.neighbourhood ||
@@ -67,7 +71,34 @@ function neighborhoodLabelFromAddress(address = {}) {
   return neighborhood || borough || "";
 }
 
+async function reverseGeocodeNycLabel(lat, lon) {
+  const url = new URL("https://geosearch.planninglabs.nyc/v2/reverse");
+  url.searchParams.set("point.lat", String(lat));
+  url.searchParams.set("point.lon", String(lon));
+  url.searchParams.set("layers", "neighbourhood");
+
+  const res = await fetch(url.toString(), {
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) return "";
+  const data = await res.json();
+  const props = data.features?.[0]?.properties;
+  if (!props) return "";
+
+  const neighborhood = props.neighbourhood || props.name || "";
+  const borough = props.borough || "";
+  if (neighborhood && borough && neighborhood.toLowerCase() !== borough.toLowerCase()) {
+    return `${neighborhood}, ${borough}`;
+  }
+  return neighborhood || borough || "";
+}
+
 async function reverseGeocodeLabel(lat, lon, env) {
+  if (isNycArea(lat, lon)) {
+    const nycLabel = await reverseGeocodeNycLabel(lat, lon);
+    if (nycLabel) return nycLabel;
+  }
+
   const userAgent =
     env.NOMINATIM_USER_AGENT ||
     "rommy.blog-location/1.0 (private location tracking; contact: rommy@gha.ly)";
@@ -75,7 +106,8 @@ async function reverseGeocodeLabel(lat, lon, env) {
   url.searchParams.set("format", "jsonv2");
   url.searchParams.set("lat", String(lat));
   url.searchParams.set("lon", String(lon));
-  url.searchParams.set("zoom", "16");
+  // zoom 15 resolves NYC neighborhoods better than 16 (street-level OSM tags).
+  url.searchParams.set("zoom", "15");
   url.searchParams.set("addressdetails", "1");
 
   const res = await fetch(url.toString(), {

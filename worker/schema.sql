@@ -138,4 +138,13 @@ CREATE TABLE IF NOT EXISTS anthropic_usage (
 );
 
 CREATE INDEX IF NOT EXISTS idx_anthropic_usage_created_at ON anthropic_usage(created_at);
+
+CREATE TABLE IF NOT EXISTS oura_daily_activity (
+  day TEXT PRIMARY KEY,
+  steps INTEGER NOT NULL,
+  activity_score INTEGER,
+  synced_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_oura_daily_activity_day ON oura_daily_activity(day);
 CREATE INDEX IF NOT EXISTS idx_anthropic_usage_feature ON anthropic_usage(feature);

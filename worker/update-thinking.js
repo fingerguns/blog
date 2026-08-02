@@ -36,6 +36,7 @@ import {
   handleBackfillThinkingLocations,
   resolveLocationLabelForDatetime,
 } from "./location.mjs";
+import { syncOuraSteps, getOuraStepsSummary } from "./oura.mjs";
 
 /**
  * Cloudflare Worker: admin API for rommy.blog
@@ -281,6 +282,28 @@ export default {
       }
     }
 
+    if (action === "sync-oura") {
+      try {
+        const mode = payload.backfill ? "backfill" : undefined;
+        const result = await syncOuraSteps(db, env, { mode });
+        if (result.upserted > 0) {
+          await triggerRebuild(env);
+        }
+        return json({ ok: true, ...result }, 200, cors);
+      } catch (err) {
+        return json({ error: err.message || "Oura sync failed" }, 500, cors);
+      }
+    }
+
+    if (action === "oura-steps-summary") {
+      try {
+        const summary = await getOuraStepsSummary(db);
+        return json({ ok: true, ...summary }, 200, cors);
+      } catch (err) {
+        return json({ error: err.message || "Oura summary failed" }, 500, cors);
+      }
+    }
+
     if (action === "thinking") {
       return handleThinking(payload, db, cors, env, ctx);
     }
@@ -378,6 +401,18 @@ export default {
     }
 
     return json({ error: "Unknown action" }, 400, cors);
+  },
+
+  async scheduled(event, env, ctx) {
+    if (!env.DB) return;
+    try {
+      const result = await syncOuraSteps(env.DB, env);
+      if (result.upserted > 0) {
+        ctx.waitUntil(triggerRebuild(env));
+      }
+    } catch (err) {
+      console.error("Oura scheduled sync failed", err);
+    }
   },
 };
 

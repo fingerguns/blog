@@ -62,6 +62,7 @@ const {
   optionalColophon,
   sectionHints,
   readingTabIntros,
+  ouraSteps = null,
 } = data;
 
 const SECTION_HINTS = mergeSectionHints(sectionHints);
@@ -1483,6 +1484,24 @@ ${archiveFoot}`;
 // /now page
 const nowMonthYear = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "America/New_York" });
 const currentBook = orderedReading[0];
+const nowTodayEt = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
+const nowMovingHtml = (() => {
+  if (!ouraSteps?.day) return "";
+  const stepsText = Number(ouraSteps.steps).toLocaleString("en-US");
+  if (ouraSteps.day === nowTodayEt) {
+    return `        <h2>Moving</h2>
+        <p>${stepsText} steps today.</p>
+`;
+  }
+  const dayLabel = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    month: "long",
+    day: "numeric",
+  }).format(new Date(`${ouraSteps.day}T12:00:00`));
+  return `        <h2>Moving</h2>
+        <p>${stepsText} steps on ${escHtml(dayLabel)}.</p>
+`;
+})();
 const nowPageHtml = `${archiveHead("Now")}
       <p class="lead">Updated ${escHtml(nowMonthYear)} &middot; Brooklyn, NY &middot; <a href="https://nownownow.com/about" target="_blank" rel="noopener">What's this?</a></p>
       <div class="now-body">
@@ -1494,7 +1513,7 @@ ${hasThinking(thinking) ? `        <h2>Thinking</h2>
         <p>Back in Brooklyn.</p>
         <h2>Living</h2>
         <p>Brooklyn, NY.</p>
-      </div>
+${nowMovingHtml}      </div>
 ${archiveFoot}`;
 
 const changelogListHtml = changelogEntries.length > 0

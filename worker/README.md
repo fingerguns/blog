@@ -222,3 +222,28 @@ Private GPS ingest from the [Overland](https://github.com/aaronpk/Overland-iOS) 
 **Admin → Location tab:** `/admin/` → **Location** — pick a date range, load your track on a map, and browse the point-by-point timeline (ET). Raw coordinates never appear on the public site.
 
 Admin API: `action: "list-locations"` with optional `from`, `to`, `limit` (max 100, default 100; password auth) returns the most recent points, newest first. Raw coordinates are never exposed on the public site.
+
+### Oura Ring (daily steps)
+
+Sync daily step counts from the [Oura API v2](https://cloud.ouraring.com/docs/) into D1. The static `/now/` page shows the latest count in a **Moving** section; full history stays in D1.
+
+1. Create a Personal Access Token at [cloud.ouraring.com/personal-access-tokens](https://cloud.ouraring.com/personal-access-tokens).
+
+2. Apply migration and set the token:
+
+   ```bash
+   cd worker
+   wrangler d1 execute rommy-blog-db --remote --file=migrate-oura.sql
+   wrangler secret put OURA_ACCESS_TOKEN
+   wrangler deploy
+   ```
+
+3. Backfill historical data (~2 years) and trigger a rebuild:
+
+   ```bash
+   npm run backfill-oura
+   ```
+
+4. A cron job runs every 4 hours to sync the last 14 days and rebuild when new data arrives.
+
+Admin API: `action: "sync-oura"` with optional `backfill: true` (password auth). `action: "oura-steps-summary"` returns latest steps and total days stored.

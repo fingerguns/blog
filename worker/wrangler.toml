@@ -44,8 +44,12 @@ zone_name = "rommy.blog"
 pattern = "rommy.blog/api/locations*"
 zone_name = "rommy.blog"
 
+[triggers]
+crons = ["0 */4 * * *"]
+
 # Set via: wrangler secret put ADMIN_PASSWORD
 # Set via: wrangler secret put LOCATION_API_TOKEN   (Overland ingest — Bearer token)
+# Set via: wrangler secret put OURA_ACCESS_TOKEN    (Oura Ring — Personal Access Token)
 # Set via: wrangler secret put ANTHROPIC_API_KEY   (Claude Fable — section hints, Reading intros, genres)
 # Set via: wrangler secret put GITHUB_TOKEN
 # Set via: wrangler secret put PAGES_DEPLOY_HOOK  (Cloudflare Pages deploy hook URL)

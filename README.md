@@ -75,6 +75,7 @@ npm run backfill-video-posters   # capture JPEG posters for existing Thinking vi
 npm run refresh-section-hints    # regenerate homepage section tooltips via Claude Fable
 npm run refresh-reading-tab-intros   # regenerate Reading tab intro copy via Claude Fable
 npm run anthropic-usage              # Anthropic token usage summary (last 30 days)
+npm run backfill-oura                # sync Oura step history into D1 (~2 years on first run)
 ```
 
 Output goes to **`dist/`** (gitignored). Generated HTML is not committed; CI/Pages builds from source + D1.
@@ -165,6 +166,8 @@ wrangler deploy
 | `refresh-reading-tab-intros` | Regenerate Reading Latest / Must Reads tab intro copy with Claude Fable |
 | `backfill-reading-genres` | Assign genre tags to Must Reads books missing a primary genre (Claude Fable) |
 | `anthropic-usage-summary` | Token usage totals from logged Anthropic API calls |
+| `sync-oura` | Sync Oura daily steps into D1 (optional `backfill: true` for ~2 years) |
+| `oura-steps-summary` | Latest Oura steps and total days stored |
 | `generate-reading-tag-clouds` | Dev helper: thematic tag clouds for Latest and Must Reads (stdout only) |
 | `verify` | Check admin password |
 

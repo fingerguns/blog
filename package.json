@@ -9,6 +9,7 @@
     "refresh-reading-tab-intros": "node --env-file=.env scripts/refresh-reading-tab-intros.mjs",
     "backfill-reading-genres": "node --env-file=.env scripts/backfill-reading-genres.mjs",
     "backfill-thinking-locations": "node --env-file=.env scripts/backfill-thinking-locations.mjs",
+    "backfill-oura": "node --env-file=.env scripts/backfill-oura.mjs",
     "anthropic-usage": "node --env-file=.env scripts/anthropic-usage.mjs",
     "preview": "npx serve dist -p 3000"
   },

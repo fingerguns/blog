@@ -136,6 +136,18 @@ export async function loadBlogDataFromD1() {
     "SELECT url, title, date, datetime FROM linklog ORDER BY datetime DESC"
   );
 
+  let ouraSteps = null;
+  try {
+    const rows = await d1Query(
+      "SELECT day, steps FROM oura_daily_activity ORDER BY day DESC LIMIT 1"
+    );
+    if (rows[0]?.day) {
+      ouraSteps = { day: rows[0].day, steps: Number(rows[0].steps) || 0 };
+    }
+  } catch {
+    ouraSteps = null;
+  }
+
   const thinkingPostRows = await d1Query(
     "SELECT slug, text, media_url, media_alt, media_type, media_urls, content_html, datetime, microblog_url, location_label FROM thinking_posts ORDER BY datetime DESC"
   );
@@ -218,5 +230,6 @@ export async function loadBlogDataFromD1() {
     optionalColophon: site.optionalColophon || "",
     sectionHints: site.section_hints || null,
     readingTabIntros: site.reading_tab_intros || null,
+    ouraSteps,
   };
 }
