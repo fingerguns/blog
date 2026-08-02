@@ -10,7 +10,7 @@ Built with [Cursor](https://cursor.com). See the [colophon](https://rommy.blog/c
 - **Content in D1** — Writing posts, drafts, Reading, Sharing, and the homepage Thinking blurb
 - **Media in R2** — Photos (up to 4 per Thinking post), audio, and video for Thinking; photos for Writing (public bucket)
 - **Photo gallery** — 2–4 Thinking photos render as a cropped, equal-size 2×2 grid; click opens a full-viewport lightbox with prev/next, keyboard arrows, and infinite swipe on mobile
-- **Admin** — Password-protected UI at `/admin/` (Thinking, Writing, Reading, Sharing, Login)
+- **Admin** — Password-protected UI at `/admin/` (Thinking, Writing, Reading, Sharing, Location, Login)
 - **Cross-posting** — Thinking can publish to [Micro.blog](https://micro.blog) (Micropub), [Bluesky](https://bsky.app), and [Mastodon](https://joinmastodon.org) when configured; photos, audio, and video render as native attachments/players in each feed (see [Audio & Video Syndication](#audio--video-syndication) below), with the Thinking permalink included in the syndicated text alongside native media
 - **Comments** — [Webmentions](https://webmention.io) on Writing posts: incoming likes, reposts, and replies are received by webmention.io and rendered client-side; [Bridgy](https://brid.gy) bridges Mastodon replies/boosts back in
 - **Writing editor** — [Quill](https://quilljs.com/) with image upload, text wrap (left / right / center / full), drafts, and post version history
@@ -21,7 +21,10 @@ Built with [Cursor](https://cursor.com). See the [colophon](https://rommy.blog/c
 - **Section tooltips** — Homepage section headings have hover blurbs stored in D1; Claude Fable regenerates them after content changes (`refresh-section-hints` admin action or `npm run refresh-section-hints`)
 - **Reading tab intros** — Latest and Must Reads tabs have visitor-facing taste summaries stored in D1; Claude Fable redrafts them when books are added or removed (`refresh-reading-tab-intros` or `npm run refresh-reading-tab-intros` from repo root or `worker/`)
 - **Must Reads genre tags** — Each curated favorite gets 1–3 AI-assigned genre tags (primary required) stored in D1; a genre dropdown on `/reading/must-reads/` filters the list, with shareable paths like `/reading/must-reads/literary-realism/`. Tags are assigned automatically when books are added and pruned when unused after removal (`backfill-reading-genres` or `npm run backfill-reading-genres` for existing titles)
-- **Elsewhere → Socials** — Collapsible row on the homepage with links to Bluesky, Mastodon, and micro.blog
+- **Thinking footers** — Date and neighborhood label on the homepage, archive, and permalinks; neighborhood links to Google Maps when GPS data is available
+- **Location tracking** — Private GPS ingest from [Overland](https://github.com/aaronpk/Overland-iOS) iOS; nearest fix within ±15 minutes at publish time → neighborhood label in D1 (NYC coords use Planning Labs GeoSearch). Admin **Location** tab shows the latest 100 points on a map
+- **Now page** — [`/now/`](https://rommy.blog/now/) follows [nownownow](https://nownownow.com/about): latest Thinking, current Reading, Working, Living, and **Walking** (latest daily step count from Oura Ring, synced to D1)
+- **Elsewhere → Feeds** — Collapsible row on the homepage with links to Bluesky, Mastodon, and micro.blog
 - **Changelog** — Generated from Git history at build time
 - **Colophon** — [`/colophon/`](https://rommy.blog/colophon/) describes how the site is built, with an optional toggle to read it in the style of Walt Whitman
 
@@ -58,7 +61,7 @@ Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on the
 | `data/reading-covers.json` | Build-time cover URL overrides keyed by Bookshop URL |
 | `data/reading-favorites.json` | Must Reads seed data and custom `cover_url` values for build |
 | `styles.css` | Site styles (light/dark) |
-| `about/`, `admin/`, `colophon/`, `contact/` | Hand-authored static pages (copied into `dist/` at build) |
+| `about/`, `admin/`, `colophon/`, `contact/` | Hand-authored static pages (copied into `dist/` at build). `/now/` is generated from D1 in `scripts/build.mjs` |
 
 ## Requirements
 
@@ -75,6 +78,7 @@ npm run backfill-video-posters   # capture JPEG posters for existing Thinking vi
 npm run refresh-section-hints    # regenerate homepage section tooltips via Claude Fable
 npm run refresh-reading-tab-intros   # regenerate Reading tab intro copy via Claude Fable
 npm run anthropic-usage              # Anthropic token usage summary (last 30 days)
+npm run backfill-thinking-locations  # backfill neighborhood labels on Thinking posts from GPS log
 npm run backfill-oura                # sync Oura step history into D1 (~2 years on first run)
 ```
 
@@ -132,6 +136,8 @@ See [`worker/README.md`](worker/README.md) for D1 schema, secrets, and deploy st
 | `BLUESKY_APP_PASSWORD` | No | Bluesky cross-post |
 | `MASTODON_ACCESS_TOKEN` | No | Mastodon cross-post |
 | `MASTODON_INSTANCE` | No | Mastodon instance URL (default `https://mas.to`) |
+| `LOCATION_API_TOKEN` | No | Overland GPS ingest (`POST /api/locations`) |
+| `OURA_ACCESS_TOKEN` | No | Oura Ring Personal Access Token (daily step sync) |
 | `GITHUB_TOKEN` | No | Fallback rebuild trigger |
 
 **Bindings** (in `worker/wrangler.toml`): D1 `rommy-blog-db`, R2 `rommy-blog-media`, plus `MEDIA_PUBLIC_URL` for public image URLs.
@@ -168,6 +174,8 @@ wrangler deploy
 | `anthropic-usage-summary` | Token usage totals from logged Anthropic API calls |
 | `sync-oura` | Sync Oura daily steps into D1 (optional `backfill: true` for ~2 years) |
 | `oura-steps-summary` | Latest Oura steps and total days stored |
+| `list-locations` | Latest GPS points for admin Location tab (max 100) |
+| `backfill-thinking-locations` | Backfill `location_label` on Thinking posts from stored GPS |
 | `generate-reading-tag-clouds` | Dev helper: thematic tag clouds for Latest and Must Reads (stdout only) |
 | `verify` | Check admin password |
 

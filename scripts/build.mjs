@@ -1120,7 +1120,7 @@ const linksHtml = (links || [])
 
 const socialsHtml = `          <li class="link-list-socials">
             <button type="button" class="socials-toggle" aria-expanded="false" aria-controls="socials-sublist">
-              Socials<span class="socials-chevron" aria-hidden="true"></span>
+              Feeds<span class="socials-chevron" aria-hidden="true"></span>
             </button>
             <ul class="socials-sublist" id="socials-sublist" hidden>
               <li>
