@@ -36,17 +36,13 @@ export function videoPosterKeyFromVideoUrl(url, siteUrl = "https://rommy.blog") 
 
 /** Largest common Spotify CDN size for album/track art (640×640). */
 const SPOTIFY_ALBUM_ART_LARGE = "ab67616d0000b273";
-/** Largest common Spotify CDN size for podcast/show art (640×640). */
-const SPOTIFY_SHOW_ART_LARGE = "ab6765630000f1bd";
 
 /** Upgrade Spotify oEmbed / cache URLs to the largest CDN variant. */
 export function upgradeSpotifyImageUrl(url) {
   if (!url || !/spotifycdn\.com\/image\//i.test(url)) return url;
+  // Album/track art uses a size suffix after ab67616d0000; podcast/show art (ab676563) does not.
   if (/ab67616d0000/i.test(url)) {
     return url.replace(/ab67616d0000[0-9a-f]{4}/i, SPOTIFY_ALBUM_ART_LARGE);
-  }
-  if (/ab6765630000/i.test(url)) {
-    return url.replace(/ab6765630000[0-9a-f]{4}/i, SPOTIFY_SHOW_ART_LARGE);
   }
   return url;
 }
