@@ -1191,6 +1191,7 @@ html.thinking-lightbox-open {
   flex-direction: column;
   align-items: center;
   gap: 0.75rem;
+  overflow: hidden;
 }
 
 .thinking-lightbox-figure img {
@@ -1202,7 +1203,17 @@ html.thinking-lightbox-open {
   object-fit: contain;
   -webkit-user-drag: none;
   user-select: none;
-  touch-action: pan-y;
+  touch-action: none;
+  cursor: zoom-in;
+  will-change: transform;
+}
+
+.thinking-lightbox--zoomed .thinking-lightbox-figure img {
+  cursor: zoom-out;
+}
+
+.thinking-lightbox--panning .thinking-lightbox-figure img {
+  cursor: grabbing;
 }
 
 .thinking-lightbox-counter {

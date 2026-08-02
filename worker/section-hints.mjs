@@ -17,6 +17,14 @@ export { SECTION_NAMES };
 const HINT_SYSTEM =
   "You write concise tooltip copy for a personal blog. Output only the paragraph requested.";
 const SAMPLE_LIMIT = 18;
+/** Room for Fable adaptive thinking plus a full ~120-word paragraph. */
+const HINT_MAX_TOKENS = 1024;
+
+function sectionHintLooksComplete(text) {
+  const s = String(text || "").trim();
+  if (s.length < 80) return false;
+  return /[.!?]["']?$/.test(s);
+}
 
 async function dbRun(db, sql, ...params) {
   return db.prepare(sql).bind(...params).run();
@@ -128,7 +136,7 @@ export async function generateSectionHint(env, db, section, samples, currentHint
     result = await runAnthropicText(env, {
       system: HINT_SYSTEM,
       user: prompt,
-      maxTokens: 220,
+      maxTokens: HINT_MAX_TOKENS,
     });
   } catch (err) {
     console.error(`section hint generation failed (${section}):`, err?.message || err);
@@ -144,7 +152,14 @@ export async function generateSectionHint(env, db, section, samples, currentHint
   }
 
   const hint = normalizeSectionHint(extractAnthropicText(result));
-  return hint.length >= 40 ? hint : null;
+  if (!sectionHintLooksComplete(hint)) {
+    console.error(
+      `section hint generation incomplete (${section}):`,
+      hint ? `${hint.length} chars, ends "${hint.slice(-24)}"` : "empty"
+    );
+    return null;
+  }
+  return hint;
 }
 
 export async function refreshSectionHint(env, db, section, triggerRebuild) {

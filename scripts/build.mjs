@@ -96,7 +96,62 @@ const socialsToggleScript = `    <script>(function(){var btn=document.querySelec
 const thinkingLightboxScript = `    <script>(function(){
   var overlay=null,imgEl=null,counterEl=null,urls=[],index=0;
   var touchX=0,touchY=0,touchT=0,swiping=false;
-  var SWIPE_MIN=40;
+  var SWIPE_MIN=40,ZOOM=2;
+  var zoomed=false,scale=1,tx=0,ty=0,originX=50,originY=50;
+  var panning=false,panStartX=0,panStartY=0,panStartTx=0,panStartTy=0;
+  var imgTap={active:false,mx:0,my:0,t:0,moved:false};
+  function applyTransform(){
+    imgEl.style.transformOrigin=originX+"% "+originY+"%";
+    imgEl.style.transform="translate("+tx+"px,"+ty+"px) scale("+scale+")";
+  }
+  function resetZoom(){
+    zoomed=false;scale=1;tx=0;ty=0;originX=50;originY=50;panning=false;
+    imgEl.style.transform="";
+    imgEl.style.transformOrigin="";
+    overlay.classList.remove("thinking-lightbox--zoomed","thinking-lightbox--panning");
+  }
+  function zoomPoint(clientX,clientY){
+    var r=imgEl.getBoundingClientRect();
+    if(!r.width||!r.height)return;
+    originX=Math.max(0,Math.min(100,((clientX-r.left)/r.width)*100));
+    originY=Math.max(0,Math.min(100,((clientY-r.top)/r.height)*100));
+    var nw=imgEl.naturalWidth,nh=imgEl.naturalHeight;
+    var fitScale=1;
+    if(nw&&nh&&r.width&&r.height){
+      fitScale=Math.min(Math.max(nw/r.width,nh/r.height),4);
+    }
+    scale=Math.min(ZOOM,fitScale);
+    zoomed=true;
+    tx=0;ty=0;
+    overlay.classList.add("thinking-lightbox--zoomed");
+    applyTransform();
+  }
+  function toggleZoom(e){
+    if(zoomed){resetZoom();return;}
+    var x=e.clientX,y=e.clientY;
+    if(x==null&&e.changedTouches&&e.changedTouches[0]){
+      x=e.changedTouches[0].clientX;y=e.changedTouches[0].clientY;
+    }
+    if(x==null)return;
+    zoomPoint(x,y);
+  }
+  function startPan(clientX,clientY){
+    if(!zoomed)return;
+    panning=true;
+    panStartX=clientX;panStartY=clientY;panStartTx=tx;panStartTy=ty;
+    overlay.classList.add("thinking-lightbox--panning");
+  }
+  function movePan(clientX,clientY){
+    if(!panning)return;
+    tx=panStartTx+(clientX-panStartX);
+    ty=panStartTy+(clientY-panStartY);
+    applyTransform();
+  }
+  function endPan(){
+    if(!panning)return;
+    panning=false;
+    overlay.classList.remove("thinking-lightbox--panning");
+  }
   function ensure(){
     if(overlay)return;
     overlay=document.createElement("div");
@@ -113,21 +168,66 @@ const thinkingLightboxScript = `    <script>(function(){
     overlay.querySelector(".thinking-lightbox-prev").addEventListener("click",function(e){e.stopPropagation();show(index-1);});
     overlay.querySelector(".thinking-lightbox-next").addEventListener("click",function(e){e.stopPropagation();show(index+1);});
     overlay.addEventListener("click",function(e){if(e.target===overlay)close();});
+    imgEl.addEventListener("click",function(e){
+      e.stopPropagation();
+      if(window.matchMedia("(hover: hover) and (pointer: fine)").matches)toggleZoom(e);
+    });
+    imgEl.addEventListener("touchstart",function(e){
+      if(!e.touches||e.touches.length!==1)return;
+      imgTap.active=true;imgTap.moved=false;
+      imgTap.mx=e.touches[0].clientX;imgTap.my=e.touches[0].clientY;imgTap.t=Date.now();
+      if(zoomed)startPan(imgTap.mx,imgTap.my);
+    },{passive:true});
+    imgEl.addEventListener("touchmove",function(e){
+      if(!imgTap.active||!e.touches||!e.touches.length)return;
+      var dx=e.touches[0].clientX-imgTap.mx,dy=e.touches[0].clientY-imgTap.my;
+      if(Math.abs(dx)>8||Math.abs(dy)>8)imgTap.moved=true;
+      if(zoomed&&panning){
+        if(e.cancelable)e.preventDefault();
+        movePan(e.touches[0].clientX,e.touches[0].clientY);
+      }
+    },{passive:false});
+    imgEl.addEventListener("touchend",function(e){
+      if(!imgTap.active)return;
+      imgTap.active=false;
+      if(zoomed){
+        endPan();
+        if(!imgTap.moved)toggleZoom(e);
+        return;
+      }
+      var t=e.changedTouches&&e.changedTouches[0];
+      if(!t)return;
+      if(!imgTap.moved&&Date.now()-imgTap.t<400){
+        toggleZoom(e);
+        e.preventDefault();
+      }
+    },{passive:false});
+    imgEl.addEventListener("mousedown",function(e){
+      if(e.button!==0||!zoomed)return;
+      e.preventDefault();
+      startPan(e.clientX,e.clientY);
+    });
+    document.addEventListener("mousemove",function(e){
+      if(!panning)return;
+      e.preventDefault();
+      movePan(e.clientX,e.clientY);
+    });
+    document.addEventListener("mouseup",function(){endPan();});
     document.addEventListener("keydown",function(e){
       if(overlay.hidden)return;
-      if(e.key==="Escape")close();
-      else if(e.key==="ArrowLeft")show(index-1);
-      else if(e.key==="ArrowRight")show(index+1);
+      if(e.key==="Escape"){if(zoomed){resetZoom();e.preventDefault();return;}close();}
+      else if(!zoomed&&e.key==="ArrowLeft")show(index-1);
+      else if(!zoomed&&e.key==="ArrowRight")show(index+1);
     });
     overlay.addEventListener("touchstart",function(e){
-      if(overlay.hidden||urls.length<2||!e.touches||!e.touches.length)return;
+      if(overlay.hidden||zoomed||urls.length<2||!e.touches||!e.touches.length)return;
       touchX=e.touches[0].clientX;
       touchY=e.touches[0].clientY;
       touchT=Date.now();
       swiping=true;
     },{passive:true});
     overlay.addEventListener("touchmove",function(e){
-      if(!swiping||!e.touches||!e.touches.length)return;
+      if(!swiping||zoomed||!e.touches||!e.touches.length)return;
       var dx=e.touches[0].clientX-touchX;
       var dy=e.touches[0].clientY-touchY;
       if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>12){
@@ -135,7 +235,7 @@ const thinkingLightboxScript = `    <script>(function(){
       }
     },{passive:false});
     overlay.addEventListener("touchend",function(e){
-      if(!swiping)return;
+      if(!swiping||zoomed)return;
       swiping=false;
       if(urls.length<2)return;
       var t=e.changedTouches&&e.changedTouches[0];
@@ -148,10 +248,11 @@ const thinkingLightboxScript = `    <script>(function(){
       if(dx<0)show(index+1);
       else show(index-1);
     },{passive:true});
-    overlay.addEventListener("touchcancel",function(){swiping=false;},{passive:true});
+    overlay.addEventListener("touchcancel",function(){swiping=false;imgTap.active=false;endPan();},{passive:true});
   }
   function show(i){
     if(!urls.length)return;
+    resetZoom();
     index=(i+urls.length)%urls.length;
     imgEl.src=urls[index];
     counterEl.textContent=urls.length>1?(index+1)+" / "+urls.length:"";
@@ -166,6 +267,7 @@ const thinkingLightboxScript = `    <script>(function(){
   }
   function close(){
     if(!overlay||overlay.hidden)return;
+    resetZoom();
     overlay.hidden=true;
     imgEl.removeAttribute("src");
     document.documentElement.classList.remove("thinking-lightbox-open");
