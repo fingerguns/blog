@@ -221,4 +221,4 @@ Private GPS ingest from the [Overland](https://github.com/aaronpk/Overland-iOS) 
 
 **Admin → Location tab:** `/admin/` → **Location** — pick a date range, load your track on a map, and browse the point-by-point timeline (ET). Raw coordinates never appear on the public site.
 
-Admin API: `action: "list-locations"` with optional `from`, `to`, `limit` (password auth) returns stored points. Raw coordinates are never exposed on the public site.
+Admin API: `action: "list-locations"` with optional `from`, `to`, `limit` (max 100, default 100; password auth) returns the most recent points, newest first. Raw coordinates are never exposed on the public site.

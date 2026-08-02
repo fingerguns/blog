@@ -1067,15 +1067,9 @@
         <p class="lead">Private GPS log from Overland. Coordinates stay in admin only — public Thinking posts show neighborhood labels.</p>
 
         <div class="location-toolbar">
-          <label for="loc-from">From
-            <input id="loc-from" type="date" />
-          </label>
-          <label for="loc-to">To
-            <input id="loc-to" type="date" />
-          </label>
-          <button type="button" id="loc-load">Load track</button>
+          <button type="button" id="loc-load">Refresh</button>
         </div>
-        <p class="location-stats" id="loc-stats">Choose a date range and load.</p>
+        <p class="location-stats" id="loc-stats">Loading latest points…</p>
         <div id="loc-map" role="region" aria-label="Location map"></div>
         <div class="location-timeline" id="loc-timeline" hidden>
           <div id="loc-timeline-days"></div>
@@ -1295,21 +1289,11 @@
           day: "2-digit",
         });
 
-        function locDefaultDates() {
-          var to = new Date();
-          var from = new Date(to);
-          from.setDate(from.getDate() - 6);
-          var iso = function (d) {
-            return d.toISOString().slice(0, 10);
-          };
-          document.getElementById("loc-from").value = iso(from);
-          document.getElementById("loc-to").value = iso(to);
-        }
 
-        function locDayBounds(fromDate, toDate) {
-          var from = new Date(fromDate + "T00:00:00");
-          var to = new Date(toDate + "T23:59:59.999");
-          return { from: from.toISOString(), to: to.toISOString() };
+        function locChronological(points) {
+          return points.slice().sort(function (a, b) {
+            return new Date(a.recorded_at) - new Date(b.recorded_at);
+          });
         }
 
         function locHaversineKm(a, b) {
@@ -1430,7 +1414,8 @@
             return;
           }
 
-          var latlngs = points.map(function (p) {
+          var chronological = locChronological(points);
+          var latlngs = chronological.map(function (p) {
             return [p.lat, p.lon];
           });
           if (latlngs.length > 1) {
@@ -1463,23 +1448,12 @@
           var status = document.getElementById("loc-status");
           var stats = document.getElementById("loc-stats");
           status.hidden = true;
-          if (!document.getElementById("loc-from").value) locDefaultDates();
-
-          var fromDate = document.getElementById("loc-from").value;
-          var toDate = document.getElementById("loc-to").value;
-          if (!fromDate || !toDate) {
-            showStatus(status, "Choose a from and to date.", true);
-            return;
-          }
 
           stats.textContent = "Loading…";
           try {
-            var bounds = locDayBounds(fromDate, toDate);
             var data = await callAPI({
               action: "list-locations",
-              from: bounds.from,
-              to: bounds.to,
-              limit: 5000,
+              limit: 100,
             });
             locPoints = data.points || [];
             locRenderMap(locPoints);
@@ -1487,13 +1461,14 @@
             locActiveIdx = -1;
 
             if (!locPoints.length) {
-              stats.textContent = "No points in this range. Check Overland is sending to /api/locations.";
+              stats.textContent = "No points yet. Check Overland is sending to /api/locations.";
               return;
             }
 
-            var km = locTotalDistanceKm(locPoints);
+            var km = locTotalDistanceKm(locChronological(locPoints));
             var mi = km * 0.621371;
             stats.textContent =
+              "Latest " +
               locPoints.length +
               " point" +
               (locPoints.length === 1 ? "" : "s") +
@@ -1514,7 +1489,6 @@
         document.getElementById("loc-load").addEventListener("click", function () {
           loadLocationViewer();
         });
-        locDefaultDates();
       })();
 
       // ── Theme toggle ───────────────────────────────────────────────────────

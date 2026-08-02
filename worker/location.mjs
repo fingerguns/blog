@@ -9,11 +9,11 @@ function parseOverlandTimestamp(value) {
 }
 
 function locationAuthOk(request, env) {
-  const expected = env.LOCATION_API_TOKEN;
+  const expected = String(env.LOCATION_API_TOKEN || "").trim();
   if (!expected) return false;
   const header = request.headers.get("Authorization") || "";
   const match = header.match(/^Bearer\s+(.+)$/i);
-  return Boolean(match && match[1] === expected);
+  return Boolean(match && match[1].trim() === expected);
 }
 
 function overlandFeatureToRow(feature, createdAt) {
@@ -104,37 +104,43 @@ async function getGeocodeLabel(db, lat, lon, env) {
   return label;
 }
 
+const INSERT_LOCATION_SQL = `INSERT INTO location_points
+  (device_id, recorded_at, lat, lon, horizontal_accuracy, altitude, speed, course, battery_level, created_at)
+ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+const D1_BATCH_SIZE = 100;
+
 export async function ingestOverlandLocations(db, payload) {
   const locations = Array.isArray(payload?.locations) ? payload.locations : [];
   const createdAt = new Date().toISOString();
-  let inserted = 0;
+  const rows = [];
 
   for (const feature of locations) {
     const row = overlandFeatureToRow(feature, createdAt);
-    if (!row) continue;
-    await db
-      .prepare(
-        `INSERT INTO location_points
-          (device_id, recorded_at, lat, lon, horizontal_accuracy, altitude, speed, course, battery_level, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .bind(
-        row.device_id,
-        row.recorded_at,
-        row.lat,
-        row.lon,
-        row.horizontal_accuracy,
-        row.altitude,
-        row.speed,
-        row.course,
-        row.battery_level,
-        row.created_at
-      )
-      .run();
-    inserted += 1;
+    if (row) rows.push(row);
   }
 
-  return inserted;
+  for (let i = 0; i < rows.length; i += D1_BATCH_SIZE) {
+    const chunk = rows.slice(i, i + D1_BATCH_SIZE);
+    const statements = chunk.map((row) =>
+      db
+        .prepare(INSERT_LOCATION_SQL)
+        .bind(
+          row.device_id,
+          row.recorded_at,
+          row.lat,
+          row.lon,
+          row.horizontal_accuracy,
+          row.altitude,
+          row.speed,
+          row.course,
+          row.battery_level,
+          row.created_at
+        )
+    );
+    await db.batch(statements);
+  }
+
+  return rows.length;
 }
 
 export async function resolveLocationLabelForDatetime(db, env, isoDatetime) {
@@ -178,9 +184,11 @@ export async function handleLocationIngest(request, env) {
   }
 
   try {
-    const inserted = await ingestOverlandLocations(env.DB, payload);
-    return json({ result: "ok", inserted });
+    await ingestOverlandLocations(env.DB, payload);
+    // Overland requires exactly this shape to clear its local queue.
+    return json({ result: "ok" });
   } catch (err) {
+    console.error("location ingest failed", err);
     return json({ error: err.message || "Ingest failed" }, 500);
   }
 }
@@ -188,7 +196,7 @@ export async function handleLocationIngest(request, env) {
 export async function handleLocationQuery(payload, db, env) {
   const from = typeof payload.from === "string" ? payload.from : "";
   const to = typeof payload.to === "string" ? payload.to : "";
-  const limit = Math.min(Math.max(Number(payload.limit) || 1000, 1), 5000);
+  const limit = Math.min(Math.max(Number(payload.limit) || 100, 1), 100);
 
   let sql = `SELECT device_id, recorded_at, lat, lon, horizontal_accuracy, altitude, speed, course, battery_level
              FROM location_points`;
@@ -203,7 +211,7 @@ export async function handleLocationQuery(payload, db, env) {
     params.push(to);
   }
   if (clauses.length) sql += ` WHERE ${clauses.join(" AND ")}`;
-  sql += " ORDER BY recorded_at ASC LIMIT ?";
+  sql += " ORDER BY recorded_at DESC LIMIT ?";
   params.push(limit);
 
   const { results } = await db.prepare(sql).bind(...params).all();
