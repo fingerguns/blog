@@ -49,6 +49,12 @@ Add Thinking multi-photo support (`media_urls` JSON column, up to 4 photos):
 wrangler d1 execute rommy-blog-db --file=migrate-thinking-photos.sql --remote
 ```
 
+Location tracking (Overland ingest + Thinking post neighborhood labels):
+
+```bash
+wrangler d1 execute rommy-blog-db --file=migrate-location.sql --remote
+```
+
 Migrate existing content from `data/posts.json`:
 
 ```bash
@@ -60,6 +66,7 @@ node scripts/migrate-to-d1.mjs
 ```bash
 cd worker
 wrangler secret put ADMIN_PASSWORD
+wrangler secret put LOCATION_API_TOKEN   # Overland iOS — Bearer token for POST /api/locations
 wrangler secret put ANTHROPIC_API_KEY   # Reading tab intro copy (Claude Fable)
 wrangler secret put PAGES_DEPLOY_HOOK   # Cloudflare Pages → Settings → Deploy hooks
 wrangler secret put MICROBLOG_TOKEN     # optional
@@ -192,3 +199,24 @@ npm run anthropic-usage -- 7   # last 7 days
 ```
 
 Estimates use approximate Fable list rates; check [Anthropic Console → Cost](https://platform.claude.com/cost) for billed amounts.
+
+### Location tracking (Overland)
+
+Private GPS ingest from the [Overland](https://github.com/aaronpk/Overland-iOS) iOS app. Points land in D1; when you publish a Thinking post, the Worker looks up the nearest point (±15 minutes) and reverse-geocodes a neighborhood label (e.g. `Prospect Heights, Brooklyn`) into `thinking_posts.location_label`. The static build renders it in the post footer.
+
+1. Apply migration (above) and set `LOCATION_API_TOKEN`:
+
+   ```bash
+   cd worker
+   wrangler secret put LOCATION_API_TOKEN
+   wrangler deploy
+   ```
+
+2. In Overland → Settings:
+   - **Server URL:** `https://rommy.blog/api/locations`
+   - **Access Token:** same value as `LOCATION_API_TOKEN`
+   - Request **Always** location permission; turn tracking on
+
+3. Publish a Thinking post while Overland has a recent fix — the footer should show neighborhood + city after the next deploy.
+
+Admin API: `action: "list-locations"` with optional `from`, `to`, `limit` (password auth) returns stored points for a future map UI. Raw coordinates are never exposed on the public site.

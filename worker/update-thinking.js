@@ -30,6 +30,12 @@ import { getAnthropicUsageSummary } from "./anthropic-usage.mjs";
 import { serveMedia } from "./media.mjs";
 import { createR2PresignedPutUrl } from "./r2-presign.mjs";
 import { thinkingVideoPosterKey, uploadVideoPosterToR2 } from "./video-poster.mjs";
+import {
+  handleLocationIngest,
+  handleLocationQuery,
+  handleBackfillThinkingLocations,
+  resolveLocationLabelForDatetime,
+} from "./location.mjs";
 
 /**
  * Cloudflare Worker: admin API for rommy.blog
@@ -119,6 +125,23 @@ export default {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/media/")) {
       return serveMedia(request, env);
+    }
+
+    if (url.pathname === "/api/locations" || url.pathname.startsWith("/api/locations/")) {
+      if (request.method === "OPTIONS") {
+        return new Response(null, {
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type",
+            "Cache-Control": "no-store",
+          },
+        });
+      }
+      if (request.method === "POST") {
+        return handleLocationIngest(request, env);
+      }
+      return json({ error: "Method not allowed" }, 405);
     }
 
     const allowedOrigins = (env.ALLOWED_ORIGINS || "https://rommy.blog")
@@ -236,6 +259,25 @@ export default {
         return json({ ok: true, ...summary }, 200, cors);
       } catch (err) {
         return json({ error: err.message || "Usage summary failed" }, 500, cors);
+      }
+    }
+
+    if (action === "backfill-thinking-locations") {
+      try {
+        const result = await handleBackfillThinkingLocations(db, env);
+        await triggerRebuild(env);
+        return json({ ok: true, ...result }, 200, cors);
+      } catch (err) {
+        return json({ error: err.message || "Backfill failed" }, 500, cors);
+      }
+    }
+
+    if (action === "list-locations") {
+      try {
+        const result = await handleLocationQuery(payload, db, env);
+        return json(result, 200, cors);
+      } catch (err) {
+        return json({ error: err.message || "Location query failed" }, 500, cors);
       }
     }
 
@@ -836,10 +878,16 @@ async function handleThinking(payload, db, cors, env, ctx) {
       SITE_URL,
       { mediaUrls: mediaType === "image" ? mediaUrls : [] }
     );
+    let locationLabel = "";
+    try {
+      locationLabel = await resolveLocationLabelForDatetime(db, env, nowIso);
+    } catch {
+      /* omit location when lookup fails */
+    }
     await dbRun(
       db,
-      `INSERT INTO thinking_posts (slug, text, media_url, media_alt, media_type, media_urls, content_html, datetime, microblog_url, bluesky_uri, mastodon_uri, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO thinking_posts (slug, text, media_url, media_alt, media_type, media_urls, content_html, datetime, microblog_url, bluesky_uri, mastodon_uri, location_label, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(slug) DO UPDATE SET
          text = excluded.text,
          media_url = excluded.media_url,
@@ -850,6 +898,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
          microblog_url = COALESCE(excluded.microblog_url, thinking_posts.microblog_url),
          bluesky_uri = COALESCE(excluded.bluesky_uri, thinking_posts.bluesky_uri),
          mastodon_uri = COALESCE(excluded.mastodon_uri, thinking_posts.mastodon_uri),
+         location_label = COALESCE(excluded.location_label, thinking_posts.location_label),
          datetime = excluded.datetime`,
       slug,
       text,
@@ -862,6 +911,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
       microblogUrl,
       blueskyUri,
       mastodonUrl,
+      locationLabel || null,
       nowIso
     );
 
@@ -877,6 +927,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
         microblogWarning,
         blueskyWarning,
         blueskyCompressed,
+        locationLabel: locationLabel || undefined,
         mastodonWarning,
       },
       200,

@@ -978,6 +978,9 @@ h2 {
   color: inherit;
   font-weight: inherit;
 }
+.microblog-entry .post-location {
+  color: inherit;
+}
 .thinking-delete-panel {
   margin-top: 1.5rem;
   padding: 1rem 1.15rem;

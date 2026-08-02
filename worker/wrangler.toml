@@ -40,7 +40,12 @@ zone_name = "rommy.blog"
 pattern = "rommy.blog/media/*"
 zone_name = "rommy.blog"
 
+[[routes]]
+pattern = "rommy.blog/api/locations*"
+zone_name = "rommy.blog"
+
 # Set via: wrangler secret put ADMIN_PASSWORD
+# Set via: wrangler secret put LOCATION_API_TOKEN   (Overland ingest — Bearer token)
 # Set via: wrangler secret put ANTHROPIC_API_KEY   (Claude Fable — section hints, Reading intros, genres)
 # Set via: wrangler secret put GITHUB_TOKEN
 # Set via: wrangler secret put PAGES_DEPLOY_HOOK  (Cloudflare Pages deploy hook URL)

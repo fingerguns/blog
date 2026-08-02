@@ -137,7 +137,7 @@ export async function loadBlogDataFromD1() {
   );
 
   const thinkingPostRows = await d1Query(
-    "SELECT slug, text, media_url, media_alt, media_type, media_urls, content_html, datetime, microblog_url FROM thinking_posts ORDER BY datetime DESC"
+    "SELECT slug, text, media_url, media_alt, media_type, media_urls, content_html, datetime, microblog_url, location_label FROM thinking_posts ORDER BY datetime DESC"
   );
   const thinkingPosts = thinkingPostRows.map((r) => ({
     slug: r.slug,
@@ -149,6 +149,7 @@ export async function loadBlogDataFromD1() {
     content_html: r.content_html || "",
     datetime: r.datetime,
     microblog_url: r.microblog_url || "",
+    location_label: r.location_label || "",
   }));
   const latest = thinkingPosts[0];
   const thinking = latest

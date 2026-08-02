@@ -763,6 +763,7 @@ const microblogItems = thinkingPosts.map((p) => ({
   date_published: p.datetime,
   url: p.microblog_url || "",
   media_type: p.media_type || "",
+  location_label: p.location_label || "",
 }));
 
 // Changelog from git log
@@ -1492,6 +1493,16 @@ const formatMbDate = (iso) => {
 };
 const thinkingSlug = (item) => item._slug || thinkingSlugFromIso(item.date_published);
 
+function thinkingPostLocationHtml(item) {
+  const label = String(item.location_label || "").trim();
+  if (!label) return "";
+  return `<span class="post-location"> // ${escHtml(label)}</span>`;
+}
+
+function thinkingPostDateHtml(item, slug) {
+  return `<time class="post-date" datetime="${escHtml(item.date_published)}"><a href="/thinking/${escHtml(slug)}/">${escHtml(formatMbDate(item.date_published))}</a>${thinkingPostLocationHtml(item)}</time>`;
+}
+
 function thinkingPostCrumb(iso) {
   const dateLabel = formatMbDate(iso);
   return `      <nav class="thinking-crumb" aria-label="Breadcrumb">
@@ -1550,7 +1561,7 @@ const microblogListHtml = (items, spotifyThumbnails = {}) =>
           const kind = thinkingGridKind(item, spotifyThumbnails);
           return `        <div class="microblog-entry" data-slug="${escHtml(slug)}" data-kind="${escHtml(kind)}" data-microblog-url="${escHtml(item.url || "")}">
           <div class="microblog-body">${item.content_html}</div>
-          <time class="post-date" datetime="${escHtml(item.date_published)}"><a href="/thinking/${escHtml(slug)}/">${escHtml(formatMbDate(item.date_published))}</a></time>
+          ${thinkingPostDateHtml(item, slug)}
         </div>`;
         })
         .join("\n")
@@ -2018,6 +2029,7 @@ for (const item of microblogItems) {
     : item.content_html;
   const postHtml = `${thinkingPostHead(item.date_published, item, slug)}
       <div class="microblog-body">${detailContent}</div>
+      ${thinkingPostDateHtml(item, slug)}
 ${thinkingDeletePanelHtml}
 ${thinkingPostFoot}`;
   mkdirSync(join(outDir, "thinking", slug), { recursive: true });
