@@ -774,6 +774,30 @@ const microblogItems = thinkingPosts.map((p) => ({
   location_label: p.location_label || "",
 }));
 
+// Microblog dates/times shown in ET
+const etDateFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" });
+const etTimeFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+const formatMbDate = (iso) => {
+  const d = new Date(iso);
+  return `${etDateFmt.format(d)} // ${etTimeFmt.format(d)}`;
+};
+const thinkingSlug = (item) => item._slug || thinkingSlugFromIso(item.date_published);
+
+function thinkingPostLocationHtml(item) {
+  const label = String(item.location_label || "").trim();
+  if (!label) return "";
+  return `<span class="post-meta-sep" aria-hidden="true">·</span><span class="post-location">${escHtml(label)}</span>`;
+}
+
+function thinkingPostMetaHtml(item, slug) {
+  return `<p class="post-meta"><time class="post-date" datetime="${escHtml(item.date_published)}"><a href="/thinking/${escHtml(slug)}/">${escHtml(formatMbDate(item.date_published))}</a></time>${thinkingPostLocationHtml(item)}</p>`;
+}
+
 // Changelog from git log
 let changelogEntries = [];
 try {
@@ -1115,12 +1139,16 @@ const descriptionMeta = descriptionText
   : "";
 const subtitleHtml = descriptionText ? `      <p class="lead">${escHtml(descriptionText)}</p>\n\n` : "";
 
+const latestThinkingItem = microblogItems[0];
 const thinkingSection = hasThinking(thinking)
   ? `      <section aria-labelledby="now-heading">
         ${sectionHeading("Thinking", "h2", "now-heading")}
         <ol class="post-list">
           <li>
-            ${renderThinkingHtml(thinking)}
+            <div class="microblog-entry">
+              ${renderThinkingHtml(thinking)}
+              ${latestThinkingItem ? thinkingPostMetaHtml(latestThinkingItem, thinkingSlug(latestThinkingItem)) : ""}
+            </div>
           </li>
         </ol>
         <a class="see-more" href="/thinking/">→</a>
@@ -1486,30 +1514,6 @@ const changelogPageHtml = `${archiveHead("Changelog")}
 ${changelogListHtml}
       </ol>
 ${archiveFoot}`;
-
-// Microblog page — dates/times shown in ET
-const etDateFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" });
-const etTimeFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
-const formatMbDate = (iso) => {
-  const d = new Date(iso);
-  return `${etDateFmt.format(d)} // ${etTimeFmt.format(d)}`;
-};
-const thinkingSlug = (item) => item._slug || thinkingSlugFromIso(item.date_published);
-
-function thinkingPostLocationHtml(item) {
-  const label = String(item.location_label || "").trim();
-  if (!label) return "";
-  return `<span class="post-meta-sep" aria-hidden="true">·</span><span class="post-location">${escHtml(label)}</span>`;
-}
-
-function thinkingPostMetaHtml(item, slug) {
-  return `<p class="post-meta"><time class="post-date" datetime="${escHtml(item.date_published)}"><a href="/thinking/${escHtml(slug)}/">${escHtml(formatMbDate(item.date_published))}</a></time>${thinkingPostLocationHtml(item)}</p>`;
-}
 
 function thinkingPostCrumb(iso) {
   const dateLabel = formatMbDate(iso);
