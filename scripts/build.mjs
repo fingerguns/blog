@@ -789,10 +789,15 @@ const formatMbDate = (iso) => {
 };
 const thinkingSlug = (item) => item._slug || thinkingSlugFromIso(item.date_published);
 
+function googleMapsNeighborhoodUrl(label) {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(label)}`;
+}
+
 function thinkingPostLocationHtml(item) {
   const label = String(item.location_label || "").trim();
   if (!label) return "";
-  return `<span class="post-meta-sep" aria-hidden="true">·</span><span class="post-location">${escHtml(label)}</span>`;
+  const mapsUrl = googleMapsNeighborhoodUrl(label);
+  return `<span class="post-meta-sep" aria-hidden="true">·</span><a class="post-location" href="${escHtml(mapsUrl)}" target="_blank" rel="noopener">${escHtml(label)}</a>`;
 }
 
 function thinkingPostMetaHtml(item, slug) {
@@ -1489,7 +1494,7 @@ const nowMovingHtml = (() => {
   if (!ouraSteps?.day) return "";
   const stepsText = Number(ouraSteps.steps).toLocaleString("en-US");
   if (ouraSteps.day === nowTodayEt) {
-    return `        <h2>Moving</h2>
+    return `        <h2>Walking</h2>
         <p>${stepsText} steps today.</p>
 `;
   }
@@ -1498,7 +1503,7 @@ const nowMovingHtml = (() => {
     month: "long",
     day: "numeric",
   }).format(new Date(`${ouraSteps.day}T12:00:00`));
-  return `        <h2>Moving</h2>
+  return `        <h2>Walking</h2>
         <p>${stepsText} steps on ${escHtml(dayLabel)}.</p>
 `;
 })();
