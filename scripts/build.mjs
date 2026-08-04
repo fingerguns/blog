@@ -1539,10 +1539,20 @@ const nowLocationMapScript = `    <script
     if(statusEl)statusEl.remove();
     var west=data.bbox[0],south=data.bbox[1],east=data.bbox[2],north=data.bbox[3];
     var map=L.map('now-location-map',{scrollWheelZoom:false,attributionControl:true});
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-      maxZoom:19,
-      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-    }).addTo(map);
+    var cartoAttr='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+    var tileUrls={
+      light:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+      dark:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+    };
+    var tileLayer=null;
+    function isDark(){return document.documentElement.getAttribute('data-theme')==='dark';}
+    function setBasemap(){
+      var url=tileUrls[isDark()?'dark':'light'];
+      if(tileLayer)map.removeLayer(tileLayer);
+      tileLayer=L.tileLayer(url,{maxZoom:20,subdomains:'abcd',attribution:cartoAttr}).addTo(map);
+    }
+    setBasemap();
+    new MutationObserver(function(){setBasemap();}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
     L.rectangle([[south,west],[north,east]],{
       color:'#2563eb',
       weight:2,
