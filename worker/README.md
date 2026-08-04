@@ -219,13 +219,15 @@ Private GPS ingest from the [Overland](https://github.com/aaronpk/Overland-iOS) 
 
 3. Publish a Thinking post while Overland has a recent fix — the footer should show neighborhood + city after the next deploy.
 
-**Admin → Location tab:** `/admin/` → **Location** — pick a date range, load your track on a map, and browse the point-by-point timeline (ET). Raw coordinates never appear on the public site.
+**Admin → Location tab:** `/admin/` → **Location** — load the latest thousand GPS points on a MapLibre map (OpenFreeMap Liberty / Dark Matter basemaps, theme-aware), with path history, start/end markers, and a clickable point-by-point timeline (ET). Raw coordinates never appear on the public site.
 
-Admin API: `action: "list-locations"` with optional `from`, `to`, `limit` (max 100, default 100; password auth) returns the most recent points, newest first. Raw coordinates are never exposed on the public site.
+Admin API: `action: "list-locations"` with optional `from`, `to`, `limit` (max 1000, default 1000; password auth) returns the most recent points, newest first.
+
+Public API: `GET /api/locations/now` (no auth) returns the current neighborhood label, bounding box, and OpenStreetMap search URL — no exact coordinates.
 
 ### Oura Ring (daily steps)
 
-Sync daily step counts from the [Oura API v2](https://cloud.ouraring.com/docs/) into D1. The static `/now/` page shows the latest count in a **Moving** section; full history stays in D1.
+Sync daily step counts from the [Oura API v2](https://cloud.ouraring.com/docs/) into D1. The static `/now/` page shows the latest count in a **Walking** section; full history stays in D1.
 
 1. Create a Personal Access Token at [cloud.ouraring.com/personal-access-tokens](https://cloud.ouraring.com/personal-access-tokens).
 

@@ -11,7 +11,7 @@ Built with [Cursor](https://cursor.com). See the [colophon](https://rommy.blog/c
 - **Media in R2** — Photos (up to 4 per Thinking post), audio, and video for Thinking; photos for Writing (public bucket)
 - **Photo gallery** — 2–4 Thinking photos render as a cropped, equal-size 2×2 grid; click opens a full-viewport lightbox with prev/next, keyboard arrows, and infinite swipe on mobile
 - **Admin** — Password-protected UI at `/admin/` (Thinking, Writing, Reading, Sharing, Location, Login)
-- **Cross-posting** — Thinking can publish to [Micro.blog](https://micro.blog) (Micropub), [Bluesky](https://bsky.app), and [Mastodon](https://joinmastodon.org) when configured; photos, audio, and video render as native attachments/players in each feed (see [Audio & Video Syndication](#audio--video-syndication) below), with the Thinking permalink included in the syndicated text alongside native media
+- **Cross-posting** — Thinking can publish to [Micro.blog](https://micro.blog) (Micropub), [Bluesky](https://bsky.app), and [Mastodon](https://joinmastodon.org) when configured; photos, audio, and video render as native attachments/players in each feed (see [Audio & Video Syndication](#audio--video-syndication) below), with the Thinking permalink included in the syndicated text alongside native media. Writing, Reading, and Sharing cross-posts to Bluesky include link cards; large og:image thumbnails are compressed to ≤ 1 MB before upload
 - **Comments** — [Webmentions](https://webmention.io) on Writing posts: incoming likes, reposts, and replies are received by webmention.io and rendered client-side; [Bridgy](https://brid.gy) bridges Mastodon replies/boosts back in
 - **Writing editor** — [Quill](https://quilljs.com/) with image upload, text wrap (left / right / center / full), drafts, and post version history
 - **Social previews** — Open Graph / Twitter meta on Writing and Thinking permalinks (first in-post image when available)
@@ -22,8 +22,8 @@ Built with [Cursor](https://cursor.com). See the [colophon](https://rommy.blog/c
 - **Reading tab intros** — Latest and Must Reads tabs have visitor-facing taste summaries stored in D1; Claude Fable redrafts them when books are added or removed (`refresh-reading-tab-intros` or `npm run refresh-reading-tab-intros` from repo root or `worker/`)
 - **Must Reads genre tags** — Each curated favorite gets 1–3 AI-assigned genre tags (primary required) stored in D1; a genre dropdown on `/reading/must-reads/` filters the list, with shareable paths like `/reading/must-reads/literary-realism/`. Tags are assigned automatically when books are added and pruned when unused after removal (`backfill-reading-genres` or `npm run backfill-reading-genres` for existing titles)
 - **Thinking footers** — Date and neighborhood label on the homepage, archive, and permalinks; neighborhood links to Google Maps when GPS data is available
-- **Location tracking** — Private GPS ingest from [Overland](https://github.com/aaronpk/Overland-iOS) iOS; nearest fix within ±15 minutes at publish time → neighborhood label in D1 (NYC coords use Planning Labs GeoSearch). Admin **Location** tab shows the latest 100 points on a map
-- **Now page** — [`/now/`](https://rommy.blog/now/) follows [nownownow](https://nownownow.com/about): latest Thinking, current Reading, Working, Living, and **Walking** (latest daily step count from Oura Ring, synced to D1)
+- **Location tracking** — Private GPS ingest from [Overland](https://github.com/aaronpk/Overland-iOS) iOS; nearest fix within ±15 minutes at publish time → neighborhood label in D1 (NYC coords use Planning Labs GeoSearch). Admin **Location** tab shows the latest 1000 points on a MapLibre map (OpenFreeMap basemaps) with full coordinates, path history, and timeline
+- **Now page** — [`/now/`](https://rommy.blog/now/) follows [nownownow](https://nownownow.com/about): latest Thinking, current Reading, Working, **Walking** (latest daily step count from Oura Ring, synced to D1), and **Current Location** (MapLibre neighborhood map — label + bounding box only, linked to OpenStreetMap; no exact GPS on the public site)
 - **Elsewhere → Feeds** — Collapsible row on the homepage with links to Bluesky, Mastodon, and micro.blog
 - **Changelog** — Generated from Git history at build time
 - **Colophon** — [`/colophon/`](https://rommy.blog/colophon/) describes how the site is built, with an optional toggle to read it in the style of Walt Whitman
@@ -174,7 +174,7 @@ wrangler deploy
 | `anthropic-usage-summary` | Token usage totals from logged Anthropic API calls |
 | `sync-oura` | Sync Oura daily steps into D1 (optional `backfill: true` for ~2 years) |
 | `oura-steps-summary` | Latest Oura steps and total days stored |
-| `list-locations` | Latest GPS points for admin Location tab (max 100) |
+| `list-locations` | Latest GPS points for admin Location tab (max 1000) |
 | `backfill-thinking-locations` | Backfill `location_label` on Thinking posts from stored GPS |
 | `generate-reading-tag-clouds` | Dev helper: thematic tag clouds for Latest and Must Reads (stdout only) |
 | `verify` | Check admin password |
@@ -208,6 +208,8 @@ When a Thinking post includes audio or video, each platform receives it as a nat
 | **micro.blog** | `audio[]` Micropub property → native player in feed and podcast RSS | `video[]` Micropub property → native player |
 | **Mastodon** | Uploaded as a media attachment (≤ 40 MB) → renders a player in timelines and third-party apps. Async video/audio transcodes are polled via `GET /api/v1/media/:id` until ready before the status posts | Same |
 | **Bluesky** | No native audio support; falls back to a link card pointing to the post | Native for both **MP4** and iPhone **MOV** (≤ 100 MB) — uploaded to Bluesky's dedicated video-processing service (`video.bsky.app`), which transcodes server-side and is polled for a completed blob (~25s budget). Falls back to a link card if processing times out or fails, or if `createRecord` rejects the embed, so the post still goes out |
+
+Writing, Reading, and Sharing cross-posts to Bluesky always include a link card (title, description, thumbnail). Thumbnails larger than 1 MB are resized/re-encoded before upload; if the embed still fails, the post retries without a thumbnail.
 
 For files that exceed the per-platform size limit, or when bytes are unavailable (presigned video uploads over the threshold), syndication falls back to the previous behaviour: a plain-text post with a permalink and an "Audio: " or "Video: " prefix. Multiple photos syndicate to all three platforms (Micro.blog via repeated `photo[]` parts, Mastodon and Bluesky via multiple media attachments/images, up to 4).
 
