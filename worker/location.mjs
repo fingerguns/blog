@@ -71,7 +71,29 @@ function neighborhoodLabelFromAddress(address = {}) {
   return neighborhood || borough || "";
 }
 
-async function reverseGeocodeNycLabel(lat, lon) {
+function nycNeighborhoodLabelFromProps(props = {}) {
+  const neighborhood = props.neighbourhood || props.name || "";
+  const borough = props.borough || "";
+  if (neighborhood && borough && neighborhood.toLowerCase() !== borough.toLowerCase()) {
+    return `${neighborhood}, ${borough}`;
+  }
+  return neighborhood || borough || "";
+}
+
+function normalizeGeoBbox(raw) {
+  if (!Array.isArray(raw) || raw.length !== 4) return null;
+  const nums = raw.map(Number);
+  if (nums.some((n) => !Number.isFinite(n))) return null;
+  const [west, south, east, north] = nums;
+  if (west >= east || south >= north) return null;
+  return [west, south, east, north];
+}
+
+function openStreetMapNeighborhoodUrl(label) {
+  return `https://www.openstreetmap.org/search?query=${encodeURIComponent(label)}`;
+}
+
+async function reverseGeocodeNycNeighborhood(lat, lon) {
   const url = new URL("https://geosearch.planninglabs.nyc/v2/reverse");
   url.searchParams.set("point.lat", String(lat));
   url.searchParams.set("point.lon", String(lon));
@@ -80,17 +102,46 @@ async function reverseGeocodeNycLabel(lat, lon) {
   const res = await fetch(url.toString(), {
     headers: { Accept: "application/json" },
   });
-  if (!res.ok) return "";
+  if (!res.ok) return null;
   const data = await res.json();
-  const props = data.features?.[0]?.properties;
-  if (!props) return "";
+  const feature = data.features?.[0];
+  const props = feature?.properties;
+  if (!props) return null;
 
-  const neighborhood = props.neighbourhood || props.name || "";
-  const borough = props.borough || "";
-  if (neighborhood && borough && neighborhood.toLowerCase() !== borough.toLowerCase()) {
-    return `${neighborhood}, ${borough}`;
-  }
-  return neighborhood || borough || "";
+  const label = nycNeighborhoodLabelFromProps(props);
+  if (!label) return null;
+
+  const bbox = normalizeGeoBbox(feature.bbox || data.bbox);
+  if (!bbox) return null;
+
+  return { label, bbox };
+}
+
+async function reverseGeocodeNycLabel(lat, lon) {
+  const result = await reverseGeocodeNycNeighborhood(lat, lon);
+  return result?.label || "";
+}
+
+async function nominatimNeighborhoodBbox(label, env) {
+  const userAgent =
+    env.NOMINATIM_USER_AGENT ||
+    "rommy.blog-location/1.0 (private location tracking; contact: rommy@gha.ly)";
+  const url = new URL("https://nominatim.openstreetmap.org/search");
+  url.searchParams.set("q", label);
+  url.searchParams.set("format", "json");
+  url.searchParams.set("limit", "1");
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": userAgent,
+    },
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const bb = data?.[0]?.boundingbox;
+  if (!Array.isArray(bb) || bb.length !== 4) return null;
+  return normalizeGeoBbox([Number(bb[2]), Number(bb[0]), Number(bb[3]), Number(bb[1])]);
 }
 
 async function reverseGeocodeLabel(lat, lon, env) {
@@ -254,6 +305,65 @@ export async function handleLocationQuery(payload, db, env) {
   };
 }
 
+export async function resolveCurrentNeighborhood(db, env) {
+  const { results } = await db
+    .prepare(
+      `SELECT lat, lon FROM location_points
+       WHERE horizontal_accuracy IS NULL OR horizontal_accuracy <= ?
+       ORDER BY recorded_at DESC
+       LIMIT 1`
+    )
+    .bind(MAX_HORIZONTAL_ACCURACY_M)
+    .all();
+
+  const point = results?.[0];
+  if (!point) return null;
+
+  const lat = Number(point.lat);
+  const lon = Number(point.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+  if (isNycArea(lat, lon)) {
+    const nyc = await reverseGeocodeNycNeighborhood(lat, lon);
+    if (nyc) {
+      return {
+        label: nyc.label,
+        bbox: nyc.bbox,
+        osmUrl: openStreetMapNeighborhoodUrl(nyc.label),
+      };
+    }
+  }
+
+  const label = await getGeocodeLabel(db, lat, lon, env);
+  if (!label) return null;
+
+  const bbox = await nominatimNeighborhoodBbox(label, env);
+  if (!bbox) return null;
+
+  return {
+    label,
+    bbox,
+    osmUrl: openStreetMapNeighborhoodUrl(label),
+  };
+}
+
+export async function handleNowLocation(db, env) {
+  try {
+    const neighborhood = await resolveCurrentNeighborhood(db, env);
+    if (!neighborhood) {
+      return json({ ok: false }, 404);
+    }
+    return json(
+      { ok: true, ...neighborhood },
+      200,
+      { "Cache-Control": "public, max-age=300" }
+    );
+  } catch (err) {
+    console.error("now-location failed", err);
+    return json({ ok: false, error: "Lookup failed" }, 500);
+  }
+}
+
 export async function handleBackfillThinkingLocations(db, env) {
   const { results: rows } = await db
     .prepare(
@@ -278,12 +388,13 @@ export async function handleBackfillThinkingLocations(db, env) {
   return { updated, skipped, total: (rows || []).length };
 }
 
-function json(body, status = 200) {
+function json(body, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       "Content-Type": "application/json",
       "Cache-Control": "no-store",
+      ...extraHeaders,
     },
   });
 }

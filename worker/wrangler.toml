@@ -44,6 +44,10 @@ zone_name = "rommy.blog"
 pattern = "rommy.blog/api/locations*"
 zone_name = "rommy.blog"
 
+[[routes]]
+pattern = "rommy.blog/api/now-location"
+zone_name = "rommy.blog"
+
 [triggers]
 crons = ["0 */4 * * *"]
 

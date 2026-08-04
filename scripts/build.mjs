@@ -1290,7 +1290,7 @@ Sitemap: ${base}/sitemap.xml
 `;
 
 // Archive pages
-const archiveHead = (title, headingHtml) => `<!DOCTYPE html>
+const archiveHead = (title, headingHtml, extraHead = "") => `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -1314,13 +1314,14 @@ const archiveHead = (title, headingHtml) => `<!DOCTYPE html>
       href="/feed.xml"
     />
 ${gaSnippet}
+${extraHead}
   </head>
   <body>
     <article class="post">
       <a class="post-back" href="/">←</a>
       ${headingHtml ?? `<h1>${escHtml(title)}</h1>`}`;
 
-const archiveFoot = `      <footer class="site-footer">
+const archiveFoot = (extraScripts = "") => `      <footer class="site-footer">
         <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><a href="#" class="theme-toggle" id="theme-toggle"></a></p>
         <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
@@ -1329,6 +1330,7 @@ const archiveFoot = `      <footer class="site-footer">
 ${portraitPhotoToggleScript}
 ${thinkingLightboxScript}
     <script>(function(){var BATCH=10;var list=document.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++)items[i].hidden=true;var shown=BATCH;var sentinel=document.createElement('div');document.body.appendChild(sentinel);var obs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++)items[i].hidden=false;shown=next;if(shown>=items.length)obs.disconnect();},{rootMargin:'0px'});obs.observe(sentinel);}());</script>
+${extraScripts}
   </body>
 </html>
 `;
@@ -1478,13 +1480,13 @@ const writingPageHtml = `${archiveHead("Writing", sectionHeading("Writing", "h1"
       <ol class="post-list" reversed>
 ${postListAllHtml}
       </ol>
-${archiveFoot}`;
+${archiveFoot()}`;
 
 const sharingPageHtml = `${archiveHead("Sharing", sectionHeading("Sharing", "h1"))}
       <ol class="post-list" reversed>
 ${linklogAllHtml}
       </ol>
-${archiveFoot}`;
+${archiveFoot()}`;
 
 // /now page
 const nowMonthYear = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "America/New_York" });
@@ -1507,7 +1509,58 @@ const nowMovingHtml = (() => {
         <p>${stepsText} steps on ${escHtml(dayLabel)}.</p>
 `;
 })();
-const nowPageHtml = `${archiveHead("Now")}
+const nowLeafletHead = `    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />`;
+const nowLocationHtml = `        <h2>Current Location</h2>
+        <p class="now-location-label" id="now-location-label"><span id="now-location-status">Loading map…</span></p>
+        <div id="now-location-map" class="now-location-map" role="region" aria-label="Current neighborhood map"></div>
+`;
+const nowLocationMapScript = `    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script>(function(){
+  var mapEl=document.getElementById('now-location-map');
+  if(!mapEl||typeof L==='undefined')return;
+  var statusEl=document.getElementById('now-location-status');
+  var labelEl=document.getElementById('now-location-label');
+  var apiUrl=(function(){var h=location.hostname;if(h==='localhost'||h==='127.0.0.1')return'https://rommy-blog-admin.fingerguns.workers.dev/api/now-location';return'/api/now-location';})();
+  fetch(apiUrl).then(function(r){return r.ok?r.json():null;}).then(function(data){
+    if(!data||!data.ok||!data.bbox||!data.label){
+      if(statusEl)statusEl.textContent='Location unavailable.';
+      if(mapEl)mapEl.hidden=true;
+      return;
+    }
+    if(statusEl)statusEl.remove();
+    var west=data.bbox[0],south=data.bbox[1],east=data.bbox[2],north=data.bbox[3];
+    var map=L.map('now-location-map',{scrollWheelZoom:false,attributionControl:true});
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      maxZoom:19,
+      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+    L.rectangle([[south,west],[north,east]],{
+      color:'#2563eb',
+      weight:2,
+      fillColor:'#2563eb',
+      fillOpacity:0.18
+    }).addTo(map);
+    map.fitBounds([[south,west],[north,east]],{padding:[20,20],maxZoom:15});
+    if(labelEl){
+      var href=data.osmUrl||'https://www.openstreetmap.org/search?query='+encodeURIComponent(data.label);
+      labelEl.innerHTML='<a href="'+href.replace(/"/g,'&quot;')+'" target="_blank" rel="noopener">'+String(data.label).replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</a>';
+    }
+    setTimeout(function(){map.invalidateSize();},50);
+  }).catch(function(){
+    if(statusEl)statusEl.textContent='Could not load location.';
+    if(mapEl)mapEl.hidden=true;
+  });
+})();</script>`;
+const nowPageHtml = `${archiveHead("Now", undefined, nowLeafletHead)}
       <p class="lead">Updated ${escHtml(nowMonthYear)} &middot; Brooklyn, NY &middot; <a href="https://nownownow.com/about" target="_blank" rel="noopener">What's this?</a></p>
       <div class="now-body">
 ${hasThinking(thinking) ? `        <h2>Thinking</h2>
@@ -1516,10 +1569,8 @@ ${hasThinking(thinking) ? `        <h2>Thinking</h2>
         <p><a href="${escHtml(readingLinkUrl(currentBook))}" target="_blank" rel="noopener">${escHtml(currentBook.title)}</a></p>
 ` : ""}        <h2>Working</h2>
         <p>Building data agents, skills, semantic layers, and contexts at CircleCI.</p>
-        <h2>Living</h2>
-        <p>Brooklyn, NY.</p>
-${nowMovingHtml}      </div>
-${archiveFoot}`;
+${nowMovingHtml}${nowLocationHtml}      </div>
+${archiveFoot(nowLocationMapScript)}`;
 
 const changelogListHtml = changelogEntries.length > 0
   ? changelogEntries
@@ -1537,7 +1588,7 @@ const changelogPageHtml = `${archiveHead("Changelog")}
       <ol class="post-list" reversed>
 ${changelogListHtml}
       </ol>
-${archiveFoot}`;
+${archiveFoot()}`;
 
 function thinkingPostCrumb(iso) {
   const dateLabel = formatMbDate(iso);

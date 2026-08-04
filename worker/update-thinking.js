@@ -34,6 +34,7 @@ import {
   handleLocationIngest,
   handleLocationQuery,
   handleBackfillThinkingLocations,
+  handleNowLocation,
   resolveLocationLabelForDatetime,
 } from "./location.mjs";
 import { syncOuraSteps, getOuraStepsSummary } from "./oura.mjs";
@@ -141,6 +142,16 @@ export default {
       }
       if (request.method === "POST") {
         return handleLocationIngest(request, env);
+      }
+      return json({ error: "Method not allowed" }, 405);
+    }
+
+    if (url.pathname === "/api/now-location") {
+      if (request.method === "GET") {
+        if (!env.DB) {
+          return json({ error: "Database not configured" }, 500);
+        }
+        return handleNowLocation(env.DB, env);
       }
       return json({ error: "Method not allowed" }, 405);
     }
