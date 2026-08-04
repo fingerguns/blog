@@ -1596,6 +1596,7 @@ const nowLocationMapScript = `    <script
         scrollZoom:false,
         attributionControl:true
       });
+      mlMap.addControl(new maplibregl.NavigationControl({showCompass:false}),'top-left');
       function applyNeighborhoodLayers(){
         if(!mlMap.isStyleLoaded())return;
         if(mlMap.getLayer('now-neighborhood-fill'))mlMap.removeLayer('now-neighborhood-fill');
