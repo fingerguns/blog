@@ -724,7 +724,7 @@
         height: min(420px, 55vh);
         border: 1px solid var(--rule);
         border-radius: 0.35rem;
-        margin-bottom: 1.25rem;
+        margin-bottom: 0.75rem;
         z-index: 0;
         background: #e8e2d8;
       }
@@ -737,9 +737,13 @@
       #loc-map .maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show) .maplibregl-ctrl-attrib-inner {
         display: none;
       }
+      .location-coords-toggle-wrap {
+        margin: 0 0 1rem;
+      }
       .location-timeline {
         border-top: 1px solid var(--rule);
         padding-top: 1rem;
+        margin-bottom: 1.25rem;
       }
       .location-day {
         margin-bottom: 1.25rem;
@@ -1080,6 +1084,11 @@
         </div>
         <p class="location-stats" id="loc-stats">Loading latest points…</p>
         <div id="loc-map" role="region" aria-label="Location map"></div>
+        <p class="location-coords-toggle-wrap" id="loc-coords-toggle-wrap" hidden>
+          <button type="button" class="admin-secondary-btn" id="loc-coords-toggle" aria-expanded="false">
+            Show coordinates
+          </button>
+        </p>
         <div class="location-timeline" id="loc-timeline" hidden>
           <div id="loc-timeline-days"></div>
         </div>
@@ -1280,6 +1289,7 @@
           dark: "https://tiles.openfreemap.org/styles/dark",
         };
         var locMaplibreSrc = "https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js";
+        var LOC_COORDS_VISIBLE_KEY = "admin_loc_coords_visible";
         var locEtDateFmt = new Intl.DateTimeFormat("en-US", {
           timeZone: "America/New_York",
           month: "long",
@@ -1426,6 +1436,26 @@
           });
         }
 
+        function locCoordsVisible() {
+          return localStorage.getItem(LOC_COORDS_VISIBLE_KEY) === "1";
+        }
+
+        function locSyncCoordsPanel() {
+          var wrap = document.getElementById("loc-timeline");
+          var toggleWrap = document.getElementById("loc-coords-toggle-wrap");
+          var toggle = document.getElementById("loc-coords-toggle");
+          var hasPoints = locPoints.length > 0;
+          toggleWrap.hidden = !hasPoints;
+          if (!hasPoints) {
+            wrap.hidden = true;
+            return;
+          }
+          var visible = locCoordsVisible();
+          wrap.hidden = !visible;
+          toggle.textContent = visible ? "Hide coordinates" : "Show coordinates";
+          toggle.setAttribute("aria-expanded", visible ? "true" : "false");
+        }
+
         function locChronological(points) {
           return points.slice().sort(function (a, b) {
             return new Date(a.recorded_at) - new Date(b.recorded_at);
@@ -1482,14 +1512,12 @@
         }
 
         function locRenderTimeline(points) {
-          var wrap = document.getElementById("loc-timeline");
           var daysEl = document.getElementById("loc-timeline-days");
           daysEl.innerHTML = "";
           if (!points.length) {
-            wrap.hidden = true;
+            locSyncCoordsPanel();
             return;
           }
-          wrap.hidden = false;
 
           var groups = [];
           var groupMap = {};
@@ -1541,6 +1569,7 @@
             section.appendChild(ul);
             daysEl.appendChild(section);
           });
+          locSyncCoordsPanel();
         }
 
         function locRenderMapData(points) {
@@ -1642,6 +1671,11 @@
 
         document.getElementById("loc-load").addEventListener("click", function () {
           loadLocationViewer();
+        });
+
+        document.getElementById("loc-coords-toggle").addEventListener("click", function () {
+          localStorage.setItem(LOC_COORDS_VISIBLE_KEY, locCoordsVisible() ? "0" : "1");
+          locSyncCoordsPanel();
         });
 
         new MutationObserver(function () {
