@@ -130,6 +130,12 @@ export default {
     }
 
     if (url.pathname === "/api/locations" || url.pathname.startsWith("/api/locations/")) {
+      if (url.pathname === "/api/locations/now" && request.method === "GET") {
+        if (!env.DB) {
+          return json({ error: "Database not configured" }, 500);
+        }
+        return handleNowLocation(env.DB, env);
+      }
       if (request.method === "OPTIONS") {
         return new Response(null, {
           headers: {

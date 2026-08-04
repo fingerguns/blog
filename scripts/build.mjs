@@ -1529,7 +1529,7 @@ const nowLocationMapScript = `    <script
   if(!mapEl||typeof L==='undefined')return;
   var statusEl=document.getElementById('now-location-status');
   var labelEl=document.getElementById('now-location-label');
-  var apiUrl=(function(){var h=location.hostname;if(h==='localhost'||h==='127.0.0.1')return'https://rommy-blog-admin.fingerguns.workers.dev/api/now-location';return'/api/now-location';})();
+  var apiUrl=(function(){var h=location.hostname;if(h==='localhost'||h==='127.0.0.1')return'https://rommy-blog-admin.fingerguns.workers.dev/api/locations/now';return'/api/locations/now';})();
   fetch(apiUrl).then(function(r){return r.ok?r.json():null;}).then(function(data){
     if(!data||!data.ok||!data.bbox||!data.label){
       if(statusEl)statusEl.textContent='Location unavailable.';
