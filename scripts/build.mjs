@@ -1589,32 +1589,36 @@ const nowLocationMapScript = `    <script>(function(){
         el.removeAttribute('open');
       }
       function applyNeighborhoodLayers(){
-        if(!mlMap.isStyleLoaded())return;
-        if(mlMap.getLayer('now-neighborhood-fill'))mlMap.removeLayer('now-neighborhood-fill');
-        if(mlMap.getLayer('now-neighborhood-line'))mlMap.removeLayer('now-neighborhood-line');
-        if(mlMap.getSource('now-neighborhood'))mlMap.removeSource('now-neighborhood');
-        mlMap.addSource('now-neighborhood',{type:'geojson',data:neighborhoodGeojson});
-        mlMap.addLayer({
-          id:'now-neighborhood-fill',
-          type:'fill',
-          source:'now-neighborhood',
-          paint:{'fill-color':'#2563eb','fill-opacity':0.18}
-        });
-        mlMap.addLayer({
-          id:'now-neighborhood-line',
-          type:'line',
-          source:'now-neighborhood',
-          paint:{'line-color':'#2563eb','line-width':2}
+        try{
+          if(mlMap.getLayer('now-neighborhood-fill'))mlMap.removeLayer('now-neighborhood-fill');
+          if(mlMap.getLayer('now-neighborhood-line'))mlMap.removeLayer('now-neighborhood-line');
+          if(mlMap.getSource('now-neighborhood'))mlMap.removeSource('now-neighborhood');
+          mlMap.addSource('now-neighborhood',{type:'geojson',data:neighborhoodGeojson});
+          mlMap.addLayer({
+            id:'now-neighborhood-fill',
+            type:'fill',
+            source:'now-neighborhood',
+            paint:{'fill-color':'#2563eb','fill-opacity':0.18}
+          });
+          mlMap.addLayer({
+            id:'now-neighborhood-line',
+            type:'line',
+            source:'now-neighborhood',
+            paint:{'line-color':'#2563eb','line-width':2}
+          });
+        }catch(err){
+          console.error('Neighborhood layer update failed',err);
+        }
+      }
+      function refreshNeighborhoodOverlay(){
+        collapseAttribution();
+        mlMap.once('idle',function(){
+          applyNeighborhoodLayers();
+          collapseAttribution();
         });
       }
-      mlMap.on('load',function(){
-        applyNeighborhoodLayers();
-        collapseAttribution();
-      });
-      mlMap.on('style.load',function(){
-        applyNeighborhoodLayers();
-        collapseAttribution();
-      });
+      mlMap.on('load',refreshNeighborhoodOverlay);
+      mlMap.on('style.load',refreshNeighborhoodOverlay);
       mlMap.on('error',function(e){
         if(e&&e.error)console.error('MapLibre map error',e.error);
       });
