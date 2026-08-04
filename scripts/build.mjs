@@ -1511,31 +1511,16 @@ const nowMovingHtml = (() => {
 })();
 const nowMapHead = `    <link
       rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-      crossorigin=""
-    />
-    <link
-      rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css"
       crossorigin="anonymous"
     />`;
 const nowLocationHtml = `        <h2>Current Location</h2>
         <p class="now-location-label" id="now-location-label"><span id="now-location-status">Loading map…</span></p>
-        <p class="now-location-map-caption">CARTO Voyager</p>
-        <div id="now-location-map" class="now-location-map" role="region" aria-label="CARTO neighborhood map"></div>
-        <p class="now-location-map-caption">MapLibre · OpenFreeMap</p>
-        <div id="now-location-maplibre" class="now-location-map now-location-map--maplibre" role="region" aria-label="MapLibre neighborhood map"></div>
+        <div id="now-location-map" class="now-location-map" role="region" aria-label="Current neighborhood map"></div>
 `;
-const nowLocationMapScript = `    <script
-      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-      crossorigin=""
-    ></script>
-    <script>(function(){
+const nowLocationMapScript = `    <script>(function(){
   var mapEl=document.getElementById('now-location-map');
-  var mlMapEl=document.getElementById('now-location-maplibre');
-  if(!mapEl&&!mlMapEl)return;
+  if(!mapEl)return;
   var statusEl=document.getElementById('now-location-status');
   var labelEl=document.getElementById('now-location-label');
   var apiUrl=(function(){var h=location.hostname;if(h==='localhost'||h==='127.0.0.1')return'https://rommy-blog-admin.fingerguns.workers.dev/api/locations/now';return'/api/locations/now';})();
@@ -1562,13 +1547,11 @@ const nowLocationMapScript = `    <script
       document.head.appendChild(s);
     });
   }
-  function showMapLibreError(message){
-    if(!mlMapEl)return;
-    mlMapEl.textContent=message;
-    mlMapEl.classList.add('now-location-map--error');
+  function showMapError(message){
+    mapEl.textContent=message;
+    mapEl.classList.add('now-location-map--error');
   }
-  function initMapLibre(west,south,east,north){
-    if(!mlMapEl)return Promise.resolve();
+  function initMap(west,south,east,north){
     return loadMapLibre().then(function(){
       if(typeof maplibregl==='undefined')throw new Error('MapLibre unavailable');
       var mlStyles={
@@ -1589,7 +1572,7 @@ const nowLocationMapScript = `    <script
         }
       };
       var mlMap=new maplibregl.Map({
-        container:mlMapEl,
+        container:mapEl,
         style:mlStyles[isDark()?'dark':'light'],
         bounds:[[west,south],[east,north]],
         fitBoundsOptions:{padding:20,maxZoom:15},
@@ -1621,60 +1604,35 @@ const nowLocationMapScript = `    <script
       mlMap.on('error',function(e){
         if(e&&e.error)console.error('MapLibre map error',e.error);
       });
-      window.__nowSetMapLibreBasemap=function(){
+      window.__nowSetMapBasemap=function(){
         mlMap.setStyle(mlStyles[isDark()?'dark':'light']);
       };
       setTimeout(function(){mlMap.resize();},50);
       setTimeout(function(){mlMap.resize();},300);
     }).catch(function(err){
       console.error('MapLibre init failed',err);
-      showMapLibreError('MapLibre map unavailable.');
+      showMapError('Map unavailable.');
     });
   }
   fetch(apiUrl).then(function(r){return r.ok?r.json():null;}).then(function(data){
     if(!data||!data.ok||!data.bbox||!data.label){
       if(statusEl)statusEl.textContent='Location unavailable.';
-      if(mapEl)mapEl.hidden=true;
-      if(mlMapEl)mlMapEl.hidden=true;
+      mapEl.hidden=true;
       return;
     }
     if(statusEl)statusEl.remove();
     var west=data.bbox[0],south=data.bbox[1],east=data.bbox[2],north=data.bbox[3];
-    var bounds=[[south,west],[north,east]];
     if(labelEl){
       var href=data.osmUrl||'https://www.openstreetmap.org/search?query='+encodeURIComponent(data.label);
       labelEl.innerHTML='<a href="'+href.replace(/"/g,'&quot;')+'" target="_blank" rel="noopener">'+escLabel(data.label)+'</a>';
     }
-    if(mapEl&&typeof L!=='undefined'){
-      var map=L.map('now-location-map',{scrollWheelZoom:false,attributionControl:true});
-      var cartoAttr='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
-      var tileUrls={
-        light:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-        dark:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-      };
-      var tileLayer=null;
-      function setCartoBasemap(){
-        var url=tileUrls[isDark()?'dark':'light'];
-        if(tileLayer)map.removeLayer(tileLayer);
-        tileLayer=L.tileLayer(url,{maxZoom:20,subdomains:'abcd',attribution:cartoAttr}).addTo(map);
-      }
-      setCartoBasemap();
-      L.rectangle(bounds,{color:'#2563eb',weight:2,fillColor:'#2563eb',fillOpacity:0.18}).addTo(map);
-      map.fitBounds(bounds,{padding:[20,20],maxZoom:15});
-      setTimeout(function(){map.invalidateSize();},50);
-      window.__nowSetCartoBasemap=setCartoBasemap;
-    } else if(mapEl){
-      mapEl.hidden=true;
-    }
-    initMapLibre(west,south,east,north);
+    initMap(west,south,east,north);
     new MutationObserver(function(){
-      if(window.__nowSetCartoBasemap)window.__nowSetCartoBasemap();
-      if(window.__nowSetMapLibreBasemap)window.__nowSetMapLibreBasemap();
+      if(window.__nowSetMapBasemap)window.__nowSetMapBasemap();
     }).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
   }).catch(function(){
     if(statusEl)statusEl.textContent='Could not load location.';
-    if(mapEl)mapEl.hidden=true;
-    if(mlMapEl)mlMapEl.hidden=true;
+    mapEl.hidden=true;
   });
 })();</script>`;
 const nowPageHtml = `${archiveHead("Now", undefined, nowMapHead)}

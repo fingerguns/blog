@@ -1659,22 +1659,6 @@ html[data-colophon="whitman"] #colophon-whitman {
   background: #1a1a1a;
 }
 
-.now-location-map-caption {
-  margin: 1.25rem 0 0.35rem;
-  font-size: 0.65rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.now-location-map-caption:first-of-type {
-  margin-top: 0.75rem;
-}
-
-.now-location-map--maplibre {
-  margin-top: 0;
-}
-
 .now-location-map--error {
   display: flex;
   align-items: center;
@@ -1683,7 +1667,6 @@ html[data-colophon="whitman"] #colophon-whitman {
   font-size: 0.85rem;
 }
 
-.now-location-map .leaflet-control-attribution,
 .now-location-map .maplibregl-ctrl-attrib {
   font-size: 0.62rem;
 }
