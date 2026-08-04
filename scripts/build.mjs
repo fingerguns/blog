@@ -1515,10 +1515,16 @@ const nowMapHead = `    <link
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
       crossorigin=""
     />
-    <link href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" rel="stylesheet" />`;
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css"
+      crossorigin="anonymous"
+    />`;
 const nowLocationHtml = `        <h2>Current Location</h2>
         <p class="now-location-label" id="now-location-label"><span id="now-location-status">Loading map…</span></p>
+        <p class="now-location-map-caption">CARTO Voyager</p>
         <div id="now-location-map" class="now-location-map" role="region" aria-label="CARTO neighborhood map"></div>
+        <p class="now-location-map-caption">MapLibre · OpenFreeMap</p>
         <div id="now-location-maplibre" class="now-location-map now-location-map--maplibre" role="region" aria-label="MapLibre neighborhood map"></div>
 `;
 const nowLocationMapScript = `    <script
@@ -1526,7 +1532,6 @@ const nowLocationMapScript = `    <script
       integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
       crossorigin=""
     ></script>
-    <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
     <script>(function(){
   var mapEl=document.getElementById('now-location-map');
   var mlMapEl=document.getElementById('now-location-maplibre');
@@ -1534,9 +1539,96 @@ const nowLocationMapScript = `    <script
   var statusEl=document.getElementById('now-location-status');
   var labelEl=document.getElementById('now-location-label');
   var apiUrl=(function(){var h=location.hostname;if(h==='localhost'||h==='127.0.0.1')return'https://rommy-blog-admin.fingerguns.workers.dev/api/locations/now';return'/api/locations/now';})();
+  var maplibreSrc='https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js';
   function isDark(){return document.documentElement.getAttribute('data-theme')==='dark';}
   function escLabel(label){
     return String(label).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  }
+  function loadMapLibre(){
+    if(typeof maplibregl!=='undefined')return Promise.resolve();
+    return new Promise(function(resolve,reject){
+      var existing=document.querySelector('script[data-now-maplibre="1"]');
+      if(existing){
+        existing.addEventListener('load',function(){resolve();},{once:true});
+        existing.addEventListener('error',function(){reject(new Error('MapLibre failed to load'));},{once:true});
+        return;
+      }
+      var s=document.createElement('script');
+      s.src=maplibreSrc;
+      s.crossOrigin='anonymous';
+      s.dataset.nowMaplibre='1';
+      s.onload=function(){resolve();};
+      s.onerror=function(){reject(new Error('MapLibre failed to load'));};
+      document.head.appendChild(s);
+    });
+  }
+  function showMapLibreError(message){
+    if(!mlMapEl)return;
+    mlMapEl.textContent=message;
+    mlMapEl.classList.add('now-location-map--error');
+  }
+  function initMapLibre(west,south,east,north){
+    if(!mlMapEl)return Promise.resolve();
+    return loadMapLibre().then(function(){
+      if(typeof maplibregl==='undefined')throw new Error('MapLibre unavailable');
+      var mlStyles={
+        light:'https://tiles.openfreemap.org/styles/liberty',
+        dark:'https://tiles.openfreemap.org/styles/dark'
+      };
+      var neighborhoodGeojson={
+        type:'Feature',
+        geometry:{
+          type:'Polygon',
+          coordinates:[[
+            [west,south],
+            [east,south],
+            [east,north],
+            [west,north],
+            [west,south]
+          ]]
+        }
+      };
+      var mlMap=new maplibregl.Map({
+        container:mlMapEl,
+        style:mlStyles[isDark()?'dark':'light'],
+        bounds:[[west,south],[east,north]],
+        fitBoundsOptions:{padding:20,maxZoom:15},
+        scrollZoom:false,
+        attributionControl:true
+      });
+      function applyNeighborhoodLayers(){
+        if(!mlMap.isStyleLoaded())return;
+        if(mlMap.getLayer('now-neighborhood-fill'))mlMap.removeLayer('now-neighborhood-fill');
+        if(mlMap.getLayer('now-neighborhood-line'))mlMap.removeLayer('now-neighborhood-line');
+        if(mlMap.getSource('now-neighborhood'))mlMap.removeSource('now-neighborhood');
+        mlMap.addSource('now-neighborhood',{type:'geojson',data:neighborhoodGeojson});
+        mlMap.addLayer({
+          id:'now-neighborhood-fill',
+          type:'fill',
+          source:'now-neighborhood',
+          paint:{'fill-color':'#2563eb','fill-opacity':0.18}
+        });
+        mlMap.addLayer({
+          id:'now-neighborhood-line',
+          type:'line',
+          source:'now-neighborhood',
+          paint:{'line-color':'#2563eb','line-width':2}
+        });
+      }
+      mlMap.on('load',applyNeighborhoodLayers);
+      mlMap.on('style.load',applyNeighborhoodLayers);
+      mlMap.on('error',function(e){
+        if(e&&e.error)console.error('MapLibre map error',e.error);
+      });
+      window.__nowSetMapLibreBasemap=function(){
+        mlMap.setStyle(mlStyles[isDark()?'dark':'light']);
+      };
+      setTimeout(function(){mlMap.resize();},50);
+      setTimeout(function(){mlMap.resize();},300);
+    }).catch(function(err){
+      console.error('MapLibre init failed',err);
+      showMapLibreError('MapLibre map unavailable.');
+    });
   }
   fetch(apiUrl).then(function(r){return r.ok?r.json():null;}).then(function(data){
     if(!data||!data.ok||!data.bbox||!data.label){
@@ -1573,60 +1665,7 @@ const nowLocationMapScript = `    <script
     } else if(mapEl){
       mapEl.hidden=true;
     }
-    if(mlMapEl&&typeof maplibregl!=='undefined'){
-      var mlStyles={
-        light:'https://tiles.openfreemap.org/styles/liberty',
-        dark:'https://tiles.openfreemap.org/styles/dark'
-      };
-      var neighborhoodGeojson={
-        type:'Feature',
-        geometry:{
-          type:'Polygon',
-          coordinates:[[
-            [west,south],
-            [east,south],
-            [east,north],
-            [west,north],
-            [west,south]
-          ]]
-        }
-      };
-      var mlMap=new maplibregl.Map({
-        container:'now-location-maplibre',
-        style:mlStyles[isDark()?'dark':'light'],
-        bounds:[[west,south],[east,north]],
-        fitBoundsOptions:{padding:20,maxZoom:15},
-        scrollZoom:false,
-        attributionControl:true
-      });
-      function applyNeighborhoodLayers(){
-        if(!mlMap.isStyleLoaded())return;
-        if(mlMap.getLayer('now-neighborhood-fill'))mlMap.removeLayer('now-neighborhood-fill');
-        if(mlMap.getLayer('now-neighborhood-line'))mlMap.removeLayer('now-neighborhood-line');
-        if(mlMap.getSource('now-neighborhood'))mlMap.removeSource('now-neighborhood');
-        mlMap.addSource('now-neighborhood',{type:'geojson',data:neighborhoodGeojson});
-        mlMap.addLayer({
-          id:'now-neighborhood-fill',
-          type:'fill',
-          source:'now-neighborhood',
-          paint:{'fill-color':'#2563eb','fill-opacity':0.18}
-        });
-        mlMap.addLayer({
-          id:'now-neighborhood-line',
-          type:'line',
-          source:'now-neighborhood',
-          paint:{'line-color':'#2563eb','line-width':2}
-        });
-      }
-      mlMap.on('load',applyNeighborhoodLayers);
-      mlMap.on('style.load',applyNeighborhoodLayers);
-      window.__nowSetMapLibreBasemap=function(){
-        mlMap.setStyle(mlStyles[isDark()?'dark':'light']);
-      };
-      setTimeout(function(){mlMap.resize();},50);
-    } else if(mlMapEl){
-      mlMapEl.hidden=true;
-    }
+    initMapLibre(west,south,east,north);
     new MutationObserver(function(){
       if(window.__nowSetCartoBasemap)window.__nowSetCartoBasemap();
       if(window.__nowSetMapLibreBasemap)window.__nowSetMapLibreBasemap();
