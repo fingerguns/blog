@@ -1509,68 +1509,135 @@ const nowMovingHtml = (() => {
         <p>${stepsText} steps on ${escHtml(dayLabel)}.</p>
 `;
 })();
-const nowLeafletHead = `    <link
+const nowMapHead = `    <link
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
       crossorigin=""
-    />`;
+    />
+    <link href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" rel="stylesheet" />`;
 const nowLocationHtml = `        <h2>Current Location</h2>
         <p class="now-location-label" id="now-location-label"><span id="now-location-status">Loading map…</span></p>
-        <div id="now-location-map" class="now-location-map" role="region" aria-label="Current neighborhood map"></div>
+        <div id="now-location-map" class="now-location-map" role="region" aria-label="CARTO neighborhood map"></div>
+        <div id="now-location-maplibre" class="now-location-map now-location-map--maplibre" role="region" aria-label="MapLibre neighborhood map"></div>
 `;
 const nowLocationMapScript = `    <script
       src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
       integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
       crossorigin=""
     ></script>
+    <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
     <script>(function(){
   var mapEl=document.getElementById('now-location-map');
-  if(!mapEl||typeof L==='undefined')return;
+  var mlMapEl=document.getElementById('now-location-maplibre');
+  if(!mapEl&&!mlMapEl)return;
   var statusEl=document.getElementById('now-location-status');
   var labelEl=document.getElementById('now-location-label');
   var apiUrl=(function(){var h=location.hostname;if(h==='localhost'||h==='127.0.0.1')return'https://rommy-blog-admin.fingerguns.workers.dev/api/locations/now';return'/api/locations/now';})();
+  function isDark(){return document.documentElement.getAttribute('data-theme')==='dark';}
+  function escLabel(label){
+    return String(label).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  }
   fetch(apiUrl).then(function(r){return r.ok?r.json():null;}).then(function(data){
     if(!data||!data.ok||!data.bbox||!data.label){
       if(statusEl)statusEl.textContent='Location unavailable.';
       if(mapEl)mapEl.hidden=true;
+      if(mlMapEl)mlMapEl.hidden=true;
       return;
     }
     if(statusEl)statusEl.remove();
     var west=data.bbox[0],south=data.bbox[1],east=data.bbox[2],north=data.bbox[3];
-    var map=L.map('now-location-map',{scrollWheelZoom:false,attributionControl:true});
-    var cartoAttr='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
-    var tileUrls={
-      light:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-      dark:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-    };
-    var tileLayer=null;
-    function isDark(){return document.documentElement.getAttribute('data-theme')==='dark';}
-    function setBasemap(){
-      var url=tileUrls[isDark()?'dark':'light'];
-      if(tileLayer)map.removeLayer(tileLayer);
-      tileLayer=L.tileLayer(url,{maxZoom:20,subdomains:'abcd',attribution:cartoAttr}).addTo(map);
-    }
-    setBasemap();
-    new MutationObserver(function(){setBasemap();}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
-    L.rectangle([[south,west],[north,east]],{
-      color:'#2563eb',
-      weight:2,
-      fillColor:'#2563eb',
-      fillOpacity:0.18
-    }).addTo(map);
-    map.fitBounds([[south,west],[north,east]],{padding:[20,20],maxZoom:15});
+    var bounds=[[south,west],[north,east]];
     if(labelEl){
       var href=data.osmUrl||'https://www.openstreetmap.org/search?query='+encodeURIComponent(data.label);
-      labelEl.innerHTML='<a href="'+href.replace(/"/g,'&quot;')+'" target="_blank" rel="noopener">'+String(data.label).replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</a>';
+      labelEl.innerHTML='<a href="'+href.replace(/"/g,'&quot;')+'" target="_blank" rel="noopener">'+escLabel(data.label)+'</a>';
     }
-    setTimeout(function(){map.invalidateSize();},50);
+    if(mapEl&&typeof L!=='undefined'){
+      var map=L.map('now-location-map',{scrollWheelZoom:false,attributionControl:true});
+      var cartoAttr='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+      var tileUrls={
+        light:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        dark:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+      };
+      var tileLayer=null;
+      function setCartoBasemap(){
+        var url=tileUrls[isDark()?'dark':'light'];
+        if(tileLayer)map.removeLayer(tileLayer);
+        tileLayer=L.tileLayer(url,{maxZoom:20,subdomains:'abcd',attribution:cartoAttr}).addTo(map);
+      }
+      setCartoBasemap();
+      L.rectangle(bounds,{color:'#2563eb',weight:2,fillColor:'#2563eb',fillOpacity:0.18}).addTo(map);
+      map.fitBounds(bounds,{padding:[20,20],maxZoom:15});
+      setTimeout(function(){map.invalidateSize();},50);
+      window.__nowSetCartoBasemap=setCartoBasemap;
+    } else if(mapEl){
+      mapEl.hidden=true;
+    }
+    if(mlMapEl&&typeof maplibregl!=='undefined'){
+      var mlStyles={
+        light:'https://tiles.openfreemap.org/styles/liberty',
+        dark:'https://tiles.openfreemap.org/styles/dark'
+      };
+      var neighborhoodGeojson={
+        type:'Feature',
+        geometry:{
+          type:'Polygon',
+          coordinates:[[
+            [west,south],
+            [east,south],
+            [east,north],
+            [west,north],
+            [west,south]
+          ]]
+        }
+      };
+      var mlMap=new maplibregl.Map({
+        container:'now-location-maplibre',
+        style:mlStyles[isDark()?'dark':'light'],
+        bounds:[[west,south],[east,north]],
+        fitBoundsOptions:{padding:20,maxZoom:15},
+        scrollZoom:false,
+        attributionControl:true
+      });
+      function applyNeighborhoodLayers(){
+        if(!mlMap.isStyleLoaded())return;
+        if(mlMap.getLayer('now-neighborhood-fill'))mlMap.removeLayer('now-neighborhood-fill');
+        if(mlMap.getLayer('now-neighborhood-line'))mlMap.removeLayer('now-neighborhood-line');
+        if(mlMap.getSource('now-neighborhood'))mlMap.removeSource('now-neighborhood');
+        mlMap.addSource('now-neighborhood',{type:'geojson',data:neighborhoodGeojson});
+        mlMap.addLayer({
+          id:'now-neighborhood-fill',
+          type:'fill',
+          source:'now-neighborhood',
+          paint:{'fill-color':'#2563eb','fill-opacity':0.18}
+        });
+        mlMap.addLayer({
+          id:'now-neighborhood-line',
+          type:'line',
+          source:'now-neighborhood',
+          paint:{'line-color':'#2563eb','line-width':2}
+        });
+      }
+      mlMap.on('load',applyNeighborhoodLayers);
+      mlMap.on('style.load',applyNeighborhoodLayers);
+      window.__nowSetMapLibreBasemap=function(){
+        mlMap.setStyle(mlStyles[isDark()?'dark':'light']);
+      };
+      setTimeout(function(){mlMap.resize();},50);
+    } else if(mlMapEl){
+      mlMapEl.hidden=true;
+    }
+    new MutationObserver(function(){
+      if(window.__nowSetCartoBasemap)window.__nowSetCartoBasemap();
+      if(window.__nowSetMapLibreBasemap)window.__nowSetMapLibreBasemap();
+    }).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
   }).catch(function(){
     if(statusEl)statusEl.textContent='Could not load location.';
     if(mapEl)mapEl.hidden=true;
+    if(mlMapEl)mlMapEl.hidden=true;
   });
 })();</script>`;
-const nowPageHtml = `${archiveHead("Now", undefined, nowLeafletHead)}
+const nowPageHtml = `${archiveHead("Now", undefined, nowMapHead)}
       <p class="lead">Updated ${escHtml(nowMonthYear)} &middot; Brooklyn, NY &middot; <a href="https://nownownow.com/about" target="_blank" rel="noopener">What's this?</a></p>
       <div class="now-body">
 ${hasThinking(thinking) ? `        <h2>Thinking</h2>

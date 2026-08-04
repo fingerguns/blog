@@ -1659,7 +1659,12 @@ html[data-colophon="whitman"] #colophon-whitman {
   background: #1a1a1a;
 }
 
-.now-location-map .leaflet-control-attribution {
+.now-location-map--maplibre {
+  margin-top: 1rem;
+}
+
+.now-location-map .leaflet-control-attribution,
+.now-location-map .maplibregl-ctrl-attrib {
   font-size: 0.62rem;
 }
 
