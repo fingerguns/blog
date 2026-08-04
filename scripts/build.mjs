@@ -1577,9 +1577,17 @@ const nowLocationMapScript = `    <script>(function(){
         bounds:[[west,south],[east,north]],
         fitBoundsOptions:{padding:20,maxZoom:15},
         scrollZoom:false,
-        attributionControl:true
+        attributionControl:false
       });
       mlMap.addControl(new maplibregl.NavigationControl({showCompass:false}),'top-left');
+      mlMap.addControl(new maplibregl.AttributionControl({compact:true}),'bottom-right');
+      function collapseAttribution(){
+        var el=mapEl.querySelector('.maplibregl-ctrl-attrib');
+        if(!el)return;
+        el.classList.add('maplibregl-compact');
+        el.classList.remove('maplibregl-compact-show');
+        el.removeAttribute('open');
+      }
       function applyNeighborhoodLayers(){
         if(!mlMap.isStyleLoaded())return;
         if(mlMap.getLayer('now-neighborhood-fill'))mlMap.removeLayer('now-neighborhood-fill');
@@ -1599,8 +1607,14 @@ const nowLocationMapScript = `    <script>(function(){
           paint:{'line-color':'#2563eb','line-width':2}
         });
       }
-      mlMap.on('load',applyNeighborhoodLayers);
-      mlMap.on('style.load',applyNeighborhoodLayers);
+      mlMap.on('load',function(){
+        applyNeighborhoodLayers();
+        collapseAttribution();
+      });
+      mlMap.on('style.load',function(){
+        applyNeighborhoodLayers();
+        collapseAttribution();
+      });
       mlMap.on('error',function(e){
         if(e&&e.error)console.error('MapLibre map error',e.error);
       });

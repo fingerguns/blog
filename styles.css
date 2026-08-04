@@ -1671,6 +1671,10 @@ html[data-colophon="whitman"] #colophon-whitman {
   font-size: 0.62rem;
 }
 
+.now-location-map .maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show) .maplibregl-ctrl-attrib-inner {
+  display: none;
+}
+
 .post .body h2 {
   font-size: 1.1rem;
   letter-spacing: 0;
