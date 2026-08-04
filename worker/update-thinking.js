@@ -87,6 +87,7 @@ const MAX_PHOTO_INPUT_BYTES = 25 * 1024 * 1024;
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 const MAX_BLUESKY_IMAGE_BYTES = 2_000_000;
+const MAX_BLUESKY_LINK_THUMB_BYTES = 1_000_000;
 const MAX_BLUESKY_VIDEO_BYTES = 100 * 1024 * 1024;
 const MAX_MASTODON_MEDIA_BYTES = 40 * 1024 * 1024;
 const MAX_MASTODON_CHARS = 500;
@@ -1816,6 +1817,13 @@ async function postToBluesky(handle, appPassword, content, image = null, linkCar
     if (video && linkCard && embed?.$type === "app.bsky.embed.video") {
       const fallbackEmbed = await blueskyExternalEmbed(accessJwt, linkCard);
       created = await blueskyCreatePost(accessJwt, did, text, facets, fallbackEmbed);
+    } else if (
+      linkCard &&
+      embed?.$type === "app.bsky.embed.external" &&
+      embed.external?.thumb
+    ) {
+      const fallbackEmbed = await blueskyExternalEmbed(accessJwt, linkCard, { includeThumb: false });
+      created = await blueskyCreatePost(accessJwt, did, text, facets, fallbackEmbed);
     } else {
       throw err;
     }
@@ -1856,20 +1864,45 @@ async function blueskyVideoEmbed(accessJwt, video, did) {
   }
 }
 
-async function blueskyExternalEmbed(accessJwt, linkCard) {
+function truncateBlueskyEmbedText(value, maxLen = 256) {
+  const graphemes = [...String(value || "").trim()];
+  if (graphemes.length <= maxLen) return graphemes.join("");
+  return graphemes.slice(0, maxLen - 1).join("") + "\u2026";
+}
+
+async function blueskyExternalEmbed(accessJwt, linkCard, { includeThumb = true } = {}) {
   let thumb = null;
-  if (linkCard.thumb) {
+  if (includeThumb && linkCard.thumb) {
     try {
-      const thumbRes = await fetch(linkCard.thumb);
+      const thumbRes = await fetch(linkCard.thumb, {
+        headers: { Accept: "image/*" },
+        redirect: "follow",
+      });
       if (thumbRes.ok) {
-        const thumbBytes = await thumbRes.arrayBuffer();
-        const thumbMime = (thumbRes.headers.get("content-type") || "image/jpeg").split(";")[0];
-        const blobRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${accessJwt}`, "Content-Type": thumbMime },
-          body: thumbBytes,
-        });
-        if (blobRes.ok) ({ blob: thumb } = await blobRes.json());
+        const rawBytes = await thumbRes.arrayBuffer();
+        const rawMime = (thumbRes.headers.get("content-type") || "image/jpeg").split(";")[0].trim();
+        const mimeType = ALLOWED_IMAGE_TYPES.has(rawMime) ? rawMime : "image/jpeg";
+        let uploadBytes = null;
+        let uploadMime = mimeType;
+        try {
+          const prepared = await compressImageUnderByteLimit(
+            rawBytes,
+            mimeType,
+            MAX_BLUESKY_LINK_THUMB_BYTES
+          );
+          uploadBytes = prepared.bytes;
+          uploadMime = prepared.mimeType;
+        } catch {
+          // Oversized GIF or uncompressible image — post without thumb.
+        }
+        if (uploadBytes) {
+          const blobRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${accessJwt}`, "Content-Type": uploadMime },
+            body: uploadBytes,
+          });
+          if (blobRes.ok) ({ blob: thumb } = await blobRes.json());
+        }
       }
     } catch {}
   }
@@ -1877,8 +1910,8 @@ async function blueskyExternalEmbed(accessJwt, linkCard) {
     $type: "app.bsky.embed.external",
     external: {
       uri: linkCard.uri,
-      title: linkCard.title,
-      description: linkCard.description,
+      title: truncateBlueskyEmbedText(linkCard.title),
+      description: truncateBlueskyEmbedText(linkCard.description),
       ...(thumb ? { thumb } : {}),
     },
   };
