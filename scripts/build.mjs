@@ -1515,7 +1515,7 @@ ${hasThinking(thinking) ? `        <h2>Thinking</h2>
 ` : ""}${currentBook ? `        <h2>Reading</h2>
         <p><a href="${escHtml(readingLinkUrl(currentBook))}" target="_blank" rel="noopener">${escHtml(currentBook.title)}</a></p>
 ` : ""}        <h2>Working</h2>
-        <p>In the saddle building out the agentic data future at CircleCI.</p>
+        <p>Building data agents, skills, semantic layers, and contexts at CircleCI.</p>
         <h2>Living</h2>
         <p>Brooklyn, NY.</p>
 ${nowMovingHtml}      </div>
