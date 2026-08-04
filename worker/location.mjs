@@ -279,7 +279,7 @@ export async function handleLocationIngest(request, env) {
 export async function handleLocationQuery(payload, db, env) {
   const from = typeof payload.from === "string" ? payload.from : "";
   const to = typeof payload.to === "string" ? payload.to : "";
-  const limit = Math.min(Math.max(Number(payload.limit) || 100, 1), 100);
+  const limit = Math.min(Math.max(Number(payload.limit) || 1000, 1), 1000);
 
   let sql = `SELECT device_id, recorded_at, lat, lon, horizontal_accuracy, altitude, speed, course, battery_level
              FROM location_points`;
