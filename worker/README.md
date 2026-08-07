@@ -202,7 +202,7 @@ Estimates use approximate Fable list rates; check [Anthropic Console → Cost](h
 
 ### Location tracking (Overland)
 
-Private GPS ingest from the [Overland](https://github.com/aaronpk/Overland-iOS) iOS app. Points land in D1; when you publish a Thinking post, the Worker looks up the nearest point (±15 minutes) and reverse-geocodes a neighborhood label (e.g. `Prospect Heights, Brooklyn`) into `thinking_posts.location_label`. The static build renders it in the post footer.
+Private GPS ingest from the [Overland](https://github.com/aaronpk/Overland-iOS) iOS app. Points land in D1; when you publish a Thinking post, the Worker looks up the nearest point (±15 minutes, or ±6 hours if none in that window) and reverse-geocodes a neighborhood label (e.g. `Prospect Heights, Brooklyn`) into `thinking_posts.location_label`. The static build renders it in the post footer.
 
 1. Apply migration (above) and set `LOCATION_API_TOKEN`:
 

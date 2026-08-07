@@ -1,4 +1,5 @@
 const LOCATION_LOOKUP_WINDOW_MS = 15 * 60 * 1000;
+const LOCATION_LOOKUP_FALLBACK_WINDOW_MS = 6 * 60 * 60 * 1000;
 const MAX_HORIZONTAL_ACCURACY_M = 150;
 const GEOCODE_DECIMALS = 4;
 
@@ -226,13 +227,12 @@ export async function ingestOverlandLocations(db, payload) {
   return rows.length;
 }
 
-export async function resolveLocationLabelForDatetime(db, env, isoDatetime) {
-  if (!isoDatetime) return "";
+async function findNearestLocationPoint(db, isoDatetime, windowMs) {
   const targetMs = Date.parse(isoDatetime);
-  if (!Number.isFinite(targetMs)) return "";
+  if (!Number.isFinite(targetMs)) return null;
 
-  const fromIso = new Date(targetMs - LOCATION_LOOKUP_WINDOW_MS).toISOString();
-  const toIso = new Date(targetMs + LOCATION_LOOKUP_WINDOW_MS).toISOString();
+  const fromIso = new Date(targetMs - windowMs).toISOString();
+  const toIso = new Date(targetMs + windowMs).toISOString();
 
   const { results } = await db
     .prepare(
@@ -246,7 +246,16 @@ export async function resolveLocationLabelForDatetime(db, env, isoDatetime) {
     .bind(fromIso, toIso, MAX_HORIZONTAL_ACCURACY_M, isoDatetime)
     .all();
 
-  const point = results?.[0];
+  return results?.[0] || null;
+}
+
+export async function resolveLocationLabelForDatetime(db, env, isoDatetime) {
+  if (!isoDatetime) return "";
+
+  let point = await findNearestLocationPoint(db, isoDatetime, LOCATION_LOOKUP_WINDOW_MS);
+  if (!point) {
+    point = await findNearestLocationPoint(db, isoDatetime, LOCATION_LOOKUP_FALLBACK_WINDOW_MS);
+  }
   if (!point) return "";
   return getGeocodeLabel(db, point.lat, point.lon, env);
 }
