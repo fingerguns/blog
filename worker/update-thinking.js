@@ -8,6 +8,7 @@ import { escHtml } from "../scripts/lib/html.mjs";
 import { coalesceImageParagraphsHtml } from "../scripts/lib/coalesce-images.mjs";
 import { addHashtagFacets } from "../scripts/lib/linkify.mjs";
 import { renderThinkingContentHtml } from "../scripts/lib/thinking-html.mjs";
+import { parseYouTubeUrl } from "../scripts/lib/youtube.mjs";
 import {
   scheduleSectionHintRefresh,
   refreshSectionHint,
@@ -3066,6 +3067,25 @@ async function handleFetchTitle(body, cors) {
   const { url } = body;
   if (typeof url !== "string" || !url.trim().startsWith("http")) {
     return json({ error: "Invalid url" }, 400, cors);
+  }
+
+  const youtube = parseYouTubeUrl(url.trim());
+  if (youtube) {
+    try {
+      const oembedRes = await fetch(
+        `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(url.trim())}`
+      );
+      if (!oembedRes.ok) {
+        return json({ error: `Page returned ${oembedRes.status}` }, 502, cors);
+      }
+      const { title } = await oembedRes.json();
+      if (!title) {
+        return json({ error: "No title found" }, 404, cors);
+      }
+      return json({ ok: true, title }, 200, cors);
+    } catch (err) {
+      return json({ error: err.message || "Fetch failed" }, 502, cors);
+    }
   }
 
   try {
