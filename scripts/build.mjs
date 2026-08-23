@@ -1079,11 +1079,70 @@ if (favoritesMissingCovers.length > 0) {
 const stripHashtags = (s) => String(s).replace(/\s*#\S+/g, "").trim();
 
 const orderedLinklog = [...(linklog || [])].sort(sortDesc);
-const renderLinklogItem = (l) =>
-  `          <li>
+const renderLinklogItem = (l) => {
+  const tagSlugs = Array.isArray(l.tags) ? l.tags.filter(Boolean) : [];
+  const tagAttr = tagSlugs.length ? ` data-tags="${escHtml(tagSlugs.join(" "))}"` : "";
+  return `          <li${tagAttr}>
             <span class="post-date">${escHtml(toETDate(l))}</span>
             <a href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer">${escHtml(stripHashtags(l.title))}</a>
           </li>`;
+};
+
+const LINKLOG_TAG_LABELS = {
+  art: "Art & Artists",
+  architecture: "Architecture & Design",
+  books: "Books & Writing",
+  food: "Food & Recipes",
+  film: "Film, TV & Comedy",
+  politics: "Politics & Current Events",
+  science: "Science & Health",
+  society: "Society & Culture",
+  history: "History & Archaeology",
+  tech: "Tech & Business",
+  sports: "Sports",
+  outdoors: "Outdoors & Travel",
+  blogging: "Blogging & Web Culture",
+  photography: "Photography",
+  lifestyle: "Lifestyle & Style",
+};
+
+const linklogTagCounts = new Map();
+for (const l of orderedLinklog) {
+  for (const slug of Array.isArray(l.tags) ? l.tags : []) {
+    linklogTagCounts.set(slug, (linklogTagCounts.get(slug) || 0) + 1);
+  }
+}
+const linklogTagOptions = [...linklogTagCounts.entries()]
+  .map(([slug, count]) => ({ slug, count, label: LINKLOG_TAG_LABELS[slug] || slug }))
+  .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+
+const linklogTagFilterHtml =
+  linklogTagOptions.length > 0
+    ? `      <div class="linklog-tag-filter">
+        <select class="linklog-tag-select" aria-label="Filter by tag">
+          <option value="">All (${orderedLinklog.length})</option>
+${linklogTagOptions
+  .map((t) => `          <option value="${escHtml(t.slug)}">${escHtml(t.label)} (${t.count})</option>`)
+  .join("\n")}
+        </select>
+      </div>`
+    : "";
+
+const linklogFilterScript = `    <script>(function(){
+var sel=document.querySelector('.linklog-tag-select');
+if(!sel)return;
+var list=document.querySelector('.post-list');
+if(!list)return;
+var items=list.querySelectorAll('li');
+sel.addEventListener('change',function(){
+  var v=sel.value;
+  items.forEach(function(li){
+    if(!v){li.hidden=false;return;}
+    var tags=(li.getAttribute('data-tags')||'').split(/\\s+/).filter(Boolean);
+    li.hidden=tags.indexOf(v)===-1;
+  });
+});
+}());</script>`;
 
 const sectionHeading = (label, tag, id) => {
   const hint = SECTION_HINTS[label];
@@ -1483,10 +1542,11 @@ ${postListAllHtml}
 ${archiveFoot()}`;
 
 const sharingPageHtml = `${archiveHead("Sharing", sectionHeading("Sharing", "h1"))}
+${linklogTagFilterHtml}
       <ol class="post-list" reversed>
 ${linklogAllHtml}
       </ol>
-${archiveFoot()}`;
+${archiveFoot(linklogFilterScript)}`;
 
 // /now page
 const nowMonthYear = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "America/New_York" });

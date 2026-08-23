@@ -133,7 +133,7 @@ export async function loadBlogDataFromD1() {
   }
 
   const linklog = await d1Query(
-    "SELECT url, title, date, datetime FROM linklog ORDER BY datetime DESC"
+    "SELECT url, title, date, datetime, tags FROM linklog ORDER BY datetime DESC"
   );
 
   let ouraSteps = null;
@@ -220,6 +220,7 @@ export async function loadBlogDataFromD1() {
       title: l.title,
       date: l.date,
       datetime: l.datetime,
+      tags: (l.tags || "").split(/\s+/).filter(Boolean),
     })),
     links: site.links || [
       { label: "Now", url: "/now/", internal: true },

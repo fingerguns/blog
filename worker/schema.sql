@@ -75,7 +75,8 @@ CREATE TABLE IF NOT EXISTS linklog (
   url TEXT NOT NULL,
   title TEXT NOT NULL,
   date TEXT NOT NULL,
-  datetime TEXT NOT NULL
+  datetime TEXT NOT NULL,
+  tags TEXT
 );
 
 CREATE TABLE IF NOT EXISTS thinking_posts (
