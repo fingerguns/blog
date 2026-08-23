@@ -1,15 +1,4 @@
 {
-  "https://youtu.be/ApSjvI6vFf4?is=CHvc2L5zJsptc_7c": {
-    "image": "https://i.ytimg.com/vi/ApSjvI6vFf4/maxresdefault.jpg",
-    "description": "Get 15% off Hestan Pans and Cookware here with the following code: ADAMBYATT15https://hestanculinary.co/?utm_source=Social&utm_medium=Influencer&utm_campaign...",
-    "siteName": "YouTube"
-  },
-  "https://www.artsy.net/article/artsy-editorial-larry-gagosian-almine-rech-art-books-collector-read": false,
-  "https://www.artsy.net/article/artsy-editorial-9-artists-books-reading-summer": {
-    "image": "https://d7hftxdivxxvm.cloudfront.net/?height=630&quality=85&resize_to=fill&src=https%3A%2F%2Fartsy-media-uploads.s3.amazonaws.com%2Fxxn6xI9xtb-jfapovPHGnA%252Fdownload%2B%25285%2529_1500x1000.jpg&width=1200",
-    "description": "Artsy spoke to nine artists around the world about the books they’re sinking into during the slower summer months. ",
-    "siteName": "Artsy"
-  },
   "https://youtube.com/shorts/FSUcUlCoPWg?is=1H770QU2F103iRew": {
     "image": "https://i.ytimg.com/vi/FSUcUlCoPWg/oardefault.jpg?sqp=-oaymwEkCJUDENAFSFqQAgHyq4qpAxMIARUAAAAAJQAAyEI9AICiQ3gB&rs=AOn4CLAdOHmFyf64rhZUyp6vA79cXBuv2g&usqp=CCk",
     "description": "My Macaroni and Cheese will have you running to Christ for salvation. 😂🎯Ingredients- 1 lb of cavatoppi or elbow pasta- 1/2 cup of salted butter- 1/2 cup of...",
@@ -173,5 +162,12 @@
     "description": "A modernist revenge thriller that ranks among Jim Jarmusch’s favorite movies, John Boorman’s POINT BLANK (1967) is out now on 4K+Blu-ray from Criterion: http...",
     "siteName": "YouTube"
   },
-  "https://wmbrownproject.com/magazine": false
+  "https://wmbrownproject.com/magazine": false,
+  "https://www.artsy.net/article/artsy-editorial-9-artists-books-reading-summer": false,
+  "https://www.artsy.net/article/artsy-editorial-larry-gagosian-almine-rech-art-books-collector-read": false,
+  "https://youtu.be/ApSjvI6vFf4?is=CHvc2L5zJsptc_7c": {
+    "image": "https://i.ytimg.com/vi/ApSjvI6vFf4/maxresdefault.jpg",
+    "description": "Get 15% off Hestan Pans and Cookware here with the following code: ADAMBYATT15https://hestanculinary.co/?utm_source=Social&utm_medium=Influencer&utm_campaign...",
+    "siteName": "YouTube"
+  }
 }

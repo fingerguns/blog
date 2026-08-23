@@ -13,6 +13,7 @@ import { mergeSectionHints } from "./lib/section-hints.mjs";
 import { mergeReadingTabIntros } from "./lib/reading-tab-intros.mjs";
 import { thinkingGridThumbUrl, upgradeSpotifyImageUrl, videoPosterKeyFromVideoUrl } from "./lib/media-url.mjs";
 import { fetchLinkUnfurl } from "./lib/link-unfurl.mjs";
+import { mapWithConcurrency } from "./lib/concurrency.mjs";
 import { renderThinkingContentHtml } from "./lib/thinking-html.mjs";
 import { bookshopAffiliateUrl, bookshopAffiliateIdFromEnv, isbnFromBookshopUrl } from "./lib/bookshop-affiliate.mjs";
 import {
@@ -708,6 +709,10 @@ ${gaSnippet}
       <section class="webmentions" id="webmentions" hidden aria-labelledby="wm-heading"></section>
       <script>(function(){
         var url=${JSON.stringify(postUrl)};
+        // webmention.io relays attacker-controlled h-card fields (author.url,
+        // m.url) — only ever assign them as href if they're http(s), so a
+        // crafted javascript: URI in a webmention can't run when clicked.
+        function safeHref(u){return /^https?:\/\//i.test(String(u||''))?u:'#';}
         fetch('https://webmention.io/api/mentions.jf2?target='+encodeURIComponent(url)+'&per-page=100&sort-by=published')
           .then(function(r){return r.json();})
           .then(function(d){
@@ -721,7 +726,7 @@ ${gaSnippet}
               var rx=document.createElement('div');rx.className='wm-reactions';
               reactions.forEach(function(m){
                 var a=document.createElement('a');
-                a.href=(m.author&&m.author.url)||m.url;a.target='_blank';a.rel='noopener';
+                a.href=safeHref((m.author&&m.author.url)||m.url);a.target='_blank';a.rel='noopener';
                 var name=(m.author&&m.author.name)||'?';a.title=name;
                 if(m.author&&m.author.photo){var img=document.createElement('img');img.src=m.author.photo;img.alt=name;img.loading='lazy';a.appendChild(img);}
                 else{a.textContent=name.charAt(0).toUpperCase();}
@@ -734,7 +739,7 @@ ${gaSnippet}
               comments.forEach(function(m){
                 var item=document.createElement('div');item.className='wm-comment';
                 var meta=document.createElement('div');meta.className='wm-comment-meta';
-                var a=document.createElement('a');a.href=(m.author&&m.author.url)||m.url;a.target='_blank';a.rel='noopener';a.textContent=(m.author&&m.author.name)||'Anonymous';meta.appendChild(a);
+                var a=document.createElement('a');a.href=safeHref((m.author&&m.author.url)||m.url);a.target='_blank';a.rel='noopener';a.textContent=(m.author&&m.author.name)||'Anonymous';meta.appendChild(a);
                 if(m.published){var t=document.createElement('time');t.dateTime=m.published;t.textContent=' · '+m.published.slice(0,10);meta.appendChild(t);}
                 item.appendChild(meta);
                 if(m.content&&m.content.text){var p=document.createElement('p');p.className='wm-comment-text';p.textContent=m.content.text.slice(0,500);item.appendChild(p);}
@@ -974,7 +979,7 @@ const missingCovers = orderedReading.filter(
 if (missingCovers.length > 0) {
   console.log(`Looking up ${missingCovers.length} book cover(s) via Open Library…`);
   let fetchedAny = false;
-  for (const r of missingCovers) {
+  await mapWithConcurrency(missingCovers, 6, async (r) => {
     const cover = await fetchBookCover(r.title, r.url);
     if (cover) {
       readingCoverCache[r.url] = cover;
@@ -982,7 +987,7 @@ if (missingCovers.length > 0) {
     } else {
       console.log(`  no cover found for "${r.title}" — will retry next build`);
     }
-  }
+  });
   if (fetchedAny) {
     writeFileSync(readingCoversPath, `${JSON.stringify(readingCoverCache, null, 2)}\n`);
   }
@@ -1063,7 +1068,7 @@ const favoritesMissingCovers = orderedReadingFavorites.filter(
 if (favoritesMissingCovers.length > 0) {
   console.log(`Looking up ${favoritesMissingCovers.length} favorite book cover(s) via Open Library…`);
   let fetchedAny = false;
-  for (const r of favoritesMissingCovers) {
+  await mapWithConcurrency(favoritesMissingCovers, 6, async (r) => {
     const cover = await fetchBookCover(r.title, r.url);
     if (cover) {
       readingCoverCache[r.url] = cover;
@@ -1071,7 +1076,7 @@ if (favoritesMissingCovers.length > 0) {
     } else {
       console.log(`  no cover found for favorite "${r.title}" — will retry next build`);
     }
-  }
+  });
   if (fetchedAny) {
     writeFileSync(readingCoversPath, `${JSON.stringify(readingCoverCache, null, 2)}\n`);
   }
@@ -1180,9 +1185,9 @@ if (existsSync(linklogUnfurlsPath)) {
 const missingUnfurls = orderedLinklog.filter((l) => !(l.url in linklogUnfurlCache));
 if (missingUnfurls.length > 0) {
   console.log(`Fetching ${missingUnfurls.length} link preview(s) for Sharing archive…`);
-  for (const l of missingUnfurls) {
+  await mapWithConcurrency(missingUnfurls, 6, async (l) => {
     linklogUnfurlCache[l.url] = (await fetchLinkUnfurl(l.url)) || false;
-  }
+  });
   writeFileSync(linklogUnfurlsPath, `${JSON.stringify(linklogUnfurlCache, null, 2)}\n`);
 }
 
@@ -1201,8 +1206,15 @@ const renderLinklogArchiveItem = (l) => {
   const title = stripHashtags(l.title);
   const domain = linkDomain(l.url);
   const sourceLabel = unfurl?.siteName || domain;
+  // Unlike Spotify/YouTube thumbnails (stable CDNs) or Thinking/Reading media
+  // (R2-native), these images are hotlinked straight from whatever site was
+  // shared — if one goes away or starts blocking hotlinking, fail quietly
+  // instead of showing a broken-image icon. A sturdier fix would download
+  // and cache them into R2 at build time like other site media, but that
+  // needs R2 write credentials the build environment doesn't have today
+  // (only D1 access does) — worth revisiting if breakage becomes common.
   const imageHtml = unfurl?.image
-    ? `<span class="linklog-card-thumb"><img src="${escHtml(unfurl.image)}" alt="" loading="lazy" /></span>`
+    ? `<span class="linklog-card-thumb"><img src="${escHtml(unfurl.image)}" alt="" loading="lazy" onerror="this.parentElement.hidden=true" /></span>`
     : "";
   const descHtml = unfurl?.description
     ? `<span class="linklog-card-desc">${escHtml(unfurl.description)}</span>`
@@ -1975,7 +1987,7 @@ const missingSpotifyThumbnails = [...spotifyKeysNeeded].filter((key) => !(key in
 if (missingSpotifyThumbnails.length > 0) {
   console.log(`Looking up ${missingSpotifyThumbnails.length} Spotify thumbnail(s)…`);
   let fetchedAny = false;
-  for (const key of missingSpotifyThumbnails) {
+  await mapWithConcurrency(missingSpotifyThumbnails, 6, async (key) => {
     const [type, id] = key.split(":");
     const thumb = await fetchSpotifyThumbnail(type, id);
     if (thumb) {
@@ -1984,7 +1996,7 @@ if (missingSpotifyThumbnails.length > 0) {
     } else {
       console.log(`  no thumbnail for Spotify ${key} — will retry next build`);
     }
-  }
+  });
   if (fetchedAny) {
     writeFileSync(spotifyThumbnailsPath, `${JSON.stringify(spotifyThumbnailCache, null, 2)}\n`);
   }
@@ -2009,13 +2021,13 @@ for (const item of microblogItems) {
 }
 
 let videoPosterCacheUpdated = false;
-for (const videoSrc of videoSrcsNeeded) {
-  if (videoSrc in videoPosterCache) continue;
+const missingVideoPosters = [...videoSrcsNeeded].filter((videoSrc) => !(videoSrc in videoPosterCache));
+await mapWithConcurrency(missingVideoPosters, 6, async (videoSrc) => {
   const posterKey = videoPosterKeyFromVideoUrl(videoSrc, base);
   if (!posterKey) {
     videoPosterCache[videoSrc] = false;
     videoPosterCacheUpdated = true;
-    continue;
+    return;
   }
   try {
     const controller = new AbortController();
@@ -2030,7 +2042,7 @@ for (const videoSrc of videoSrcsNeeded) {
     videoPosterCache[videoSrc] = false;
   }
   videoPosterCacheUpdated = true;
-}
+});
 if (videoPosterCacheUpdated) {
   writeFileSync(videoPostersPath, `${JSON.stringify(videoPosterCache, null, 2)}\n`);
 }
@@ -2342,7 +2354,7 @@ for (const p of ordered) {
   writeFileSync(join(outDir, "posts", slug, "index.html"), renderPostPage(p), "utf8");
 }
 
-const STATIC_ENTRIES = ["styles.css", "favicon.png", "about", "admin", "colophon", "contact"];
+const STATIC_ENTRIES = ["styles.css", "favicon.png", "about", "admin", "colophon", "contact", "_headers"];
 for (const entry of STATIC_ENTRIES) {
   const src = join(root, entry);
   if (existsSync(src)) {
