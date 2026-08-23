@@ -12,6 +12,7 @@ import { escHtml, escXml } from "./lib/html.mjs";
 import { mergeSectionHints } from "./lib/section-hints.mjs";
 import { mergeReadingTabIntros } from "./lib/reading-tab-intros.mjs";
 import { thinkingGridThumbUrl, upgradeSpotifyImageUrl, videoPosterKeyFromVideoUrl } from "./lib/media-url.mjs";
+import { fetchLinkUnfurl } from "./lib/link-unfurl.mjs";
 import { renderThinkingContentHtml } from "./lib/thinking-html.mjs";
 import { bookshopAffiliateUrl, bookshopAffiliateIdFromEnv, isbnFromBookshopUrl } from "./lib/bookshop-affiliate.mjs";
 import {
@@ -1160,9 +1161,67 @@ const hasMoreReading = orderedReading.length > MAX_PER_SECTION;
 const hasReadingArchive = orderedReading.length > 0 || orderedReadingFavorites.length > 0;
 const readingAllHtml = orderedReading.map(renderReadingItem).join("\n");
 
+// Sharing archive unfurls: fetch each shared link's Open Graph image/
+// description once and cache locally, so /sharing/ can show rich preview
+// cards without re-scraping every URL on every build. This covers both
+// existing (historical) and newly added links, since any linklog entry
+// not yet in the cache gets fetched here. The homepage Sharing section
+// intentionally stays plain links — see renderLinklogItem above.
+const linklogUnfurlsPath = join(root, "data/linklog-unfurls.json");
+let linklogUnfurlCache = {};
+if (existsSync(linklogUnfurlsPath)) {
+  try {
+    linklogUnfurlCache = JSON.parse(readFileSync(linklogUnfurlsPath, "utf8"));
+  } catch {
+    linklogUnfurlCache = {};
+  }
+}
+
+const missingUnfurls = orderedLinklog.filter((l) => !(l.url in linklogUnfurlCache));
+if (missingUnfurls.length > 0) {
+  console.log(`Fetching ${missingUnfurls.length} link preview(s) for Sharing archive…`);
+  for (const l of missingUnfurls) {
+    linklogUnfurlCache[l.url] = (await fetchLinkUnfurl(l.url)) || false;
+  }
+  writeFileSync(linklogUnfurlsPath, `${JSON.stringify(linklogUnfurlCache, null, 2)}\n`);
+}
+
+function linkDomain(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+const renderLinklogArchiveItem = (l) => {
+  const tagSlugs = Array.isArray(l.tags) ? l.tags.filter(Boolean) : [];
+  const tagAttr = tagSlugs.length ? ` data-tags="${escHtml(tagSlugs.join(" "))}"` : "";
+  const unfurl = linklogUnfurlCache[l.url] || null;
+  const title = stripHashtags(l.title);
+  const domain = linkDomain(l.url);
+  const sourceLabel = unfurl?.siteName || domain;
+  const imageHtml = unfurl?.image
+    ? `<span class="linklog-card-thumb"><img src="${escHtml(unfurl.image)}" alt="" loading="lazy" /></span>`
+    : "";
+  const descHtml = unfurl?.description
+    ? `<span class="linklog-card-desc">${escHtml(unfurl.description)}</span>`
+    : "";
+  return `          <li${tagAttr}>
+            <a class="linklog-card" href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer">
+              ${imageHtml}
+              <span class="linklog-card-body">
+                <span class="linklog-card-title">${escHtml(title)}</span>
+                ${descHtml}
+                <span class="linklog-card-meta"><span class="post-date">${escHtml(toETDate(l))}</span>${sourceLabel ? ` · ${escHtml(sourceLabel)}` : ""}</span>
+              </span>
+            </a>
+          </li>`;
+};
+
 const linklogHtml = orderedLinklog.slice(0, MAX_PER_SECTION).map(renderLinklogItem).join("\n");
 const hasMoreLinklog = orderedLinklog.length > MAX_PER_SECTION;
-const linklogAllHtml = orderedLinklog.map(renderLinklogItem).join("\n");
+const linklogAllHtml = orderedLinklog.map(renderLinklogArchiveItem).join("\n");
 
 const linksHtml = (links || [])
   .map(
@@ -1543,7 +1602,7 @@ ${archiveFoot()}`;
 
 const sharingPageHtml = `${archiveHead("Sharing", sectionHeading("Sharing", "h1"))}
 ${linklogTagFilterHtml}
-      <ol class="post-list" reversed>
+      <ol class="post-list linklog-archive-list" reversed>
 ${linklogAllHtml}
       </ol>
 ${archiveFoot(linklogFilterScript)}`;
