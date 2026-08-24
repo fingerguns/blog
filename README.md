@@ -69,6 +69,7 @@ Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on the
 | `about/`, `admin/`, `colophon/`, `contact/` | Hand-authored static pages (copied into `dist/` at build). `/now/` is generated from D1 in `scripts/build.mjs` |
 | `_headers` | Cloudflare Pages response headers (CSP and other hardening), copied into `dist/` at build like the static pages above |
 | `CLAUDE.md` | Architecture notes for Claude Code / AI agents working in this repo |
+| `.markdownlint-cli2.jsonc` | Markdown lint config (`npm run lint:md`) |
 
 ## Requirements
 
@@ -88,6 +89,7 @@ npm run anthropic-usage              # Anthropic token usage summary (last 30 da
 npm run backfill-thinking-locations  # backfill neighborhood labels on Thinking posts from GPS log
 npm run backfill-oura                # sync Oura step history into D1 (~2 years on first run)
 npm run backfill-linklog-tags        # assign topic tags to Sharing links missing them via Claude Fable
+npm run lint:md                      # lint all Markdown docs (markdownlint-cli2)
 ```
 
 Output goes to **`dist/`** (gitignored). Generated HTML is not committed; CI/Pages builds from source + D1.
