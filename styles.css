@@ -15,19 +15,19 @@
 }
 
 [data-theme="dark"] {
-  --bg: #0d0d0d;
-  --text: #e8e8e8;
-  --muted: #888888;
-  --rule: #2e2e2e;
-  --link: #e8e8e8;
-  --link-hover: #aaaaaa;
-  --thinking-delete-bg: #171717;
+  --bg: #16130f;
+  --text: #ece7dc;
+  --muted: #8f8579;
+  --rule: #332e26;
+  --link: #ece7dc;
+  --link-hover: #b3ab9e;
+  --thinking-delete-bg: #1e1a14;
 }
 
 [data-theme="dark"] .post .body code,
 [data-theme="dark"] main code {
-  background: #1e1e1e;
-  color: #e0e0e0;
+  background: #221e17;
+  color: #e6ddc9;
 }
 
 *,
@@ -515,7 +515,7 @@ h2 {
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--rule);
   background: var(--bg);
-  color: var(--fg);
+  color: var(--text);
   font-family: inherit;
   font-size: 1rem;
   border-radius: 3px;
@@ -1751,7 +1751,14 @@ html[data-colophon="whitman"] #colophon-whitman {
 }
 
 [data-theme="dark"] .now-location-map {
-  background: #1a1a1a;
+  background: #1e1a14;
+}
+
+/* MapLibre's zoom control ships a hardcoded white box + dark icons with no
+   theme awareness of its own — invert it in dark mode rather than fighting
+   its baked-in SVG icon colors. */
+[data-theme="dark"] .now-location-map .maplibregl-ctrl-group {
+  filter: invert(1) hue-rotate(180deg);
 }
 
 .now-location-map--error {

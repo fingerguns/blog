@@ -1809,6 +1809,7 @@ const changelogListHtml = changelogEntries.length > 0
   : `          <li><span>No changelog entries yet.</span></li>`;
 
 const changelogPageHtml = `${archiveHead("Changelog")}
+      <p class="lead">This is the site's own commit history, generated straight from Git — every change to the code, published as it happens. Some entries are user-facing (a new page, a redesign); others are internal plumbing (a dependency bump, a CSS fix) that won't mean much unless you're curious how the site is built. See the <a href="/colophon/">colophon</a> for how it all fits together.</p>
       <ol class="post-list" reversed>
 ${changelogListHtml}
       </ol>

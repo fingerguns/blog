@@ -729,7 +729,10 @@
         background: #e8e2d8;
       }
       [data-theme="dark"] #loc-map {
-        background: #1a1a1a;
+        background: #1e1a14;
+      }
+      [data-theme="dark"] #loc-map .maplibregl-ctrl-group {
+        filter: invert(1) hue-rotate(180deg);
       }
       #loc-map .maplibregl-ctrl-attrib {
         font-size: 0.62rem;
