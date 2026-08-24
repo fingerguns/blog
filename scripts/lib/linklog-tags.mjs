@@ -42,6 +42,31 @@ Respond with ONLY valid JSON (no markdown, no explanation):
 {"tags":["food"]}`;
 }
 
+/**
+ * Expand assigned category slugs into individual hashtag words, splitting
+ * each category's label on "," and "&" — e.g. tag "food" (label
+ * "Food & Recipes") becomes ["food", "recipes"], and "film" (label
+ * "Film, TV & Comedy") becomes ["film", "tv", "comedy"]. Deduped, in order.
+ */
+export function hashtagWordsForTags(slugs) {
+  const seen = new Set();
+  const words = [];
+
+  for (const slug of Array.isArray(slugs) ? slugs : []) {
+    const label = LINKLOG_TAG_LABELS[slug];
+    if (!label) continue;
+
+    for (const term of label.split(/[,&]/)) {
+      const word = term.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+      if (!word || seen.has(word)) continue;
+      seen.add(word);
+      words.push(word);
+    }
+  }
+
+  return words;
+}
+
 export function parseLinklogTagResponse(text) {
   if (typeof text !== "string") {
     throw new Error("Empty model response");

@@ -28,6 +28,7 @@ import {
   scheduleReadingGenrePrune,
 } from "./reading-genres.mjs";
 import { backfillLinklogTags, refreshLinklogTags } from "./linklog-tags.mjs";
+import { hashtagWordsForTags } from "../scripts/lib/linklog-tags.mjs";
 import { getAnthropicUsageSummary } from "./anthropic-usage.mjs";
 import { serveMedia } from "./media.mjs";
 import { createR2PresignedPutUrl } from "./r2-presign.mjs";
@@ -2855,7 +2856,9 @@ async function handleSharing(body, db, cors, env, ctx) {
       if (tagResult.saved) tags = tagResult.tags;
     }
 
-    const hashtags = tags.map((t) => `#${t}`).join(" ");
+    const hashtags = hashtagWordsForTags(tags)
+      .map((w) => `#${w}`)
+      .join(" ");
     const syndicationText = hashtags
       ? `${entry.title} ${hashtags}\n\n${entry.url}`
       : `${entry.title}\n\n${entry.url}`;

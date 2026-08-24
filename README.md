@@ -216,7 +216,7 @@ wrangler deploy
 - Previews are fetched via Open Graph at build time and cached in `data/linklog-unfurls.json`, keyed by URL, so only new links get fetched on later builds; a hotlinked image that fails to load hides itself instead of showing a broken-image icon
 - A tag-filter dropdown on the archive lists each topic with its count, sorted descending — tags come from a fixed 15-category taxonomy in `scripts/lib/linklog-tags.mjs`, not an open-ended set
 - New links are tagged by Claude Fable synchronously, right after being added and before cross-posting; `backfill-linklog-tags` (or `npm run backfill-linklog-tags`) catches anything that predates this feature or failed silently (e.g. no `ANTHROPIC_API_KEY`)
-- That tag becomes `#hashtags` on the Micro.blog, Bluesky, and Mastodon cross-post (e.g. a link tagged `history architecture` posts with `#history #architecture` in the text) — Bluesky auto-facets `#word` patterns in any post text, Micro.blog and Mastodon hashtag-link plain text natively, so no extra formatting is needed
+- That tag becomes `#hashtags` on the Micro.blog, Bluesky, and Mastodon cross-post — each category's label is split on `&`/`,` into one hashtag per term, so `food` (label "Food & Recipes") posts as `#food #recipes`, and `film` ("Film, TV & Comedy") as `#film #tv #comedy` (`hashtagWordsForTags` in `scripts/lib/linklog-tags.mjs`). Bluesky auto-facets `#word` patterns in any post text, Micro.blog and Mastodon hashtag-link plain text natively, so no extra formatting is needed
 
 ## Audio & Video Syndication
 
