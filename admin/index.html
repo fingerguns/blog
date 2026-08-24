@@ -1465,6 +1465,31 @@
           });
         }
 
+        // "Latest N points" can span days once Overland pings sparsely between
+        // trips, so two points next to each other in the sorted list might be
+        // hours or days apart in time — connecting them draws a straight
+        // "teleport" line across the map (and inflates the path-length stat)
+        // instead of showing that they're two separate, unrelated visits.
+        // Split into a new segment wherever the gap exceeds this.
+        var LOC_GAP_MINUTES = 30;
+
+        function locSegmentsByGap(chronologicalPoints, gapMinutes) {
+          var segments = [];
+          var current = [];
+          var prevTime = null;
+          chronologicalPoints.forEach(function (p) {
+            var t = new Date(p.recorded_at).getTime();
+            if (prevTime !== null && (t - prevTime) / 60000 > gapMinutes) {
+              if (current.length) segments.push(current);
+              current = [];
+            }
+            current.push(p);
+            prevTime = t;
+          });
+          if (current.length) segments.push(current);
+          return segments;
+        }
+
         function locHaversineKm(a, b) {
           var r = 6371;
           var dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -1477,11 +1502,14 @@
           return 2 * r * Math.asin(Math.sqrt(h));
         }
 
-        function locTotalDistanceKm(points) {
+        function locTotalDistanceKm(chronologicalPoints, gapMinutes) {
+          var segments = gapMinutes ? locSegmentsByGap(chronologicalPoints, gapMinutes) : [chronologicalPoints];
           var total = 0;
-          for (var i = 1; i < points.length; i++) {
-            total += locHaversineKm(points[i - 1], points[i]);
-          }
+          segments.forEach(function (points) {
+            for (var i = 1; i < points.length; i++) {
+              total += locHaversineKm(points[i - 1], points[i]);
+            }
+          });
           return total;
         }
 
@@ -1588,14 +1616,22 @@
           var coords = chronological.map(function (p) {
             return [p.lon, p.lat];
           });
-          var trackFeatures = [];
-          if (coords.length > 1) {
-            trackFeatures.push({
-              type: "Feature",
-              geometry: { type: "LineString", coordinates: coords },
-              properties: {},
+          var trackFeatures = locSegmentsByGap(chronological, LOC_GAP_MINUTES)
+            .filter(function (seg) {
+              return seg.length > 1;
+            })
+            .map(function (seg) {
+              return {
+                type: "Feature",
+                geometry: {
+                  type: "LineString",
+                  coordinates: seg.map(function (p) {
+                    return [p.lon, p.lat];
+                  }),
+                },
+                properties: {},
+              };
             });
-          }
           locMap.getSource("loc-track").setData({
             type: "FeatureCollection",
             features: trackFeatures,
@@ -1651,7 +1687,7 @@
               return;
             }
 
-            var km = locTotalDistanceKm(locChronological(locPoints));
+            var km = locTotalDistanceKm(locChronological(locPoints), LOC_GAP_MINUTES);
             var mi = km * 0.621371;
             stats.textContent =
               "Latest " +
