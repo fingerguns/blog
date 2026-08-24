@@ -1,0 +1,14 @@
+{
+  "config": {
+    "default": true,
+    // Docs in this repo use long prose lines by design (one paragraph per
+    // line), not hard-wrapped at 80 chars.
+    "MD013": false,
+    // Table pipe padding isn't consistent repo-wide yet (compact in most
+    // files, aligned in remark42/README.md) — a real cleanup, but a
+    // separate formatting pass rather than a lint rule to enforce today.
+    "MD060": false
+  },
+  "globs": ["**/*.md"],
+  "ignores": ["node_modules/**", "**/node_modules/**", "dist/**", "**/.wrangler/**"]
+}

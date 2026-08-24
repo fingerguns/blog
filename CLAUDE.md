@@ -60,7 +60,7 @@ Cloudflare Pages only (not GitHub Pages — there's no root `CNAME`). Build comm
 
 ## Architecture
 
-```
+```text
 Admin UI (Pages, static) → Worker API (worker/update-thinking.js) → D1 (write) + R2 (photos/audio/video)
                                           ↓
                                   Pages deploy hook

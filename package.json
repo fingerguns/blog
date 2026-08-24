@@ -12,9 +12,11 @@
     "backfill-thinking-locations": "node --env-file=.env scripts/backfill-thinking-locations.mjs",
     "backfill-oura": "node --env-file=.env scripts/backfill-oura.mjs",
     "anthropic-usage": "node --env-file=.env scripts/anthropic-usage.mjs",
-    "preview": "npx serve dist -p 3000"
+    "preview": "npx serve dist -p 3000",
+    "lint:md": "markdownlint-cli2"
   },
   "devDependencies": {
-    "ffmpeg-static": "^5.2.0"
+    "ffmpeg-static": "^5.2.0",
+    "markdownlint-cli2": "^0.23.2"
   }
 }

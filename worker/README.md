@@ -146,7 +146,7 @@ Output directory: `dist`
 
 ## Architecture
 
-```
+```text
 Admin → Worker → D1 (write)
               ↓
          Pages deploy hook

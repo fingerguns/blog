@@ -32,7 +32,7 @@ Built with [Cursor](https://cursor.com). See the [colophon](https://rommy.blog/c
 
 ## Architecture
 
-```
+```text
 Admin (Pages) → Worker API → D1 (write) + R2 (photos)
                     ↓
             Pages deploy hook

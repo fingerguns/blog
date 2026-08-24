@@ -55,7 +55,7 @@ flowchart LR
 - **CircleCI** — supports GitHub, GitLab, and Bitbucket only. No arbitrary git remotes.
 - **Cloudflare Workers Builds** — same GitHub/GitLab restriction as Pages.
 - **Netlify, Vercel, Render** — all require a supported forge.
-- **Origin webhooks for push-triggered builds** — possible, but needs an Origin App, Ed25519 signature verification, and a runtime clone token. Deferred; see [Appendix B](#appendix-b-deferred-origin-webhooks).
+- **Origin webhooks for push-triggered builds** — possible, but needs an Origin App, Ed25519 signature verification, and a runtime clone token. Deferred; see [Appendix B](#appendix-b--deferred-origin-webhooks).
 
 Not ruled out, but not chosen as the steady state:
 
@@ -69,7 +69,7 @@ Not ruled out, but not chosen as the steady state:
 
 Your current `CF_API_TOKEN` is exported in your shell, so Wrangler picks it up automatically, but it currently fails against Pages:
 
-```
+```text
 ✘ [ERROR] A request to the Cloudflare API (/accounts/1df3451668c8de1e33dfac434da4ee97/pages/projects) failed.
   Authentication error [code: 10000]
 ```
@@ -190,7 +190,7 @@ if (existsSync(changelogPath)) {
 
 ### 4.2 Directory layout
 
-```
+```text
 builder/
   wrangler.toml
   index.js        Worker: routes to the container
@@ -296,7 +296,7 @@ CMD ["node", "builder/server.mjs"]
 
 `.dockerignore` at the repo root:
 
-```
+```text
 node_modules
 worker/node_modules
 dist
