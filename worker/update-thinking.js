@@ -27,6 +27,7 @@ import {
   scheduleReadingGenreAssignment,
   scheduleReadingGenrePrune,
 } from "./reading-genres.mjs";
+import { backfillLinklogTags, scheduleLinklogTagAssignment } from "./linklog-tags.mjs";
 import { getAnthropicUsageSummary } from "./anthropic-usage.mjs";
 import { serveMedia } from "./media.mjs";
 import { createR2PresignedPutUrl } from "./r2-presign.mjs";
@@ -269,6 +270,15 @@ export default {
         return json({ ok: true, ...result }, 200, cors);
       } catch (err) {
         return json({ error: err.message || "Genre backfill failed" }, 500, cors);
+      }
+    }
+
+    if (action === "backfill-linklog-tags") {
+      try {
+        const result = await backfillLinklogTags(env, db, triggerRebuild);
+        return json({ ok: true, ...result }, 200, cors);
+      } catch (err) {
+        return json({ error: err.message || "Linklog tag backfill failed" }, 500, cors);
       }
     }
 
@@ -2830,6 +2840,9 @@ async function handleSharing(body, db, cors, env, ctx) {
       entry.datetime
     );
 
+    const inserted = await dbFirst(db, "SELECT id FROM linklog WHERE rowid = last_insert_rowid()");
+    const linklogId = inserted?.id;
+
     const { microblogWarning, blueskyWarning, mastodonWarning } = await syndicateText(
       env,
       `${entry.title}\n\n${entry.url}`,
@@ -2838,6 +2851,9 @@ async function handleSharing(body, db, cors, env, ctx) {
 
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Sharing", triggerRebuild);
+    if (linklogId) {
+      scheduleLinklogTagAssignment(ctx, env, db, linklogId, triggerRebuild);
+    }
     return json({ ok: true, entry, microblogWarning, blueskyWarning, mastodonWarning }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);

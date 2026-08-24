@@ -80,6 +80,7 @@ npm run refresh-reading-tab-intros   # regenerate Reading tab intro copy via Cla
 npm run anthropic-usage              # Anthropic token usage summary (last 30 days)
 npm run backfill-thinking-locations  # backfill neighborhood labels on Thinking posts from GPS log
 npm run backfill-oura                # sync Oura step history into D1 (~2 years on first run)
+npm run backfill-linklog-tags        # assign topic tags to Sharing links missing them via Claude Fable
 ```
 
 Output goes to **`dist/`** (gitignored). Generated HTML is not committed; CI/Pages builds from source + D1.
@@ -171,6 +172,7 @@ wrangler deploy
 | `refresh-section-hints` | Regenerate homepage section tooltips with Claude Fable |
 | `refresh-reading-tab-intros` | Regenerate Reading Latest / Must Reads tab intro copy with Claude Fable |
 | `backfill-reading-genres` | Assign genre tags to Must Reads books missing a primary genre (Claude Fable) |
+| `backfill-linklog-tags` | Assign topic tags to Sharing links missing them (Claude Fable) |
 | `anthropic-usage-summary` | Token usage totals from logged Anthropic API calls |
 | `sync-oura` | Sync Oura daily steps into D1 (optional `backfill: true` for ~2 years) |
 | `oura-steps-summary` | Latest Oura steps and total days stored |

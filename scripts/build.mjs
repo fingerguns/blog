@@ -13,6 +13,7 @@ import { mergeSectionHints } from "./lib/section-hints.mjs";
 import { mergeReadingTabIntros } from "./lib/reading-tab-intros.mjs";
 import { thinkingGridThumbUrl, upgradeSpotifyImageUrl, videoPosterKeyFromVideoUrl } from "./lib/media-url.mjs";
 import { fetchLinkUnfurl } from "./lib/link-unfurl.mjs";
+import { LINKLOG_TAG_LABELS } from "./lib/linklog-tags.mjs";
 import { mapWithConcurrency } from "./lib/concurrency.mjs";
 import { renderThinkingContentHtml } from "./lib/thinking-html.mjs";
 import { bookshopAffiliateUrl, bookshopAffiliateIdFromEnv, isbnFromBookshopUrl } from "./lib/bookshop-affiliate.mjs";
@@ -1092,24 +1093,6 @@ const renderLinklogItem = (l) => {
             <span class="post-date">${escHtml(toETDate(l))}</span>
             <a href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer">${escHtml(stripHashtags(l.title))}</a>
           </li>`;
-};
-
-const LINKLOG_TAG_LABELS = {
-  art: "Art & Artists",
-  architecture: "Architecture & Design",
-  books: "Books & Writing",
-  food: "Food & Recipes",
-  film: "Film, TV & Comedy",
-  politics: "Politics & Current Events",
-  science: "Science & Health",
-  society: "Society & Culture",
-  history: "History & Archaeology",
-  tech: "Tech & Business",
-  sports: "Sports",
-  outdoors: "Outdoors & Travel",
-  blogging: "Blogging & Web Culture",
-  photography: "Photography",
-  lifestyle: "Lifestyle & Style",
 };
 
 const linklogTagCounts = new Map();
