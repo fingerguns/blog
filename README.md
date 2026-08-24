@@ -21,6 +21,8 @@ Built with [Cursor](https://cursor.com). See the [colophon](https://rommy.blog/c
 - **Section tooltips** — Homepage section headings have hover blurbs stored in D1; Claude Fable regenerates them after content changes (`refresh-section-hints` admin action or `npm run refresh-section-hints`)
 - **Reading tab intros** — Latest and Must Reads tabs have visitor-facing taste summaries stored in D1; Claude Fable redrafts them when books are added or removed (`refresh-reading-tab-intros` or `npm run refresh-reading-tab-intros` from repo root or `worker/`)
 - **Must Reads genre tags** — Each curated favorite gets 1–3 AI-assigned genre tags (primary required) stored in D1; a genre dropdown on `/reading/must-reads/` filters the list, with shareable paths like `/reading/must-reads/literary-realism/`. Tags are assigned automatically when books are added and pruned when unused after removal (`backfill-reading-genres` or `npm run backfill-reading-genres` for existing titles)
+- **Sharing archive** — [`/sharing/`](https://rommy.blog/sharing/) unfurls every link into a preview card (image, description, source), fetched via Open Graph at build time and cached in `data/linklog-unfurls.json`; the homepage list stays plain links. A dropdown filters by topic tag from a fixed 15-category taxonomy; new links are tagged automatically by Claude Fable right after being added (`backfill-linklog-tags` or `npm run backfill-linklog-tags` for anything that predates this or failed silently)
+- **Security headers** — a `_headers` file at the repo root sets Content-Security-Policy, X-Frame-Options, Referrer-Policy, Permissions-Policy, and HSTS site-wide via Cloudflare Pages
 - **Thinking footers** — Date and neighborhood label on the homepage, archive, and permalinks; neighborhood links to Google Maps when GPS data is available
 - **Location tracking** — Private GPS ingest from [Overland](https://github.com/aaronpk/Overland-iOS) iOS; nearest fix within ±15 minutes at publish time → neighborhood label in D1 (NYC coords use Planning Labs GeoSearch). Admin **Location** tab shows the latest 1000 points on a MapLibre map (OpenFreeMap basemaps) with full coordinates, path history, and timeline
 - **Now page** — [`/now/`](https://rommy.blog/now/) follows [nownownow](https://nownownow.com/about): latest Thinking, current Reading, Working, **Walking** (latest daily step count from Oura Ring, synced to D1), and **Current Location** (MapLibre neighborhood map — label + bounding box only, linked to OpenStreetMap; no exact GPS on the public site)
@@ -44,6 +46,8 @@ The archive at `/thinking/` renders both a List view (chronological feed) and a 
 
 Reading at `/reading/latest/` and `/reading/must-reads/` uses path-based tabs (URL updates on switch) and the same list/grid pattern (view choice in `localStorage`). Each tab has visitor-facing intro copy stored in D1, redrafted by Claude Fable when books are added or removed. Entries sort by `ym` descending. Grid covers come from D1 (`cover_url`), with build-time Open Library fallback for entries still missing art; Must Reads titles can use custom cover art in R2.
 
+Sharing renders its `linklog` entries two ways from one dataset: the homepage list is plain date + title (`renderLinklogItem`), while the archive at `/sharing/` unfurls each into a card — image, description, and source — via `renderLinklogArchiveItem`, sourced from `data/linklog-unfurls.json` (see `scripts/lib/link-unfurl.mjs`). The archive's tag-filter dropdown is built from each link's stored `tags`, drawn from the fixed taxonomy in `scripts/lib/linklog-tags.mjs`. New links are tagged automatically after being added — `worker/linklog-tags.mjs` schedules a background call to Claude Fable right after the D1 insert and triggers a second rebuild once the tag is saved, the same pattern `worker/reading-genres.mjs` uses for Must Reads.
+
 Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on their own platforms when you include links there.
 
 ## Repository layout
@@ -52,7 +56,7 @@ Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on the
 |------|---------|
 | `admin/` | Admin UI (static HTML + JS) |
 | `scripts/build.mjs` | Regenerates site into `dist/` |
-| `scripts/lib/` | Shared HTML, slug, thinking, linkify, media-URL/thumb helpers, section hints, reading-tab intros, and YouTube/Spotify-embed helpers (build + Worker) |
+| `scripts/lib/` | Shared HTML, slug, thinking, linkify, media-URL/thumb helpers, section hints, reading-tab intros, YouTube/Spotify-embed helpers, Open Graph link-unfurl fetching, the linklog tag taxonomy/prompts, and a small concurrency helper for build-time network lookups (build + Worker) |
 | `scripts/d1-client.mjs` | D1 queries for local/Pages builds |
 | `build-pages.mjs` | Cloudflare Pages entrypoint (git unshallow + build) |
 | `worker/` | Cloudflare Worker (`update-thinking.js`) — admin API |
@@ -60,8 +64,11 @@ Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on the
 | `data/posts.json` | Legacy fallback if D1 env vars are not set |
 | `data/reading-covers.json` | Build-time cover URL overrides keyed by Bookshop URL |
 | `data/reading-favorites.json` | Must Reads seed data and custom `cover_url` values for build |
+| `data/spotify-thumbnails.json`, `data/video-posters.json`, `data/linklog-unfurls.json` | Build-time caches for Spotify embed art, Thinking video posters, and Sharing link previews — fetched once, reused on later builds |
 | `styles.css` | Site styles (light/dark) |
 | `about/`, `admin/`, `colophon/`, `contact/` | Hand-authored static pages (copied into `dist/` at build). `/now/` is generated from D1 in `scripts/build.mjs` |
+| `_headers` | Cloudflare Pages response headers (CSP and other hardening), copied into `dist/` at build like the static pages above |
+| `CLAUDE.md` | Architecture notes for Claude Code / AI agents working in this repo |
 
 ## Requirements
 
@@ -118,6 +125,8 @@ Set the same `CF_*` variables in the Pages project (Production environment).
 The build expands shallow Git clones when possible so the changelog has enough history.
 
 Deploys run on push to `main`. The Worker triggers a Pages rebuild via deploy hook after each content change. You can also run the **Manual rebuild** GitHub Action (`workflow_dispatch`) if needed.
+
+Response headers (CSP, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, HSTS) come from the `_headers` file at the repo root, copied into `dist/` at build time. It's one combined policy for the whole site rather than split by path — Cloudflare Pages combines same-named headers from every matching `_headers` rule instead of letting a more specific path win, so a stricter public-page policy and a looser admin-page policy would produce a broken, comma-joined header. If you add a new third-party script/style/embed anywhere on the site (including `/admin/`), it needs allowlisting here or it'll be silently blocked — this bit the Now-page map (MapLibre needs both `worker-src blob:` and its CDN host in `connect-src`, not just `script-src`).
 
 ## Cloudflare Worker
 
@@ -201,6 +210,13 @@ wrangler deploy
 - `cover_url` in D1 wins over build-time Open Library lookup; custom covers can be uploaded to R2 under `reading/covers/` (referenced in `data/reading-covers.json` and `data/reading-favorites.json` for build)
 - **Must Reads genres:** Each favorite gets 1–3 ranked genre tags in D1 (`reading_genres`, `reading_favorite_genres`), assigned by Claude Fable on add. A genre dropdown on `/reading/must-reads/` filters the list client-side; tags are not shown under individual titles. Run migration + backfill once (see `worker/README.md`)
 
+## Sharing
+
+- Homepage shows the 5 most recent links as plain date + title; the full archive at [`/sharing/`](https://rommy.blog/sharing/) unfurls each into a preview card (image, description, source)
+- Previews are fetched via Open Graph at build time and cached in `data/linklog-unfurls.json`, keyed by URL, so only new links get fetched on later builds; a hotlinked image that fails to load hides itself instead of showing a broken-image icon
+- A tag-filter dropdown on the archive lists each topic with its count, sorted descending — tags come from a fixed 15-category taxonomy in `scripts/lib/linklog-tags.mjs`, not an open-ended set
+- New links are tagged automatically by Claude Fable right after being added, the same pattern Must Reads genres use (`worker/linklog-tags.mjs` schedules the call after the D1 insert and triggers a rebuild once it's saved); `backfill-linklog-tags` (or `npm run backfill-linklog-tags`) catches anything that predates this feature or failed silently (e.g. no `ANTHROPIC_API_KEY`)
+
 ## Audio & Video Syndication
 
 When a Thinking post includes audio or video, each platform receives it as a native, playable attachment rather than a plain link, and the Thinking permalink is appended to the syndicated text alongside it:
@@ -217,9 +233,9 @@ For files that exceed the per-platform size limit, or when bytes are unavailable
 
 Native video uploads capture a JPEG grid poster at save time (`thinking/.../uuid-poster.jpg`). The Worker also serves square grid thumbnails at `/media/thumb/{width}/{key}` for rommy.blog-hosted photos.
 
-## Sharing rommy.blog links
+## Open Graph previews
 
-`scripts/build.mjs` sets `og:title`, `og:description`, `og:image`, and `twitter:card` on Writing posts and Thinking permalink pages. Writing uses the post summary and the first `<img>` in the body; Thinking permalinks use a snippet from the note HTML and its first image, or the favicon if there is none.
+`scripts/build.mjs` sets `og:title`, `og:description`, `og:image`, and `twitter:card` on Writing posts and Thinking permalink pages, so links to rommy.blog itself unfurl nicely elsewhere. Writing uses the post summary and the first `<img>` in the body; Thinking permalinks use a snippet from the note HTML and its first image, or the favicon if there is none. (This is the reverse direction from the Sharing archive above, which fetches *other* sites' Open Graph data — this section is about rommy.blog's own.)
 
 ## Forking / adapting
 

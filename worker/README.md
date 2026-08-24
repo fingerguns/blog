@@ -55,6 +55,12 @@ Location tracking (Overland ingest + Thinking post neighborhood labels):
 wrangler d1 execute rommy-blog-db --file=migrate-location.sql --remote
 ```
 
+Add Sharing (linklog) topic tags (`tags` column, backing the archive's tag-filter dropdown):
+
+```bash
+wrangler d1 execute rommy-blog-db --file=migrate-linklog-tags.sql --remote
+```
+
 Migrate existing content from `data/posts.json`:
 
 ```bash
@@ -135,6 +141,7 @@ Output directory: `dist`
 | `refresh-section-hints` | Regenerate homepage section tooltips (Claude Fable) |
 | `refresh-reading-tab-intros` | Regenerate Reading Latest / Must Reads tab intro copy (Claude Fable) |
 | `backfill-reading-genres` | Assign genre tags to Must Reads favorites missing a primary genre (Claude Fable) |
+| `backfill-linklog-tags` | Assign topic tags to Sharing links missing them (Claude Fable) |
 | `anthropic-usage-summary` | Token usage totals from D1 (`anthropic_usage` table) |
 
 ## Architecture
