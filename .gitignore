@@ -16,5 +16,20 @@ dist/
 /writing/
 /reading/
 /sharing/
-remark42/.env
-.env
+.env*
+!**/.env.example
+
+# OS / editor
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# npm/yarn failure logs
+npm-debug.log*
+yarn-error.log*
+
+# Personal Claude Code tool-permission config, not project config
+.claude/settings.local.json
