@@ -27,7 +27,7 @@ import {
   scheduleReadingGenreAssignment,
   scheduleReadingGenrePrune,
 } from "./reading-genres.mjs";
-import { backfillLinklogTags, scheduleLinklogTagAssignment } from "./linklog-tags.mjs";
+import { backfillLinklogTags, refreshLinklogTags } from "./linklog-tags.mjs";
 import { getAnthropicUsageSummary } from "./anthropic-usage.mjs";
 import { serveMedia } from "./media.mjs";
 import { createR2PresignedPutUrl } from "./r2-presign.mjs";
@@ -2843,18 +2843,32 @@ async function handleSharing(body, db, cors, env, ctx) {
     const inserted = await dbFirst(db, "SELECT id FROM linklog WHERE rowid = last_insert_rowid()");
     const linklogId = inserted?.id;
 
+    // Assign the topic tag synchronously, before syndicating, so the
+    // cross-posted hashtags reflect it — a background assignment (as used
+    // elsewhere for Reading genres) would run after the posts already went
+    // out. Falls back to no hashtags if tagging is unconfigured or fails;
+    // the entry is still picked up later by the backfill-linklog-tags
+    // safety net.
+    let tags = [];
+    if (linklogId) {
+      const tagResult = await refreshLinklogTags(env, db, linklogId, null);
+      if (tagResult.saved) tags = tagResult.tags;
+    }
+
+    const hashtags = tags.map((t) => `#${t}`).join(" ");
+    const syndicationText = hashtags
+      ? `${entry.title} ${hashtags}\n\n${entry.url}`
+      : `${entry.title}\n\n${entry.url}`;
+
     const { microblogWarning, blueskyWarning, mastodonWarning } = await syndicateText(
       env,
-      `${entry.title}\n\n${entry.url}`,
+      syndicationText,
       entry.url
     );
 
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Sharing", triggerRebuild);
-    if (linklogId) {
-      scheduleLinklogTagAssignment(ctx, env, db, linklogId, triggerRebuild);
-    }
-    return json({ ok: true, entry, microblogWarning, blueskyWarning, mastodonWarning }, 200, cors);
+    return json({ ok: true, entry, tags, microblogWarning, blueskyWarning, mastodonWarning }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
   }
