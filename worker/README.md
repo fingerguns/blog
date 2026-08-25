@@ -208,6 +208,31 @@ npm run anthropic-usage -- 7   # last 7 days
 
 Estimates use approximate Fable list rates; check [Anthropic Console → Cost](https://platform.claude.com/cost) for billed amounts.
 
+### Build caches
+
+Book covers, Spotify art, video-poster checks, and Sharing link unfurls are looked up once and cached, so the build only fetches what is new. These used to live in committed `data/*.json` files, which did not work: Pages builds in an ephemeral checkout, so every cache write was discarded and only a local build followed by a commit ever warmed anything.
+
+They now live in the D1 `build_cache` table, one namespace per cache. To migrate:
+
+```bash
+cd worker
+wrangler d1 execute rommy-blog-db --remote --file=migrate-build-cache.sql
+cd ..
+npm run migrate-build-cache
+```
+
+Then confirm a build reads from D1 (no `build cache: seeded …` lines in the output) and retire the legacy files:
+
+```bash
+git rm --cached data/reading-covers.json data/spotify-thumbnails.json data/video-posters.json data/linklog-unfurls.json
+```
+
+Keep them on disk until that build passes — `loadBuildCache` falls back to them when a namespace is empty or D1 is unreachable, which is what makes the migration safe. They are gitignored, so they stay local and stop showing up as working-tree churn.
+
+The build's `CF_API_TOKEN` needs **`Account / D1 / Edit`**, not just Read. With a read-only token the cache still serves reads but silently cannot persist anything newly fetched, so every build refetches it.
+
+Two D1 constraints shaped the implementation, both worth knowing before writing similar code: the REST `/query` endpoint takes a single statement object rather than an array (so `d1Batch` in `scripts/d1-client.mjs` does not work as written), and at most 100 bound parameters are allowed per query, so multi-row writes are chunked. Covered by `npm test`.
+
 ### Background job status
 
 Cron syncs, site rebuilds, and syndication attempts each append a row to `job_runs`, so a failure survives the response that reported it. Before deploying the Worker:

@@ -361,7 +361,7 @@ createServer((req, res) => {
 }).listen(8080);
 ```
 
-Note the build writes cache files back into `data/` (`reading-covers.json`, `spotify-thumbnails.json`, `video-posters.json`). Inside the container those writes land on ephemeral disk and vanish when it sleeps, which is harmless — they are caches, and the build regenerates them.
+Build caches no longer touch the container's disk. They moved to the D1 `build_cache` table (`scripts/lib/build-cache.mjs`) precisely because ephemeral-disk writes were being discarded — in Pages that already meant every build refetched anything added since those files were last committed, and the container would have inherited the same problem in a worse form, with the cache frozen at image-build time. The container reads and writes the cache over the same D1 HTTP API it already uses for content, so a sleeping container costs nothing.
 
 ### 4.7 Alternative: Cursor Automations
 

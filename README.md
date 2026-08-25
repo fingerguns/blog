@@ -65,7 +65,7 @@ Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on the
 | `data/posts.json` | Legacy fallback if D1 env vars are not set |
 | `data/reading-covers.json` | Build-time cover URL overrides keyed by Bookshop URL |
 | `data/reading-favorites.json` | Must Reads seed data and custom `cover_url` values for build |
-| `data/spotify-thumbnails.json`, `data/video-posters.json`, `data/linklog-unfurls.json` | Build-time caches for Spotify embed art, Thinking video posters, and Sharing link previews — fetched once, reused on later builds |
+| `data/*.json` build caches | Gitignored. Build caches live in the D1 `build_cache` table (`scripts/lib/build-cache.mjs`); any leftover files on disk are only a local fallback |
 | `styles.css` | Site styles (light/dark) |
 | `about/`, `admin/`, `colophon/`, `contact/` | Hand-authored static pages (copied into `dist/` at build). `/now/` is generated from D1 in `scripts/build.mjs` |
 | `_headers` | Cloudflare Pages response headers (CSP and other hardening), copied into `dist/` at build like the static pages above |

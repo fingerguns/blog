@@ -53,6 +53,12 @@ function parseMediaUrls(raw, mediaUrl) {
   return [];
 }
 
+/**
+ * NOTE: unused, and rejected by the D1 REST API as written — /query expects a
+ * single statement object, not an array ("Invalid input: Expected object,
+ * received array"). For multi-row writes use one d1Query with a multi-tuple
+ * VALUES clause, as scripts/lib/build-cache.mjs does.
+ */
 export async function d1Batch(statements) {
   if (!d1Configured()) {
     throw new Error("D1 not configured");

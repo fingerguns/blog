@@ -19,6 +19,14 @@ dist/
 .env*
 !**/.env.example
 
+# Build-time caches — now the D1 `build_cache` table (scripts/lib/build-cache.mjs).
+# Kept on disk as a local fallback; never committed, since Pages builds in an
+# ephemeral checkout and every write here would be discarded.
+data/reading-covers.json
+data/spotify-thumbnails.json
+data/video-posters.json
+data/linklog-unfurls.json
+
 # OS / editor
 .DS_Store
 *.swp

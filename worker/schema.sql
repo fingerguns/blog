@@ -162,3 +162,13 @@ CREATE TABLE IF NOT EXISTS job_runs (
 
 CREATE INDEX IF NOT EXISTS idx_job_runs_created_at ON job_runs(created_at);
 CREATE INDEX IF NOT EXISTS idx_job_runs_job ON job_runs(job, created_at);
+
+CREATE TABLE IF NOT EXISTS build_cache (
+  namespace TEXT NOT NULL,
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (namespace, key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_build_cache_namespace ON build_cache(namespace);

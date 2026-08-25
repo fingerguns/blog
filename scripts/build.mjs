@@ -26,6 +26,11 @@ import {
   loadReadingFavoritesOverrides,
 } from "./lib/reading-favorites-overrides.mjs";
 import { thinkingSlugFromIso } from "./lib/thinking-slug.mjs";
+import {
+  CACHE_NAMESPACES,
+  loadBuildCache,
+  saveBuildCache,
+} from "./lib/build-cache.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
@@ -865,15 +870,7 @@ const renderReadingItem = (r) =>
 // kind of lookup and isn't blocked. Only successful fetches are cached —
 // a failed/no-match lookup is simply retried on the next build rather
 // than "poisoning" the cache with a permanent null.
-const readingCoversPath = join(root, "data/reading-covers.json");
-let readingCoverCache = {};
-if (existsSync(readingCoversPath)) {
-  try {
-    readingCoverCache = JSON.parse(readFileSync(readingCoversPath, "utf8"));
-  } catch {
-    readingCoverCache = {};
-  }
-}
+const readingCoverCache = await loadBuildCache(CACHE_NAMESPACES.READING_COVERS);
 
 async function openLibraryJson(path) {
   const controller = new AbortController();
@@ -979,19 +976,15 @@ const missingCovers = orderedReading.filter(
 );
 if (missingCovers.length > 0) {
   console.log(`Looking up ${missingCovers.length} book cover(s) via Open Library…`);
-  let fetchedAny = false;
   await mapWithConcurrency(missingCovers, 6, async (r) => {
     const cover = await fetchBookCover(r.title, r.url);
     if (cover) {
       readingCoverCache[r.url] = cover;
-      fetchedAny = true;
     } else {
       console.log(`  no cover found for "${r.title}" — will retry next build`);
     }
   });
-  if (fetchedAny) {
-    writeFileSync(readingCoversPath, `${JSON.stringify(readingCoverCache, null, 2)}\n`);
-  }
+  await saveBuildCache(CACHE_NAMESPACES.READING_COVERS, readingCoverCache);
 }
 
 const bookshopAffiliateId = bookshopAffiliateIdFromEnv();
@@ -1068,19 +1061,15 @@ const favoritesMissingCovers = orderedReadingFavorites.filter(
 );
 if (favoritesMissingCovers.length > 0) {
   console.log(`Looking up ${favoritesMissingCovers.length} favorite book cover(s) via Open Library…`);
-  let fetchedAny = false;
   await mapWithConcurrency(favoritesMissingCovers, 6, async (r) => {
     const cover = await fetchBookCover(r.title, r.url);
     if (cover) {
       readingCoverCache[r.url] = cover;
-      fetchedAny = true;
     } else {
       console.log(`  no cover found for favorite "${r.title}" — will retry next build`);
     }
   });
-  if (fetchedAny) {
-    writeFileSync(readingCoversPath, `${JSON.stringify(readingCoverCache, null, 2)}\n`);
-  }
+  await saveBuildCache(CACHE_NAMESPACES.READING_COVERS, readingCoverCache);
 }
 
 const stripHashtags = (s) => String(s).replace(/\s*#\S+/g, "").trim();
@@ -1155,15 +1144,7 @@ const readingAllHtml = orderedReading.map(renderReadingItem).join("\n");
 // existing (historical) and newly added links, since any linklog entry
 // not yet in the cache gets fetched here. The homepage Sharing section
 // intentionally stays plain links — see renderLinklogItem above.
-const linklogUnfurlsPath = join(root, "data/linklog-unfurls.json");
-let linklogUnfurlCache = {};
-if (existsSync(linklogUnfurlsPath)) {
-  try {
-    linklogUnfurlCache = JSON.parse(readFileSync(linklogUnfurlsPath, "utf8"));
-  } catch {
-    linklogUnfurlCache = {};
-  }
-}
+const linklogUnfurlCache = await loadBuildCache(CACHE_NAMESPACES.LINKLOG_UNFURLS);
 
 const missingUnfurls = orderedLinklog.filter((l) => !(l.url in linklogUnfurlCache));
 if (missingUnfurls.length > 0) {
@@ -1171,8 +1152,8 @@ if (missingUnfurls.length > 0) {
   await mapWithConcurrency(missingUnfurls, 6, async (l) => {
     linklogUnfurlCache[l.url] = (await fetchLinkUnfurl(l.url)) || false;
   });
-  writeFileSync(linklogUnfurlsPath, `${JSON.stringify(linklogUnfurlCache, null, 2)}\n`);
 }
+await saveBuildCache(CACHE_NAMESPACES.LINKLOG_UNFURLS, linklogUnfurlCache);
 
 function linkDomain(url) {
   try {
@@ -1942,23 +1923,11 @@ ${g.items.map((item) => thinkingGridItemHtml(item, spotifyThumbnails, videoPoste
     .join("\n");
 }
 
-const spotifyThumbnailsPath = join(root, "data/spotify-thumbnails.json");
-let spotifyThumbnailCache = {};
-if (existsSync(spotifyThumbnailsPath)) {
-  try {
-    spotifyThumbnailCache = JSON.parse(readFileSync(spotifyThumbnailsPath, "utf8"));
-  } catch {
-    spotifyThumbnailCache = {};
-  }
-}
+const spotifyThumbnailCache = await loadBuildCache(CACHE_NAMESPACES.SPOTIFY_THUMBNAILS);
 
-let upgradedSpotifyCache = false;
+// URL-format upgrades are picked up by saveBuildCache's diff, no flag needed.
 for (const [key, url] of Object.entries(spotifyThumbnailCache)) {
-  const next = upgradeSpotifyImageUrl(url);
-  if (next !== url) {
-    spotifyThumbnailCache[key] = next;
-    upgradedSpotifyCache = true;
-  }
+  spotifyThumbnailCache[key] = upgradeSpotifyImageUrl(url);
 }
 
 const spotifyKeysNeeded = new Set();
@@ -1970,33 +1939,19 @@ for (const item of microblogItems) {
 const missingSpotifyThumbnails = [...spotifyKeysNeeded].filter((key) => !(key in spotifyThumbnailCache));
 if (missingSpotifyThumbnails.length > 0) {
   console.log(`Looking up ${missingSpotifyThumbnails.length} Spotify thumbnail(s)…`);
-  let fetchedAny = false;
   await mapWithConcurrency(missingSpotifyThumbnails, 6, async (key) => {
     const [type, id] = key.split(":");
     const thumb = await fetchSpotifyThumbnail(type, id);
     if (thumb) {
       spotifyThumbnailCache[key] = thumb;
-      fetchedAny = true;
     } else {
       console.log(`  no thumbnail for Spotify ${key} — will retry next build`);
     }
   });
-  if (fetchedAny) {
-    writeFileSync(spotifyThumbnailsPath, `${JSON.stringify(spotifyThumbnailCache, null, 2)}\n`);
-  }
-} else if (upgradedSpotifyCache) {
-  writeFileSync(spotifyThumbnailsPath, `${JSON.stringify(spotifyThumbnailCache, null, 2)}\n`);
 }
+await saveBuildCache(CACHE_NAMESPACES.SPOTIFY_THUMBNAILS, spotifyThumbnailCache);
 
-const videoPostersPath = join(root, "data/video-posters.json");
-let videoPosterCache = {};
-if (existsSync(videoPostersPath)) {
-  try {
-    videoPosterCache = JSON.parse(readFileSync(videoPostersPath, "utf8"));
-  } catch {
-    videoPosterCache = {};
-  }
-}
+const videoPosterCache = await loadBuildCache(CACHE_NAMESPACES.VIDEO_POSTERS);
 
 const videoSrcsNeeded = new Set();
 for (const item of microblogItems) {
@@ -2004,13 +1959,11 @@ for (const item of microblogItems) {
   if (videoSrc) videoSrcsNeeded.add(videoSrc);
 }
 
-let videoPosterCacheUpdated = false;
 const missingVideoPosters = [...videoSrcsNeeded].filter((videoSrc) => !(videoSrc in videoPosterCache));
 await mapWithConcurrency(missingVideoPosters, 6, async (videoSrc) => {
   const posterKey = videoPosterKeyFromVideoUrl(videoSrc, base);
   if (!posterKey) {
     videoPosterCache[videoSrc] = false;
-    videoPosterCacheUpdated = true;
     return;
   }
   try {
@@ -2025,11 +1978,8 @@ await mapWithConcurrency(missingVideoPosters, 6, async (videoSrc) => {
   } catch {
     videoPosterCache[videoSrc] = false;
   }
-  videoPosterCacheUpdated = true;
 });
-if (videoPosterCacheUpdated) {
-  writeFileSync(videoPostersPath, `${JSON.stringify(videoPosterCache, null, 2)}\n`);
-}
+await saveBuildCache(CACHE_NAMESPACES.VIDEO_POSTERS, videoPosterCache);
 
 const thinkingGridHtml = thinkingGridGroupsHtml(microblogItems, spotifyThumbnailCache, videoPosterCache);
 const microblogEntriesHtml = microblogListHtml(microblogItems, spotifyThumbnailCache);
