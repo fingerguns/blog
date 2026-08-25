@@ -156,6 +156,62 @@
       .admin-status.warn { color: var(--text); white-space: pre-line; line-height: 1.55; }
       .admin-status.err { color: #b44; white-space: pre-line; line-height: 1.55; }
       [data-theme="dark"] .admin-status.err { color: #e88; }
+      .job-status {
+        margin: -0.5rem 0 1.75rem;
+        border-bottom: 1px solid var(--rule);
+      }
+      .job-status-summary {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        width: 100%;
+        padding: 0.55rem 0;
+        background: none;
+        border: 0;
+        font: inherit;
+        font-size: 0.8rem;
+        color: var(--muted);
+        text-align: left;
+        cursor: pointer;
+      }
+      .job-status-summary:hover { color: var(--text); }
+      .job-dot {
+        flex: 0 0 auto;
+        width: 0.5rem;
+        height: 0.5rem;
+        border-radius: 50%;
+        background: var(--muted);
+      }
+      .job-status.ok .job-dot { background: #4a8; }
+      .job-status.bad .job-dot { background: #b44; }
+      .job-status.bad .job-status-summary { color: #b44; }
+      [data-theme="dark"] .job-status.bad .job-status-summary { color: #e88; }
+      .job-status-caret { margin-left: auto; font-size: 0.7rem; opacity: 0.7; }
+      .job-status-detail { padding: 0.25rem 0 0.9rem; }
+      .job-row {
+        display: flex;
+        align-items: baseline;
+        gap: 0.6rem;
+        padding: 0.3rem 0;
+        font-size: 0.78rem;
+        line-height: 1.5;
+      }
+      .job-row-label { flex: 0 0 8.5rem; color: var(--text); }
+      .job-row-state { flex: 0 0 4.5rem; color: var(--muted); }
+      .job-row.bad .job-row-state { color: #b44; }
+      [data-theme="dark"] .job-row.bad .job-row-state { color: #e88; }
+      .job-row-when { flex: 0 0 auto; color: var(--muted); }
+      .job-row-detail {
+        flex: 1 1 100%;
+        margin-left: 9.1rem;
+        color: var(--muted);
+        overflow-wrap: anywhere;
+      }
+      @media (max-width: 34rem) {
+        .job-row { flex-wrap: wrap; gap: 0.4rem; }
+        .job-row-label { flex: 0 0 100%; }
+        .job-row-detail { margin-left: 0; }
+      }
       #t-photo-warn {
         font-size: 0.75rem;
         color: #b44;
@@ -829,6 +885,22 @@
         <button class="admin-tab auth-only" data-tab="location" hidden>Location</button>
       </div>
 
+      <!-- ── JOB STATUS ───────────────────────────── -->
+      <div class="job-status auth-only" id="job-status" hidden>
+        <button
+          class="job-status-summary"
+          id="job-status-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="job-status-detail"
+        >
+          <span class="job-dot" id="job-status-dot"></span>
+          <span id="job-status-text">Checking background jobs…</span>
+          <span class="job-status-caret" id="job-status-caret" aria-hidden="true">▸</span>
+        </button>
+        <div class="job-status-detail" id="job-status-detail" hidden></div>
+      </div>
+
       <!-- ── LOGIN ────────────────────────────────── -->
       <div class="admin-section active" id="tab-login">
 
@@ -1199,7 +1271,10 @@
         if (signedIn) {
           loadThinkingArchive();
           loadReadingArchive();
+          loadJobStatus();
         } else {
+          var jobStatus = document.getElementById("job-status");
+          if (jobStatus) jobStatus.hidden = true;
           var archiveWrap = document.getElementById("thinking-archive-admin");
           if (archiveWrap) archiveWrap.hidden = true;
           var readingLatestWrap = document.getElementById("reading-latest-archive");
@@ -1738,6 +1813,123 @@
         b.addEventListener("click", function (e) {
           e.preventDefault();
           set(h.getAttribute("data-theme") === "dark" ? "light" : "dark");
+        });
+      })();
+
+      // ── Background job status ──────────────────────────────────────────────
+
+      function jobRelativeTime(iso) {
+        if (!iso) return "never";
+        var then = Date.parse(iso);
+        if (isNaN(then)) return "unknown";
+        var mins = Math.round((Date.now() - then) / 60000);
+        if (mins < 1) return "just now";
+        if (mins < 60) return mins + "m ago";
+        var hours = Math.round(mins / 60);
+        if (hours < 48) return hours + "h ago";
+        return Math.round(hours / 24) + "d ago";
+      }
+
+      function jobStateLabel(job) {
+        if (job.status === "never") return "never run";
+        if (job.status === "failed") return "failed";
+        if (job.stale) return "stale";
+        if (job.status === "skipped") return "skipped";
+        return "ok";
+      }
+
+      function renderJobStatus(data) {
+        var wrap = document.getElementById("job-status");
+        var text = document.getElementById("job-status-text");
+        var detail = document.getElementById("job-status-detail");
+        var jobs = data.jobs || [];
+
+        wrap.classList.remove("ok", "bad");
+        wrap.classList.add(data.healthy ? "ok" : "bad");
+
+        if (data.healthy) {
+          text.textContent =
+            "All background jobs healthy · " + jobs.length + " tracked";
+        } else {
+          var bad = jobs.filter(function (j) {
+            return j.status === "failed" || j.stale || j.failures > 0;
+          });
+          var names = bad
+            .map(function (j) {
+              return j.label + " " + jobStateLabel(j);
+            })
+            .join(", ");
+          text.textContent =
+            bad.length + (bad.length === 1 ? " problem: " : " problems: ") + names;
+        }
+
+        detail.innerHTML = "";
+        jobs.forEach(function (job) {
+          var row = document.createElement("div");
+          // `stale` already covers a scheduled job that has never run; an
+          // event-driven job with no runs yet is unknown, not broken.
+          var isBad = job.status === "failed" || job.stale;
+          row.className = "job-row" + (isBad ? " bad" : "");
+
+          var label = document.createElement("span");
+          label.className = "job-row-label";
+          label.textContent = job.label;
+
+          var state = document.createElement("span");
+          state.className = "job-row-state";
+          state.textContent = jobStateLabel(job);
+
+          var when = document.createElement("span");
+          when.className = "job-row-when";
+          when.textContent =
+            jobRelativeTime(job.last_run_at) +
+            (job.failures ? " · " + job.failures + " failed in " + data.days + "d" : "");
+
+          row.appendChild(label);
+          row.appendChild(state);
+          row.appendChild(when);
+
+          if (job.detail) {
+            var msg = document.createElement("span");
+            msg.className = "job-row-detail";
+            msg.textContent = job.detail;
+            row.appendChild(msg);
+          }
+          detail.appendChild(row);
+        });
+      }
+
+      async function loadJobStatus() {
+        var wrap = document.getElementById("job-status");
+        var text = document.getElementById("job-status-text");
+        if (!wrap || !text) return;
+        if (!loadSession()) {
+          wrap.hidden = true;
+          return;
+        }
+        wrap.hidden = false;
+        text.textContent = "Checking background jobs…";
+        try {
+          var data = await callAPI({ action: "job-status", days: 7 });
+          renderJobStatus(data);
+        } catch (err) {
+          wrap.classList.remove("ok");
+          wrap.classList.add("bad");
+          text.textContent =
+            "Could not load job status — " + (err.message || "request failed");
+        }
+      }
+
+      (function () {
+        var toggle = document.getElementById("job-status-toggle");
+        if (!toggle) return;
+        toggle.addEventListener("click", function () {
+          var detail = document.getElementById("job-status-detail");
+          var caret = document.getElementById("job-status-caret");
+          var open = detail.hidden;
+          detail.hidden = !open;
+          toggle.setAttribute("aria-expanded", open ? "true" : "false");
+          if (caret) caret.textContent = open ? "▾" : "▸";
         });
       })();
 

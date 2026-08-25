@@ -41,11 +41,22 @@ import {
   resolveLocationLabelForDatetime,
 } from "./location.mjs";
 import { syncOuraSteps, getOuraStepsSummary } from "./oura.mjs";
+import {
+  recordJobRun,
+  runJob,
+  pruneJobRuns,
+  getJobStatus,
+  JOB_STATUS,
+} from "./job-runs.mjs";
 
 /**
  * Cloudflare Worker: admin API for rommy.blog
  *
  * Content is stored in Cloudflare D1. Static site is rebuilt via Pages deploy hook.
+ *
+ * Background job outcomes (cron sync, rebuild, syndication) are recorded to the
+ * job_runs table and surfaced by the /admin/ status strip via the `job-status`
+ * action. Apply worker/migrate-job-runs.sql before deploying this Worker.
  *
  * Secrets (wrangler secret put):
  *   ADMIN_PASSWORD        — shared password for /admin/
@@ -293,6 +304,16 @@ export default {
       }
     }
 
+    if (action === "job-status") {
+      try {
+        const days = Math.min(Math.max(Number(payload.days) || 7, 1), 90);
+        const status = await getJobStatus(db, { days });
+        return json({ ok: true, ...status }, 200, cors);
+      } catch (err) {
+        return json({ error: err.message || "Job status failed" }, 500, cors);
+      }
+    }
+
     if (action === "backfill-thinking-locations") {
       try {
         const result = await handleBackfillThinkingLocations(db, env);
@@ -436,13 +457,15 @@ export default {
   async scheduled(event, env, ctx) {
     if (!env.DB) return;
     try {
-      const result = await syncOuraSteps(env.DB, env);
+      const result = await runJob(env.DB, "oura-sync", () => syncOuraSteps(env.DB, env));
       if (result.upserted > 0) {
         ctx.waitUntil(triggerRebuild(env));
       }
     } catch (err) {
+      // runJob already recorded the failure; keep the cron from throwing.
       console.error("Oura scheduled sync failed", err);
     }
+    ctx.waitUntil(pruneJobRuns(env.DB));
   },
 };
 
@@ -569,8 +592,27 @@ async function dbAll(db, sql, ...params) {
 }
 
 async function triggerRebuild(env) {
+  const startedAt = Date.now();
+  // Never throws: a failed rebuild must not fail the publish that requested it.
+  // It is recorded instead, and surfaced by the /admin/ status strip.
+  const record = (status, detail) =>
+    recordJobRun(env.DB, {
+      job: "rebuild",
+      status,
+      detail,
+      durationMs: Date.now() - startedAt,
+    });
+
   if (env.PAGES_DEPLOY_HOOK) {
-    await fetch(env.PAGES_DEPLOY_HOOK, { method: "POST" }).catch(() => {});
+    try {
+      const res = await fetch(env.PAGES_DEPLOY_HOOK, { method: "POST" });
+      await record(
+        res.ok ? JOB_STATUS.OK : JOB_STATUS.FAILED,
+        res.ok ? null : `Deploy hook returned HTTP ${res.status}`
+      );
+    } catch (err) {
+      await record(JOB_STATUS.FAILED, err?.message || String(err));
+    }
     return;
   }
   // Fallback: GitHub workflow dispatch
@@ -578,20 +620,31 @@ async function triggerRebuild(env) {
     const owner = env.GITHUB_OWNER || "fingerguns";
     const repo = env.GITHUB_REPO || "blog";
     const branch = env.GITHUB_BRANCH || "main";
-    await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/actions/workflows/build.yml/dispatches`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${env.GITHUB_TOKEN}`,
-          Accept: "application/vnd.github+json",
-          "User-Agent": "rommy-blog-admin-worker",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ ref: branch }),
-      }
-    ).catch(() => {});
+    try {
+      const res = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/actions/workflows/build.yml/dispatches`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+            Accept: "application/vnd.github+json",
+            "User-Agent": "rommy-blog-admin-worker",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ ref: branch }),
+        }
+      );
+      await record(
+        res.ok ? JOB_STATUS.OK : JOB_STATUS.FAILED,
+        res.ok ? null : `workflow_dispatch returned HTTP ${res.status}`
+      );
+    } catch (err) {
+      await record(JOB_STATUS.FAILED, err?.message || String(err));
+    }
+    return;
   }
+
+  await record(JOB_STATUS.SKIPPED, "No PAGES_DEPLOY_HOOK or GITHUB_TOKEN configured");
 }
 
 async function savePostVersion(db, slug, title, summary, bodyHtml) {
@@ -814,8 +867,9 @@ async function handleThinking(payload, db, cors, env, ctx) {
         } else {
           microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, text);
         }
+        await recordSyndicationSuccess(env, "micro.blog");
       } catch (mbErr) {
-        microblogWarning = formatServiceWarning("micro.blog", mbErr.message);
+        microblogWarning = await recordServiceFailure(env, "micro.blog", mbErr);
       }
     }
 
@@ -893,8 +947,9 @@ async function handleThinking(payload, db, cors, env, ctx) {
           blueskyLinkCard,
           blueskyVideo
         );
+        await recordSyndicationSuccess(env, "Bluesky");
       } catch (bsErr) {
-        blueskyWarning = formatServiceWarning("Bluesky", bsErr.message);
+        blueskyWarning = await recordServiceFailure(env, "Bluesky", bsErr);
       }
     }
 
@@ -928,8 +983,9 @@ async function handleThinking(payload, db, cors, env, ctx) {
         }
 
         mastodonUrl = await postToMastodon(mastodonInstance, env.MASTODON_ACCESS_TOKEN, mastodonText, mastodonMedia);
+        await recordSyndicationSuccess(env, "Mastodon");
       } catch (msErr) {
-        mastodonWarning = formatServiceWarning("Mastodon", msErr.message);
+        mastodonWarning = await recordServiceFailure(env, "Mastodon", msErr);
       }
     }
 
@@ -1037,6 +1093,37 @@ function formatServiceError(service, message) {
   const msg = message || "Something went wrong.";
   if (msg.startsWith(`${service}:`) || msg.startsWith(`${service} —`)) return msg;
   return `${service}: ${msg}`;
+}
+
+// Syndication outcomes are recorded per service so a failure survives the
+// admin response that reports it — closing the tab used to lose it entirely.
+const SYNDICATION_JOBS = {
+  "micro.blog": "syndicate:microblog",
+  Bluesky: "syndicate:bluesky",
+  Mastodon: "syndicate:mastodon",
+};
+
+function syndicationJob(service) {
+  return SYNDICATION_JOBS[service] || `syndicate:${service.toLowerCase()}`;
+}
+
+async function recordSyndicationSuccess(env, service, context = null) {
+  await recordJobRun(env.DB, {
+    job: syndicationJob(service),
+    status: JOB_STATUS.OK,
+    context,
+  });
+}
+
+/** Records the failure and returns the same warning string the caller used before. */
+async function recordServiceFailure(env, service, err, context = null) {
+  await recordJobRun(env.DB, {
+    job: syndicationJob(service),
+    status: JOB_STATUS.FAILED,
+    context,
+    detail: err?.message || String(err),
+  });
+  return formatServiceWarning(service, err?.message);
 }
 
 function formatServiceWarning(service, message) {
@@ -1971,16 +2058,18 @@ async function syndicateText(env, content, linkUrl = null) {
   if (env.MICROBLOG_TOKEN) {
     try {
       await postToMicroblog(env.MICROBLOG_TOKEN, content);
+      await recordSyndicationSuccess(env, "micro.blog");
     } catch (mbErr) {
-      microblogWarning = formatServiceWarning("micro.blog", mbErr.message);
+      microblogWarning = await recordServiceFailure(env, "micro.blog", mbErr);
     }
   }
 
   if (env.BLUESKY_HANDLE && env.BLUESKY_APP_PASSWORD) {
     try {
       await postToBluesky(env.BLUESKY_HANDLE, env.BLUESKY_APP_PASSWORD, content, null, linkCard);
+      await recordSyndicationSuccess(env, "Bluesky");
     } catch (bsErr) {
-      blueskyWarning = formatServiceWarning("Bluesky", bsErr.message);
+      blueskyWarning = await recordServiceFailure(env, "Bluesky", bsErr);
     }
   }
 
@@ -1988,8 +2077,9 @@ async function syndicateText(env, content, linkUrl = null) {
     const mastodonInstance = (env.MASTODON_INSTANCE || DEFAULT_MASTODON_INSTANCE).replace(/\/$/, "");
     try {
       await postToMastodon(mastodonInstance, env.MASTODON_ACCESS_TOKEN, content);
+      await recordSyndicationSuccess(env, "Mastodon");
     } catch (msErr) {
-      mastodonWarning = formatServiceWarning("Mastodon", msErr.message);
+      mastodonWarning = await recordServiceFailure(env, "Mastodon", msErr);
     }
   }
 
@@ -2170,7 +2260,7 @@ async function handleDeleteThinking(payload, db, cors, env, ctx) {
       try {
         await deleteFromMicroblog(env.MICROBLOG_TOKEN, mbUrl);
       } catch (mbErr) {
-        microblogWarning = formatServiceWarning("micro.blog", mbErr.message);
+        microblogWarning = await recordServiceFailure(env, "micro.blog", mbErr, "delete");
       }
     } else if (env.MICROBLOG_TOKEN && !mbUrl) {
       microblogWarning = formatServiceWarning(
@@ -2188,7 +2278,7 @@ async function handleDeleteThinking(payload, db, cors, env, ctx) {
           await deleteFromBluesky(env.BLUESKY_HANDLE, env.BLUESKY_APP_PASSWORD, blueskyUri);
           blueskyDeleted = true;
         } catch (bsErr) {
-          blueskyWarning = formatServiceWarning("Bluesky", bsErr.message);
+          blueskyWarning = await recordServiceFailure(env, "Bluesky", bsErr, "delete");
         }
       } else {
         blueskySkipped = true;
@@ -2204,7 +2294,7 @@ async function handleDeleteThinking(payload, db, cors, env, ctx) {
           await deleteFromMastodon(mastodonInstance, env.MASTODON_ACCESS_TOKEN, mastodonUri);
           mastodonDeleted = true;
         } catch (msErr) {
-          mastodonWarning = formatServiceWarning("Mastodon", msErr.message);
+          mastodonWarning = await recordServiceFailure(env, "Mastodon", msErr, "delete");
         }
       }
     }

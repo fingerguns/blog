@@ -149,3 +149,16 @@ CREATE TABLE IF NOT EXISTS oura_daily_activity (
 
 CREATE INDEX IF NOT EXISTS idx_oura_daily_activity_day ON oura_daily_activity(day);
 CREATE INDEX IF NOT EXISTS idx_anthropic_usage_feature ON anthropic_usage(feature);
+
+CREATE TABLE IF NOT EXISTS job_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  job TEXT NOT NULL,
+  status TEXT NOT NULL,
+  context TEXT,
+  detail TEXT,
+  duration_ms INTEGER,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_runs_created_at ON job_runs(created_at);
+CREATE INDEX IF NOT EXISTS idx_job_runs_job ON job_runs(job, created_at);

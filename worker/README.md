@@ -120,6 +120,7 @@ Output directory: `dist`
 | `thinking` | Update thinking text in D1 |
 | `thinking-video-upload-url` | Presigned PUT URL for direct video upload to R2 |
 | `list-thinking` | List Thinking archive from D1 |
+| `job-status` | Background job health for the /admin/ status strip |
 | `post` | Publish new writing post |
 | `edit-post` | Edit post (saves version history) |
 | `delete-post` | Delete a published writing post |
@@ -206,6 +207,21 @@ npm run anthropic-usage -- 7   # last 7 days
 ```
 
 Estimates use approximate Fable list rates; check [Anthropic Console → Cost](https://platform.claude.com/cost) for billed amounts.
+
+### Background job status
+
+Cron syncs, site rebuilds, and syndication attempts each append a row to `job_runs`, so a failure survives the response that reported it. Before deploying the Worker:
+
+```bash
+cd worker
+wrangler d1 execute rommy-blog-db --file=migrate-job-runs.sql --remote
+```
+
+The `/admin/` header shows a one-line summary — green when everything is healthy, red with the failing job names when it is not — and expands to a per-job list with the last run time and error text.
+
+Jobs on a schedule (`oura-sync`, `rebuild`) carry a staleness threshold, so one that stops firing is reported as stale rather than staying quietly green. Jobs that fire on publish (`syndicate:*`) have no threshold — for those, "never run" means you have not posted since deploying, not a fault.
+
+Rows older than 30 days are pruned by the scheduled handler. Read-side logic is covered by `npm test`.
 
 ### Location tracking (Overland)
 

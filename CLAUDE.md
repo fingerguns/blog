@@ -36,9 +36,12 @@ npm run backfill-linklog-tags        # assign Sharing (linklog) topic tags via C
 npm run backfill-thinking-locations  # backfill neighborhood labels on Thinking posts from GPS log
 npm run backfill-oura                # sync Oura step history into D1
 npm run anthropic-usage              # Anthropic token usage summary (last 30 days)
+
+npm test                             # node --test over scripts/lib/*.test.mjs
+npm run lint:md                      # markdownlint-cli2
 ```
 
-There are no tests and no lint config in this repo.
+`npm test` runs `node --test` over `scripts/lib/*.test.mjs` (no test framework, no config). Markdown is linted by `npm run lint:md` (`markdownlint-cli2`); there is no JS linter.
 
 `.env` at repo root holds `CF_ACCOUNT_ID`, `CF_API_TOKEN`, `CF_D1_DATABASE_ID` (D1 read access for the build) and `ADMIN_PASSWORD`. Build scripts are invoked as `node --env-file=.env scripts/build.mjs`.
 

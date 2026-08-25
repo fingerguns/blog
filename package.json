@@ -4,6 +4,7 @@
   "description": "Static minimalist blog with Atom feed; optional Node build for index + feed",
   "scripts": {
     "build": "node --env-file=.env scripts/build.mjs",
+    "test": "node --test scripts/lib/*.test.mjs",
     "backfill-video-posters": "node --env-file=.env scripts/backfill-video-posters.mjs",
     "refresh-section-hints": "node --env-file=.env scripts/refresh-section-hints.mjs",
     "refresh-reading-tab-intros": "node --env-file=.env scripts/refresh-reading-tab-intros.mjs",
