@@ -31,6 +31,7 @@ import {
   loadBuildCache,
   saveBuildCache,
 } from "./lib/build-cache.mjs";
+import { MAX_TEXT, truncate as truncateSearchText } from "./lib/search.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
@@ -759,7 +760,7 @@ ${gaSnippet}
       <a class="back-to-top" href="#">↑ Top</a>
       <footer class="site-footer">
         <p class="footer-row">&copy; 2026 ${escHtml(site.author)}<a href="#" class="theme-toggle" id="theme-toggle"></a></p>
-        <p class="footer-row"><span><a href="../../feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
+        <p class="footer-row"><span><a href="../../feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/search/">Search</a> // <a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
@@ -1334,7 +1335,7 @@ ${socialsHtml}
 
       <footer class="site-footer">
         <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><a href="#" class="theme-toggle" id="theme-toggle"></a></p>
-        <p class="footer-row"><span>Subscribe via <a href="feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a>.</span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
+        <p class="footer-row"><span>Subscribe via <a href="feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a>.</span><span><a href="/search/">Search</a> // <a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
 
 ${colophonSection}    </main>
@@ -1417,7 +1418,7 @@ ${extraHead}
 
 const archiveFoot = (extraScripts = "") => `      <footer class="site-footer">
         <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><a href="#" class="theme-toggle" id="theme-toggle"></a></p>
-        <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
+        <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/search/">Search</a> // <a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
@@ -1558,7 +1559,7 @@ if(filterBtns.length){
 
 const thinkingArchiveFoot = `      <footer class="site-footer">
         <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><a href="#" class="theme-toggle" id="theme-toggle"></a></p>
-        <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
+        <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/search/">Search</a> // <a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
@@ -1818,7 +1819,7 @@ ${thinkingPostCrumb(iso)}`;
 
 const thinkingPostFoot = `      <footer class="site-footer">
         <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><a href="#" class="theme-toggle" id="theme-toggle"></a></p>
-        <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
+        <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/search/">Search</a> // <a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
@@ -2126,7 +2127,7 @@ const readingArchiveScript = `    <script>(function(){var wrap=document.querySel
 
 const readingArchiveFoot = `      <footer class="site-footer">
         <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><a href="#" class="theme-toggle" id="theme-toggle"></a></p>
-        <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
+        <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/search/">Search</a> // <a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'light');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
@@ -2207,6 +2208,65 @@ ${urls
 </urlset>
 `;
 
+// ── Search ──────────────────────────────────────────────────────────────────
+// The whole corpus is a few hundred short items, so the index ships as one
+// JSON file and matching runs in the browser. See scripts/lib/search.mjs.
+const searchDocs = [
+  ...ordered.map((p) => ({
+    k: "writing",
+    t: p.title || "",
+    x: truncateSearchText(`${p.summary || ""} ${stripHtml(p.body_html)}`.trim(), MAX_TEXT),
+    u: `/posts/${safeSlug(p.slug)}/`,
+    d: p.datetime || p.date || "",
+  })),
+  ...microblogItems.map((item) => ({
+    k: "thinking",
+    t: "",
+    x: truncateSearchText(stripHtml(stripMediaMarkup(item.content_html)), MAX_TEXT),
+    u: `/thinking/${thinkingSlug(item)}/`,
+    d: item.date_published || "",
+  })),
+  ...orderedReading.map((r) => ({
+    k: "reading",
+    t: r.title || "",
+    x: r.author || "",
+    u: r.url || "/reading/latest/",
+    d: r.ym || r.added_at || "",
+  })),
+  ...orderedReadingFavorites.map((r) => ({
+    k: "must-read",
+    t: r.title || "",
+    x: r.author || "",
+    u: r.url || "/reading/must-reads/",
+    d: r.added_at || "",
+  })),
+  ...orderedLinklog.map((l) => ({
+    k: "sharing",
+    t: l.title || "",
+    x: linkDomain(l.url) || "",
+    u: l.url || "/sharing/",
+    d: l.datetime || l.date || "",
+  })),
+  // A Thinking note with no text (a bare photo, say) has nothing to match on.
+].filter((doc) => doc.t || doc.x);
+
+const searchPageHtml = `${archiveHead("Search", null)}
+      <form class="search-form" id="search-form" role="search">
+        <label class="visually-hidden" for="search-input">Search this site</label>
+        <input
+          id="search-input"
+          type="search"
+          name="q"
+          placeholder="Search writing, thinking, reading, sharing…"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+        />
+      </form>
+      <p class="search-status" id="search-status" aria-live="polite"></p>
+      <ul class="search-results" id="search-results"></ul>
+${archiveFoot(`    <script type="module" src="/search.js?v=${cssV}"></script>`)}`;
+
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 
@@ -2280,6 +2340,15 @@ ${thinkingPostFoot}`;
   mkdirSync(join(outDir, "thinking", slug), { recursive: true });
   writeFileSync(join(outDir, "thinking", slug, "index.html"), postHtml, "utf8");
 }
+
+mkdirSync(join(outDir, "search"), { recursive: true });
+writeFileSync(join(outDir, "search/index.html"), searchPageHtml, "utf8");
+writeFileSync(join(outDir, "search-index.json"), JSON.stringify(searchDocs), "utf8");
+// search.mjs is plain ES module JS with no Node APIs, so it ships to the
+// browser as-is. search-page.mjs imports it as "./search-core.js", the name it
+// takes in dist/ — that specifier is only ever resolved by the browser.
+cpSync(join(root, "scripts/lib/search.mjs"), join(outDir, "search-core.js"));
+cpSync(join(root, "scripts/lib/search-page.mjs"), join(outDir, "search.js"));
 
 // Writing post pages
 for (const p of ordered) {

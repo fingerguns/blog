@@ -1851,3 +1851,86 @@ footer.site-footer code {
   white-space: nowrap;
   border: 0;
 }
+
+/* ── Search (/search/) ───────────────────────────────────────────────────── */
+
+.search-form {
+  margin: 0 0 1rem;
+}
+
+#search-input {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+#search-input:focus {
+  outline: none;
+  border-color: var(--link);
+}
+
+.search-status {
+  margin: 0 0 1.5rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.search-results {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* Deliberately not .post-list: that is a 6.5rem/1fr grid, and archiveFoot
+   binds a batch-reveal script to .post-list that would hide results. */
+.search-result {
+  padding: 0.9rem 0;
+  border-top: 1px solid var(--rule);
+}
+
+.search-result-title {
+  display: block;
+  font-size: 0.98rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.search-result-meta {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.search-kind {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.search-result-snippet {
+  margin: 0.45rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.search-results mark {
+  padding: 0 0.1em;
+  color: inherit;
+  background: rgba(255, 214, 0, 0.35);
+  border-radius: 2px;
+}
+
+[data-theme="dark"] .search-results mark {
+  background: rgba(255, 214, 0, 0.22);
+}
