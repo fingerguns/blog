@@ -8,12 +8,15 @@ Moving the repo's source of truth to [Cursor Origin](https://cursor.com/codebase
 
 ### What is actually coupled to GitHub
 
-Four things, and only one of them is the git remote:
+Five things, and only one of them is the git remote:
 
 - The git remote itself, `https://github.com/fingerguns/blog.git`
 - Three GitHub Actions workflows in `.github/workflows/`
 - The Cloudflare Pages project `rommy-blog`, which builds on push to `main`
 - The admin Worker's `triggerRebuild()`, which posts to a Pages deploy hook and falls back to a GitHub `workflow_dispatch`
+- Public-facing references and identity — repo and profile links rendered into the live site, one of them carrying `rel="me"`. Covered in [section 8.1](#81-three-references-phase-4-missed)
+
+Separately, GitHub is doing three jobs nothing in Phases 1–5 replaces: offsite backup of history, public source browsing, and secret scanning. See [Phase 6](#8-phase-6--closing-the-remaining-github-dependencies).
 
 ### What is not coupled to GitHub
 
@@ -495,6 +498,230 @@ Until you delete the GitHub repo, rollback is cheap:
 - Restore `PAGES_DEPLOY_HOOK` as a Worker secret and revert `triggerRebuild()`
 
 Only retire the GitHub repo once step 6 has passed a few times on real posts.
+
+---
+
+## 8. Phase 6 — Closing the remaining GitHub dependencies
+
+Phases 1–5 move the repo and rebuild the deploy pipeline. What they do not cover is everything GitHub was doing for you *besides* hosting git: offsite backup, public source browsing, secret scanning, and issue tracking. This phase closes those, and fixes three references the Phase 4 audit missed.
+
+### 8.1 Three references Phase 4 missed
+
+**`scripts/d1-client.mjs` line 229** — the site footer nav includes a GitHub profile link:
+
+```229:229:scripts/d1-client.mjs
+      { label: "GitHub", url: "https://github.com/fingerguns" },
+```
+
+It renders through `scripts/build.mjs` line 1229, which applies `rel="me noopener"` to every footer link. Recommended: drop the entry, or repoint it at whichever public mirror you choose in [section 8.5](#85-public-source-browsing).
+
+**That `rel="me"` has a consequence.** GitHub is currently one of your IndieAuth identity links. If you ever signed in to [webmention.io](https://webmention.io) through the GitHub `rel=me` chain, removing the account can lock you out of the service that receives Writing comments. Bluesky, Mastodon, and micro.blog are also `rel="me"` (`scripts/build.mjs` lines 1240–1246), so identity is recoverable — but **verify webmention.io sign-in through a non-GitHub identity before deleting anything on GitHub**, not after.
+
+**`data/posts.json`** carries a GitHub link in the legacy fallback data used when D1 env vars are absent. Cosmetic, but it should match the footer.
+
+### 8.2 The concentration problem
+
+Worth stating plainly before the remedies. After Phase 3, Cloudflare runs D1 (all content), R2 (all media), Pages (hosting), Workers (the admin API), Containers (CI), and DNS. Origin holds the only copy of source history. GitHub, whatever else it was, was a full copy of that history on infrastructure outside this stack — and Phase 1 removes it.
+
+The two backup jobs below exist to make this migration a genuine de-risking rather than a lateral move. They are the highest-value part of Phase 6.
+
+```mermaid
+flowchart LR
+  A[(D1)] -->|daily| B[Builder container]
+  C[Local repo] -->|on push| D[git bundle]
+  B --> E[(R2: rommy-blog-backups)]
+  D --> E
+  C -->|git push| F[Origin]
+  C -->|git push| G[Codeberg]
+```
+
+### 8.3 Content backup — D1 export to R2
+
+Your writing exists in exactly one place. This is the single most important item in Phase 6.
+
+**Prerequisite:** the token from [section 2](#a-cloudflare-token-that-can-deploy) needs one more permission beyond the three already listed — `Account / R2 / Edit`. Then create the bucket:
+
+```bash
+wrangler r2 bucket create rommy-blog-backups
+```
+
+Add a `/backup` route to `builder/index.js`, alongside `/build`:
+
+```js
+if (pathname === "/backup" && request.method === "POST") {
+  return container.fetch(new Request("http://container/backup", { method: "POST" }));
+}
+```
+
+And the handler in `builder/server.mjs`:
+
+```js
+async function backup() {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const out = `/tmp/d1-${stamp}.sql`;
+  try {
+    await run("wrangler", ["d1", "export", "rommy-blog-db", "--remote", `--output=${out}`], { cwd: "/app" });
+    await run("wrangler", ["r2", "object", "put", `rommy-blog-backups/d1/${stamp}.sql`,
+      `--file=${out}`, "--remote"], { cwd: "/app" });
+    console.log(`d1 backup uploaded: d1/${stamp}.sql`);
+  } catch (err) {
+    console.error("backup failed", String(err.stderr || err));
+  }
+}
+```
+
+Then route it in the `createServer` block the same way `/build` is routed.
+
+Trigger it from the admin Worker's existing cron. `worker/update-thinking.js` lines 436–446 already run every four hours for the Oura sync; take the first run of the day:
+
+```js
+async scheduled(event, env, ctx) {
+  if (!env.DB) return;
+  if (new Date(event.scheduledTime).getUTCHours() < 4 && env.BUILDER) {
+    ctx.waitUntil(env.BUILDER.fetch("https://builder/backup", { method: "POST" }).catch(() => {}));
+  }
+  try {
+    const result = await syncOuraSteps(env.DB, env);
+    if (result.upserted > 0) {
+      ctx.waitUntil(triggerRebuild(env));
+    }
+  } catch (err) {
+    console.error("Oura scheduled sync failed", err);
+  }
+},
+```
+
+This reuses the `BUILDER` service binding added in [section 5.2](#52-admin-worker) — no new infrastructure.
+
+**On size:** `location_points` holds every Overland fix and will dominate the dump. If exports get unwieldy, split them — `--table` accepts a specific table, so content tables and location data can go to different keys on different schedules.
+
+**Retention.** Daily dumps accumulate. Add a lifecycle rule so old snapshots expire on their own:
+
+```bash
+wrangler r2 bucket lifecycle add rommy-blog-backups --prefix d1/ --expire-days 90
+```
+
+**Prove it restores.** A backup nobody has restored is a hypothesis. Once:
+
+```bash
+wrangler d1 create rommy-blog-db-restoretest
+wrangler d1 execute rommy-blog-db-restoretest --remote --file=d1-YYYY-MM-DD.sql
+wrangler d1 execute rommy-blog-db-restoretest --remote \
+  --command="select count(*) from posts; select count(*) from thinking_posts;"
+wrangler d1 delete rommy-blog-db-restoretest
+```
+
+### 8.4 Repo backup — git bundle to R2
+
+A single file containing all refs and history, restorable with `git clone`. The builder container cannot produce this: `.git` is excluded by the `.dockerignore` in [section 4.5](#45-builderdockerfile), which is also why the changelog has to be baked in at image-build time. So this runs locally, alongside the push step you already perform deliberately.
+
+Add `scripts/backup-repo.mjs`:
+
+```js
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+const stamp = new Date().toISOString().slice(0, 10);
+const dir = mkdtempSync(join(tmpdir(), "blog-backup-"));
+const bundle = join(dir, `repo-${stamp}.bundle`);
+
+try {
+  execFileSync("git", ["bundle", "create", bundle, "--all"], { stdio: "inherit" });
+  execFileSync("git", ["bundle", "verify", bundle], { stdio: "inherit" });
+  execFileSync("npx", ["wrangler", "r2", "object", "put",
+    `rommy-blog-backups/repo/${stamp}.bundle`, `--file=${bundle}`, "--remote"],
+    { stdio: "inherit" });
+  console.log(`repo backup uploaded: repo/${stamp}.bundle`);
+} finally {
+  rmSync(dir, { recursive: true, force: true });
+}
+```
+
+`git bundle verify` runs before the upload deliberately — it proves the bundle is clonable rather than assuming it. Wire it into the deploy step from [section 5.3](#53-replace-the-github-actions) so it happens on every source change without being remembered:
+
+```json
+"backup:repo": "node scripts/backup-repo.mjs",
+"deploy:builder": "node scripts/gen-changelog.mjs && npm run backup:repo && cd builder && wrangler deploy"
+```
+
+### 8.5 Public source browsing
+
+Origin repos are Internal or Private only, so [section 6](#6-phase-4--public-facing-links-and-docs) offers a choice between unlinking the source or keeping GitHub alive as an archive. The second is not GitHub-free. Three alternatives:
+
+| Option | Cost | Notes |
+|---|---|---|
+| **Codeberg** ⭐ | Free | Non-profit (Berlin e.V.), runs Forgejo, supports push mirroring. Doubles as a third copy of history. |
+| Self-hosted Forgejo | ~$5/mo | Full control. Wants a stateful container with a volume — a Fly Machine or similar, not Workers. |
+| Serve `/source/` from the site | Build step | Generate a browsable tree into `dist/` at build time. No new vendor, and it suits a site whose colophon already explains its own construction. |
+
+Codeberg is recommended because it solves public browsing and offsite redundancy in one move. Configure it as a second push URL on `origin` so a single `git push` reaches both:
+
+```bash
+git remote set-url --add --push origin https://origin.cursor.com/fingerguns/blog.git
+git remote set-url --add --push origin https://codeberg.org/fingerguns/blog.git
+git remote -v   # expect two (push) lines
+```
+
+The first `set-url --add --push` replaces the implicit default, so **both** lines are required — listing only Codeberg would silently stop pushing to Origin.
+
+Then repoint the two colophon links from [section 6](#6-phase-4--public-facing-links-and-docs) at Codeberg instead of unlinking them, and restore the changelog commit links in `scripts/build.mjs` line 1674 against the Codeberg commit URL.
+
+**Sequencing matters here.** Run the history scan in [section 8.6](#86-secret-scanning) *before* the mirror is public. A public mirror of a repo with a secret in its history is worse than no mirror.
+
+### 8.6 Secret scanning
+
+GitHub push protection goes away with GitHub, and this project handles roughly 22 secrets across the Worker and build scripts. `.env` is gitignored and the Worker reads everything from `wrangler secret`, so the current surface looks clean — but confirm it over full history before publishing a mirror:
+
+```bash
+brew install gitleaks
+gitleaks detect --source . --log-opts="--all"
+```
+
+If that comes back clean, keep it clean with a hook. Version it rather than leaving it in `.git/hooks`, which is not tracked:
+
+```bash
+mkdir -p .githooks
+printf '#!/bin/sh\ngitleaks protect --staged --redact\n' > .githooks/pre-commit
+chmod +x .githooks/pre-commit
+git config core.hooksPath .githooks
+```
+
+`core.hooksPath` is local config, so note it in `README.md` for future clones.
+
+### 8.7 Issues and dependency updates
+
+**Issues.** No replacement is proposed, and for a single-author blog none is warranted. The `Obsidian Vault` already in `~/Documents` is the honest answer over adopting a tracker.
+
+**Dependencies.** Dependabot dies with GitHub. The entire surface is `aws4fetch` (Worker runtime), plus `ffmpeg-static` and `markdownlint-cli2` (dev) — and `scripts/build.mjs` imports only Node builtins. Renovate self-hosts and is forge-agnostic if you want automation, but three dependencies do not justify it. Recommended: check manually twice a year, and pin the Wrangler major in `builder/Dockerfile` as [section 4.5](#45-builderdockerfile) already does.
+
+### 8.8 Verification
+
+Additive to [section 7](#7-phase-5--verification); run after those pass.
+
+1. **Token has R2 Edit.** `wrangler r2 bucket list` succeeds and shows `rommy-blog-backups`.
+2. **Repo bundle round-trips.** `npm run backup:repo`, then clone the bundle into a temp directory and confirm `git log` matches.
+3. **D1 backup fires on demand.** POST `/backup` on the builder, then `wrangler r2 object get rommy-blog-backups/d1/<today>.sql` and check the SQL is non-empty.
+4. **D1 backup restores.** The temp-database procedure in [section 8.3](#83-content-backup--d1-export-to-r2). Do this once, properly.
+5. **Cron path works.** Confirm a dump appears without manual triggering after the first scheduled run of the next day.
+6. **History is clean.** `gitleaks detect --log-opts="--all"` reports nothing *before* the Codeberg repo is made public.
+7. **Dual push works.** `git push`, then confirm the new commit appears on both Origin and Codeberg.
+
+### 8.9 Resulting stack
+
+| Role | Choice |
+|---|---|
+| Source of truth | Origin |
+| Public mirror and browsing | Codeberg |
+| CI and build | Cloudflare Container |
+| Hosting, DB, media, API | Cloudflare |
+| Repo backup | `git bundle --all` → R2, on every source deploy |
+| Content backup | D1 export → R2, daily via the existing cron |
+| Issues | Obsidian vault |
+| Secret scanning | gitleaks pre-commit + full-history scan |
+
+Only after [section 8.8](#88-verification) passes — particularly steps 4 and 6 — is retiring the GitHub repository safe.
 
 ---
 
