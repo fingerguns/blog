@@ -231,6 +231,8 @@ Keep them on disk until that build passes — `loadBuildCache` falls back to the
 
 The build's `CF_API_TOKEN` needs **`Account / D1 / Edit`**, not just Read. With a read-only token the cache still serves reads but silently cannot persist anything newly fetched, so every build refetches it.
 
+**Not to be confused with Cloudflare's own "Build cache" setting** (Pages → Settings → Build), which caches `node_modules` and build artifacts between CI runs. That feature is deliberately left **disabled**: `scripts/build.mjs` imports only Node builtins and local `./lib/*` modules, so the build does not need `node_modules` at all, and a full CI run already completes in about 20 seconds. It is also still in beta, and stale-dependency bugs are exactly the kind of silent failure this project has been removing. The name collision is the only reason it is worth mentioning.
+
 Two D1 constraints shaped the implementation, both worth knowing before writing similar code: the REST `/query` endpoint takes a single statement object rather than an array (so `d1Batch` in `scripts/d1-client.mjs` does not work as written), and at most 100 bound parameters are allowed per query, so multi-row writes are chunked. Covered by `npm test`.
 
 ### Background job status
