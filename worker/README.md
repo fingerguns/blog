@@ -120,7 +120,7 @@ Output directory: `dist`
 | `thinking` | Update thinking text in D1 |
 | `thinking-video-upload-url` | Presigned PUT URL for direct video upload to R2 |
 | `list-thinking` | List Thinking archive from D1 |
-| `job-status` | Background job health for the /admin/ status strip |
+| `job-status` | Background job health for the /admin/ Health tab |
 | `post` | Publish new writing post |
 | `edit-post` | Edit post (saves version history) |
 | `delete-post` | Delete a published writing post |

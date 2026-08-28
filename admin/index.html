@@ -156,25 +156,18 @@
       .admin-status.warn { color: var(--text); white-space: pre-line; line-height: 1.55; }
       .admin-status.err { color: #b44; white-space: pre-line; line-height: 1.55; }
       [data-theme="dark"] .admin-status.err { color: #e88; }
-      .job-status {
-        margin: -0.5rem 0 1.75rem;
-        border-bottom: 1px solid var(--rule);
+      /* Health tab: the dot in the tab bar is the at-a-glance indicator, so
+         it has to read from any tab, not just this one. */
+      .tab-dot {
+        display: inline-block;
+        flex: 0 0 auto;
+        width: 0.4rem;
+        height: 0.4rem;
+        margin-right: 0.45rem;
+        border-radius: 50%;
+        background: var(--muted);
+        vertical-align: 0.05em;
       }
-      .job-status-summary {
-        display: flex;
-        align-items: center;
-        gap: 0.55rem;
-        width: 100%;
-        padding: 0.55rem 0;
-        background: none;
-        border: 0;
-        font: inherit;
-        font-size: 0.8rem;
-        color: var(--muted);
-        text-align: left;
-        cursor: pointer;
-      }
-      .job-status-summary:hover { color: var(--text); }
       .job-dot {
         flex: 0 0 auto;
         width: 0.5rem;
@@ -182,12 +175,27 @@
         border-radius: 50%;
         background: var(--muted);
       }
-      .job-status.ok .job-dot { background: #4a8; }
-      .job-status.bad .job-dot { background: #b44; }
-      .job-status.bad .job-status-summary { color: #b44; }
-      [data-theme="dark"] .job-status.bad .job-status-summary { color: #e88; }
-      .job-status-caret { margin-left: auto; font-size: 0.7rem; opacity: 0.7; }
-      .job-status-detail { padding: 0.25rem 0 0.9rem; }
+      .tab-dot.ok, .job-dot.ok { background: #4a8; }
+      .tab-dot.bad, .job-dot.bad { background: #b44; }
+      .health-summary {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        margin: 1.25rem 0 0.75rem;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+      .health-summary.bad { color: #b44; }
+      [data-theme="dark"] .health-summary.bad { color: #e88; }
+      .health-heading {
+        margin: 1.9rem 0 0.35rem;
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .health-empty { font-size: 0.8rem; color: var(--muted); }
       .job-row {
         display: flex;
         align-items: baseline;
@@ -200,17 +208,18 @@
       .job-row-state { flex: 0 0 4.5rem; color: var(--muted); }
       .job-row.bad .job-row-state { color: #b44; }
       [data-theme="dark"] .job-row.bad .job-row-state { color: #e88; }
-      .job-row-when { flex: 0 0 auto; color: var(--muted); }
+      .job-row-when { flex: 0 0 9rem; color: var(--muted); }
       .job-row-detail {
-        flex: 1 1 100%;
-        margin-left: 9.1rem;
+        flex: 1 1 auto;
+        min-width: 0;
         color: var(--muted);
         overflow-wrap: anywhere;
       }
       @media (max-width: 34rem) {
         .job-row { flex-wrap: wrap; gap: 0.4rem; }
         .job-row-label { flex: 0 0 100%; }
-        .job-row-detail { margin-left: 0; }
+        .job-row-when { flex: 0 0 auto; }
+        .job-row-detail { flex: 1 1 100%; }
       }
       #t-photo-warn {
         font-size: 0.75rem;
@@ -883,22 +892,7 @@
         <button class="admin-tab auth-only" data-tab="reading" hidden>Reading</button>
         <button class="admin-tab auth-only" data-tab="sharing" hidden>Sharing</button>
         <button class="admin-tab auth-only" data-tab="location" hidden>Location</button>
-      </div>
-
-      <!-- ── JOB STATUS ───────────────────────────── -->
-      <div class="job-status auth-only" id="job-status" hidden>
-        <button
-          class="job-status-summary"
-          id="job-status-toggle"
-          type="button"
-          aria-expanded="false"
-          aria-controls="job-status-detail"
-        >
-          <span class="job-dot" id="job-status-dot"></span>
-          <span id="job-status-text">Checking background jobs…</span>
-          <span class="job-status-caret" id="job-status-caret" aria-hidden="true">▸</span>
-        </button>
-        <div class="job-status-detail" id="job-status-detail" hidden></div>
+        <button class="admin-tab auth-only" data-tab="health" hidden><span class="tab-dot" id="health-tab-dot"></span>Health</button>
       </div>
 
       <!-- ── LOGIN ────────────────────────────────── -->
@@ -1170,6 +1164,27 @@
         <p class="admin-status" id="loc-status" hidden></p>
       </div>
 
+      <!-- ── HEALTH ───────────────────────────────── -->
+      <div class="admin-section" id="tab-health">
+        <p class="lead">Background jobs: cron syncs, site rebuilds, and each syndication attempt. A job that failed, or a scheduled one that has gone quiet, turns the dot on this tab red.</p>
+
+        <div class="location-toolbar">
+          <button type="button" id="health-refresh">Refresh</button>
+        </div>
+
+        <p class="health-summary" id="health-summary">
+          <span class="job-dot" id="health-dot"></span>
+          <span id="health-summary-text">Checking background jobs…</span>
+        </p>
+
+        <div id="health-jobs"></div>
+
+        <p class="health-heading">Recent runs</p>
+        <div id="health-recent"></div>
+
+        <p class="admin-status" id="health-status" hidden></p>
+      </div>
+
       <footer class="site-footer">
         <p class="footer-row">&copy; 2026 Rommy Ghaly<a href="#" class="theme-toggle" id="theme-toggle"></a></p>
       </footer>
@@ -1273,8 +1288,7 @@
           loadReadingArchive();
           loadJobStatus();
         } else {
-          var jobStatus = document.getElementById("job-status");
-          if (jobStatus) jobStatus.hidden = true;
+          setHealthDot(null);
           var archiveWrap = document.getElementById("thinking-archive-admin");
           if (archiveWrap) archiveWrap.hidden = true;
           var readingLatestWrap = document.getElementById("reading-latest-archive");
@@ -1350,6 +1364,7 @@
             if (target === "thinking") loadThinkingArchive();
             if (target === "reading") loadReadingArchive();
             if (target === "location") loadLocationViewer();
+            if (target === "health") loadJobStatus();
           });
         });
       })();
@@ -1838,14 +1853,67 @@
         return "ok";
       }
 
+      // `healthy` true -> green, false -> red, null -> neutral (signed out, or
+      // not checked yet). The tab dot and the in-tab dot always agree.
+      function setHealthDot(healthy) {
+        [
+          document.getElementById("health-tab-dot"),
+          document.getElementById("health-dot"),
+        ].forEach(function (dot) {
+          if (!dot) return;
+          dot.classList.remove("ok", "bad");
+          if (healthy === true) dot.classList.add("ok");
+          if (healthy === false) dot.classList.add("bad");
+        });
+        var summary = document.getElementById("health-summary");
+        if (summary) summary.classList.toggle("bad", healthy === false);
+        var tab = document.getElementById("health-tab-dot");
+        if (tab && tab.parentElement) {
+          tab.parentElement.title =
+            healthy === true
+              ? "Background jobs healthy"
+              : healthy === false
+                ? "A background job needs attention"
+                : "Background job status unknown";
+        }
+      }
+
+      function jobRow(label, state, when, detail, isBad) {
+        var row = document.createElement("div");
+        row.className = "job-row" + (isBad ? " bad" : "");
+
+        var labelEl = document.createElement("span");
+        labelEl.className = "job-row-label";
+        labelEl.textContent = label;
+
+        var stateEl = document.createElement("span");
+        stateEl.className = "job-row-state";
+        stateEl.textContent = state;
+
+        var whenEl = document.createElement("span");
+        whenEl.className = "job-row-when";
+        whenEl.textContent = when;
+
+        row.appendChild(labelEl);
+        row.appendChild(stateEl);
+        row.appendChild(whenEl);
+
+        if (detail) {
+          var msg = document.createElement("span");
+          msg.className = "job-row-detail";
+          msg.textContent = detail;
+          row.appendChild(msg);
+        }
+        return row;
+      }
+
       function renderJobStatus(data) {
-        var wrap = document.getElementById("job-status");
-        var text = document.getElementById("job-status-text");
-        var detail = document.getElementById("job-status-detail");
+        var text = document.getElementById("health-summary-text");
+        var detail = document.getElementById("health-jobs");
+        var recentWrap = document.getElementById("health-recent");
         var jobs = data.jobs || [];
 
-        wrap.classList.remove("ok", "bad");
-        wrap.classList.add(data.healthy ? "ok" : "bad");
+        setHealthDot(!!data.healthy);
 
         if (data.healthy) {
           text.textContent =
@@ -1865,72 +1933,74 @@
 
         detail.innerHTML = "";
         jobs.forEach(function (job) {
-          var row = document.createElement("div");
           // `stale` already covers a scheduled job that has never run; an
           // event-driven job with no runs yet is unknown, not broken.
           var isBad = job.status === "failed" || job.stale;
-          row.className = "job-row" + (isBad ? " bad" : "");
+          detail.appendChild(
+            jobRow(
+              job.label,
+              jobStateLabel(job),
+              jobRelativeTime(job.last_run_at) +
+                (job.failures
+                  ? " · " + job.failures + " failed in " + data.days + "d"
+                  : ""),
+              job.detail,
+              isBad
+            )
+          );
+        });
 
-          var label = document.createElement("span");
-          label.className = "job-row-label";
-          label.textContent = job.label;
-
-          var state = document.createElement("span");
-          state.className = "job-row-state";
-          state.textContent = jobStateLabel(job);
-
-          var when = document.createElement("span");
-          when.className = "job-row-when";
-          when.textContent =
-            jobRelativeTime(job.last_run_at) +
-            (job.failures ? " · " + job.failures + " failed in " + data.days + "d" : "");
-
-          row.appendChild(label);
-          row.appendChild(state);
-          row.appendChild(when);
-
-          if (job.detail) {
-            var msg = document.createElement("span");
-            msg.className = "job-row-detail";
-            msg.textContent = job.detail;
-            row.appendChild(msg);
-          }
-          detail.appendChild(row);
+        // The run log the header strip had no room for: every recorded run in
+        // the window, newest first, so a job that is failing intermittently
+        // reads differently from one that is simply down.
+        var labels = {};
+        jobs.forEach(function (job) { labels[job.job] = job.label; });
+        recentWrap.innerHTML = "";
+        var recent = data.recent || [];
+        if (recent.length === 0) {
+          var empty = document.createElement("p");
+          empty.className = "health-empty";
+          empty.textContent = "No runs recorded in the last " + data.days + " days.";
+          recentWrap.appendChild(empty);
+          return;
+        }
+        recent.forEach(function (run) {
+          recentWrap.appendChild(
+            jobRow(
+              labels[run.job] || run.job,
+              run.status,
+              jobRelativeTime(run.created_at) +
+                (run.duration_ms ? " · " + run.duration_ms + "ms" : ""),
+              run.detail || run.context,
+              run.status === "failed"
+            )
+          );
         });
       }
 
+      // Runs on sign-in as well as on tab open, so the dot is right before the
+      // Health tab has ever been looked at.
       async function loadJobStatus() {
-        var wrap = document.getElementById("job-status");
-        var text = document.getElementById("job-status-text");
-        if (!wrap || !text) return;
+        var text = document.getElementById("health-summary-text");
+        if (!text) return;
         if (!loadSession()) {
-          wrap.hidden = true;
+          setHealthDot(null);
           return;
         }
-        wrap.hidden = false;
         text.textContent = "Checking background jobs…";
         try {
           var data = await callAPI({ action: "job-status", days: 7 });
           renderJobStatus(data);
         } catch (err) {
-          wrap.classList.remove("ok");
-          wrap.classList.add("bad");
+          setHealthDot(false);
           text.textContent =
             "Could not load job status — " + (err.message || "request failed");
         }
       }
 
       (function () {
-        var toggle = document.getElementById("job-status-toggle");
-        if (!toggle) return;
-        toggle.addEventListener("click", function () {
-          var detail = document.getElementById("job-status-detail");
-          var caret = document.getElementById("job-status-caret");
-          var open = detail.hidden;
-          detail.hidden = !open;
-          toggle.setAttribute("aria-expanded", open ? "true" : "false");
-          if (caret) caret.textContent = open ? "▾" : "▸";
-        });
+        var refresh = document.getElementById("health-refresh");
+        if (refresh) refresh.addEventListener("click", loadJobStatus);
       })();
 
       // ── API ────────────────────────────────────────────────────────────────

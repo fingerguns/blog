@@ -3,7 +3,7 @@
 
 export const JOB_STATUS = { OK: "ok", FAILED: "failed", SKIPPED: "skipped" };
 
-// Jobs the status strip expects to exist. A job listed here but absent from
+// Jobs the admin Health tab expects to exist. A job listed here but absent from
 // job_runs renders as "never run", which is itself a finding — a cron that has
 // never fired looks identical to a healthy one without this list.
 export const KNOWN_JOBS = [
