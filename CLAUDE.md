@@ -8,6 +8,18 @@ Personal blog (rommy.blog) built as a static site generated at deploy time from 
 
 Full feature list and Worker action reference: `README.md`. D1 schema, migrations, and secrets: `worker/README.md`. Admin auth model: `worker/SECURITY.md`.
 
+## Documentation is part of the change, not a follow-up
+
+**Every commit that changes what the site or the admin does also updates the docs that describe it, in the same commit.** Three places, and they drift independently:
+
+- `README.md` — the feature list and the architecture notes.
+- `colophon/index.html`, **plain prose** — what a reader is told the site does.
+- `colophon/index.html`, **Whitman version** — the same facts retold in voice, in the numbered sections. Both versions live in one file, so a diff that touches the file proves nothing; check that you edited both.
+
+Read the existing text for what the change makes *wrong*, not only for something to add — a renamed tab, a changed default, a number that moved. Past drift has all been of that kind: the colophon said Inter for four days after the font became Hanken Grotesk, and quoted a thumbnail size that had doubled.
+
+`.claude/hooks/docs-guard.sh` (wired up in `.claude/settings.json`) refuses a `git commit` that stages `scripts/`, `worker/`, `admin/`, `styles.css`, `_headers`, `build-pages.mjs`, `about/`, or `contact/` without both `README.md` and `colophon/index.html`. It is a backstop for forgetting, not the trigger — write the docs as part of the work. For a change that genuinely needs none (a refactor, a chore, a fix with no visible effect), put `skip-docs` in the commit command; tests-only and docs-only commits pass without it.
+
 ## Skills to reach for in this repo
 
 These aren't project-configured (Claude Code has no per-project skill enablement — they're globally available); load them proactively when the work matches:
