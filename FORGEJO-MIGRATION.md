@@ -4,6 +4,8 @@ Moving the repo's source of truth to [Forgejo](https://forgejo.org) — either h
 
 Companion to [`ORIGIN-MIGRATION.md`](ORIGIN-MIGRATION.md), which analysed the same move to Cursor Origin. Where the two overlap, this document says so rather than repeating the work. **It also corrects one constraint that document got wrong** — see [section 1.3](#13-the-constraint-and-a-correction).
 
+> **Status — 2026-08-28.** No migration has happened. What *has* happened is the low-cost first step this document recommends in [section 10](#verdict): a Codeberg repo exists at `codeberg.org/fingerguns/blog` and `origin` carries two push URLs, so every `git push` reaches GitHub and Codeberg. GitHub remains the source of truth, the only fetch remote, and the forge all CI and tooling still points at. Everything below is unexecuted.
+
 ---
 
 ## 1. Context
@@ -126,7 +128,13 @@ Shared with the Origin plan — [section 2](ORIGIN-MIGRATION.md) there covers th
 
    **Prove `npm run deploy` works while GitHub is still connected.** It is the escape hatch for every later phase, and it is also the thing that confirms section 1.3's correction is true for your account before you rely on it.
 3. **A Forgejo account and empty repo** — Codeberg sign-up, or a provisioned VPS running Forgejo.
-4. **`gitleaks` clean over full history** *before* any public mirror exists. See [section 8.6](ORIGIN-MIGRATION.md) of the Origin plan; it applies unchanged and is a hard gate, not a nicety.
+4. **`gitleaks` clean over full history** *before* any public mirror exists. A hard gate, not a nicety — and it has already earned that description here.
+
+   **Run 2026-08-28, before the Codeberg mirror was populated: not clean.** A Giphy API key committed in `40dbb02` and reverted the same day in `641350e` was still present in history and still authenticating five weeks later, in a repo that was already public. It was revoked before the mirror was pushed; history was deliberately left unrewritten, since rewriting would break every changelog commit link from that point on and un-publish nothing.
+
+   Two lessons this leaves for anyone re-running this plan. Deleting a secret from `HEAD` is not remediation — **revoke at the provider, then verify the old value is dead.** And confirm a revocation with a cache-busted request against a known-bad control: the first three post-revocation checks here returned HTTP 200 from a cached `trending` response and looked like a failed revocation that had in fact succeeded.
+
+   The repo now carries `.githooks/pre-commit` (`gitleaks git --staged`) so the next one is blocked at commit time rather than found five weeks later. It scans staged changes only, so this full-history scan is still the gate before any *new* mirror.
 
 ---
 
@@ -151,6 +159,20 @@ git ls-remote --heads origin       # main present
 Hashes must match exactly. A rewritten hash means the changelog's commit links — and the `git log` the changelog is generated from — would silently diverge.
 
 **Do not delete the GitHub repo in this phase.** It is your rollback for everything that follows, and item 9 in the coupling table still depends on it.
+
+### 4.1 If you are mirroring rather than migrating
+
+The dual-push setup from [section 10](#verdict) is already in place and is the state this repo is actually in:
+
+```bash
+git remote set-url --add --push origin https://github.com/fingerguns/blog.git
+git remote set-url --add --push origin https://codeberg.org/fingerguns/blog.git
+```
+
+Two operational notes that cost an hour to discover:
+
+- **Authentication cannot be completed from inside an agent session.** Nothing there has a TTY, so `git push` fails with `could not read Username ... Device not configured` rather than prompting. Worse, if `GIT_ASKPASS` points at an editor helper whose process has exited (Cursor's `vscode-git-*.sock`), git delegates to it, gets `ECONNREFUSED`, and gives up *without* falling back to a prompt. Authenticate once in a real terminal, or use an SSH key; afterwards `osxkeychain` answers silently and agent-driven pushes work.
+- **The mirror is write-only.** `git fetch` still goes to GitHub alone. Correct for redundancy, wrong the moment you treat Codeberg as a second source of truth. Note also that a failed Codeberg leg makes `git push` report failure *after* GitHub has already accepted the commit — the push errored, but the commit is safely on GitHub.
 
 ---
 
@@ -313,15 +335,9 @@ The concentration problem the Origin document raised is *better* under Option A:
 
 **If the goal is leaving GitHub, Forgejo on Codeberg is a better destination than Cursor Origin** — cheaper, more independent, public browsing intact, issues included, and it keeps a copy of history outside Cloudflare. The Origin plan's container builder was designed around a constraint that does not exist, and this migration inherits the design without inheriting the necessity.
 
-**But nothing here is urgent, and one thing argues for waiting:** the tooling you have been building this week — the drift sweep, the `gh`-based review flow — is GitHub-shaped, and item 9 is untested. The cheap experiment is a **push mirror**: add Codeberg as a second push URL, keep GitHub as the CI-and-tooling forge, and see over a month whether Codeberg is where you actually go to read your own code.
+**But nothing here is urgent, and one thing argues for waiting:** the tooling built this week — the drift sweep, the `gh`-based review flow — is GitHub-shaped, and item 9 is untested. The cheap experiment was a **push mirror**, and it is now done: Codeberg is a second push URL, GitHub stays the CI-and-tooling forge, and the open question is whether over a month Codeberg becomes where you actually go to read your own code.
 
-```bash
-git remote set-url --add --push origin https://github.com/fingerguns/blog.git
-git remote set-url --add --push origin https://codeberg.org/fingerguns/blog.git
-git remote -v   # expect two (push) lines
-```
-
-The first `--add --push` replaces the implicit default, so **both** lines are required — listing only Codeberg would silently stop pushing to GitHub. That buys the offsite-redundancy benefit — the most valuable item on the "for" list — for about two minutes of work and no migration at all.
+The first `--add --push` replaces the implicit default, so **both** lines are required — listing only Codeberg would silently stop pushing to GitHub. See [section 4.1](#41-if-you-are-mirroring-rather-than-migrating) for the commands and the authentication caveats. That buys the offsite-redundancy benefit — the most valuable item on the "for" list — for a few minutes of work and no migration at all.
 
 ---
 
