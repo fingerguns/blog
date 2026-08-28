@@ -42,7 +42,7 @@ Weights reflect what would actually hurt if it broke:
 | Deploy path to Cloudflare Pages | ×3 | **10** — native git integration, zero config | **5** — Pages cannot build from it; `wrangler pages deploy` works from any runner you supply | **5** — identical constraint and identical workaround |
 | Publish-triggered rebuild (admin → live) | ×3 | **9** — deploy hook today, `workflow_dispatch` as fallback | **3** — needs container builder plus a service binding; webhooks need an Origin App | **7** — Forgejo's workflow-dispatch API is a near drop-in for the existing fallback, but needs a runner online |
 | **Agents, review, and tooling** | | | | |
-| Agent & tooling integration | ×3 | **10** — Claude Code cloud routines, `gh`, `/code-review ultra`; the weekly drift sweep runs against it | **3** — Cursor-native automations; Claude Code cloud routine support untested | **2** — no known Claude Code cloud routine support, no `gh`; `tea` exists but nothing here speaks it |
+| Agent & tooling integration | ×3 | **10** — Claude Code cloud routines, `gh`, `/code-review ultra`; the weekly drift sweep runs against it | **3** — Cursor-native automations; Claude Code cloud routine support still untested | **2** — cloud routines **cannot** clone it, confirmed by test (see T2), so the weekly sweep could not follow a migration; no `gh`; `tea` exists but nothing here speaks it |
 | Code review / PRs | ×1 | **9** — mature, plus a bot ecosystem | **5** — Cursor-centric | **7** — Forgejo PRs are solid; no bot ecosystem |
 | Issues & tracking | ×1 | **8** — more than a solo blog needs | **3** — no real tracker | **8** — Forgejo issues, equally sufficient |
 | **Repo, security, maintenance** | | | | |
@@ -69,6 +69,8 @@ Weights reflect what would actually hurt if it broke:
 
 Codeberg is the credible challenger and is not close yet. Origin is not competitive for this stack and the gap is structural, not a matter of maturity: no CI and no public visibility are product decisions, not missing features.
 
+The single largest barrier is **agent tooling**, and as of 2026-08-28 it is measured rather than assumed — see [T2](#3-tripwires). Cloud routines resolve a source URL as a GitHub `owner/repo` no matter which host is given, so migrating the repo would take the weekly drift sweep with it. The documents that keep this decision current depend on the forge the decision is about.
+
 ### Where a challenger already wins
 
 Three rows today, and the pattern in them is the whole argument:
@@ -90,7 +92,7 @@ The condition under which each row's verdict changes. The weekly sweep checks th
 | # | Vector | Tripwire — the switch becomes worth reconsidering when… |
 |---|---|---|
 | T1 | CI/CD | Codeberg's hosted Forgejo Actions leaves limited alpha and offers general availability without a form-gated review, **or** you are already running a always-on server for something else, making a self-hosted runner free at the margin |
-| T2 | Agent & tooling | Claude Code cloud routines accept a non-GitHub git URL — **testable today** with a throwaway routine against any public Codeberg repo. This is the single highest-value unknown in the document |
+| T2 | Agent & tooling | Claude Code cloud routines accept a non-GitHub git URL. **Tested 2026-08-28: they do not.** A one-shot routine pointed at `https://codeberg.org/fingerguns/blog` was *accepted at creation* — the API raised no objection to the host — but the runner then logged `Cloning repository fingerguns/blog`, having discarded the host entirely, and failed with `Check that your GitHub token or credentials have read access`. The repo is public on Codeberg and needs no credentials to clone, so this is not an auth problem: the source URL is resolved as a GitHub `owner/repo` regardless of what host you give it. Fires only when Anthropic ships non-GitHub source support |
 | T3 | Agent & tooling | `/code-review` and the `gh`-based flow gain a Forgejo path, or you stop relying on them |
 | T4 | Publish-triggered rebuild | The Forgejo workflow-dispatch swap is proven end to end on a scratch repo — it is ~10 lines and currently untested |
 | T5 | Secret scanning | A second GitHub-caught-nothing incident, or Forgejo ships native scanning. Note the local `gitleaks` hook already levels this row — it is forge-independent |
@@ -107,7 +109,8 @@ The condition under which each row's verdict changes. The weekly sweep checks th
 ## 4. Honest weaknesses of this document
 
 - **Origin's scores are the least reliable.** They derive from research done for `ORIGIN-MIGRATION.md` rather than from operating it. Anything Cursor has shipped since is unreflected.
-- **T2 is unresolved and cheap to resolve.** It is scored as a 3 for Origin and a 2 for Codeberg on the assumption that GitHub is required; a fifteen-minute experiment would replace an assumption with a fact, and it is the highest-leverage single action available.
+- **T2 is resolved, and it resolved against the challengers.** Codeberg's 2 is now measured rather than assumed. **Origin's 3 is still an assumption** — the same probe has not been run against an `origin.cursor.com` URL, and given the Codeberg result the likeliest outcome is that it fails identically. Worth one more fifteen-minute test if Origin ever becomes a live option.
+- **T2 is now the binding constraint on the whole decision.** The switch threshold requires T2 plus T1 or T4; T2 cannot fire through any effort of yours, only through a change on Anthropic's side. Until then the honest position is that a migration costs the weekly drift sweep — the thing keeping these documents true — and no amount of movement in Codeberg's other rows changes that.
 - **The weights are judgement, not measurement.** They encode "publishing from my phone must keep working" as the dominant constraint. If that stopped being true — if you were happy deploying by hand — CI drops from ×3 to ×1 and Codeberg closes most of the gap immediately.
 - **Scores are a snapshot.** Codeberg's CI position in particular is moving, and it is the row most likely to be stale first.
 
