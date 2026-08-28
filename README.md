@@ -10,14 +10,14 @@ Built with [Cursor](https://cursor.com). See the [colophon](https://rommy.blog/c
 - **Content in D1** — Writing posts, drafts, Reading, Sharing, and the homepage Thinking blurb
 - **Media in R2** — Photos (up to 4 per Thinking post), audio, and video for Thinking; photos for Writing (public bucket)
 - **Photo gallery** — 2–4 Thinking photos render as a cropped, equal-size 2×2 grid; click opens a full-viewport lightbox with prev/next, keyboard arrows, and infinite swipe on mobile
-- **Admin** — Password-protected UI at `/admin/` (Thinking, Writing, Reading, Sharing, Location, Login)
+- **Admin** — Password-protected UI at `/admin/` (Thinking, Writing, Reading, Sharing, Location, Health, Login)
 - **Health tab** — Cron syncs, rebuilds, and syndication attempts record their outcome to D1 (`job_runs`); the **Health** tab in `/admin/` lists every job's last run plus a recent-run log, and its tab dot is green when all jobs are healthy and red when one has failed or a scheduled one has gone stale — visible from whichever tab you're on, so a silent background failure stops being silent
 - **Cross-posting** — Thinking can publish to [Micro.blog](https://micro.blog) (Micropub), [Bluesky](https://bsky.app), and [Mastodon](https://joinmastodon.org) when configured; photos, audio, and video render as native attachments/players in each feed (see [Audio & Video Syndication](#audio--video-syndication) below), with the Thinking permalink included in the syndicated text alongside native media. Writing, Reading, and Sharing cross-posts to Bluesky include link cards; large og:image thumbnails are compressed to ≤ 1 MB before upload
 - **Comments** — [Webmentions](https://webmention.io) on Writing posts: incoming likes, reposts, and replies are received by webmention.io and rendered client-side; [Bridgy](https://brid.gy) bridges Mastodon replies/boosts back in
 - **Writing editor** — [Quill](https://quilljs.com/) with image upload, text wrap (left / right / center / full), drafts, and post version history
 - **Social previews** — Open Graph / Twitter meta on Writing and Thinking permalinks (first in-post image when available)
 - **Plain links in Thinking** — URLs in notes are normal hyperlinks on the site (no on-site unfurl cards), except YouTube links (native video embed) and Spotify links (native track/album/playlist/episode/show/artist embed), which render below the note
-- **Thinking archive views** — [`/thinking/`](https://rommy.blog/thinking/) offers List and Grid views (icon buttons under the heading; choice remembered in `localStorage`). Grid groups notes by month with one square thumbnail per post — photos via edge-resized 512px thumbs, native video via stored JPEG posters, YouTube via preview images, Spotify via album art, or a text-preview card with a type badge. Six type-filter buttons (photo, video, audio, YouTube, Spotify, text) solo-select one kind at a time; all posts show until a filter is chosen; filters apply to list and grid. Links to the archive always land on `/thinking/` unfiltered; choosing a filter updates the URL to a shareable path (`/thinking/images/`, `/thinking/videos/`, `/thinking/audio/`, `/thinking/youtube/`, `/thinking/music/`, `/thinking/text/`). Grid images load lazily when grid view is active
+- **Thinking archive views** — [`/thinking/`](https://rommy.blog/thinking/) offers List and Grid views (icon buttons under the heading; choice remembered in `localStorage`). Grid groups notes by month with one square thumbnail per post — photos via edge-resized 512px thumbs, native video via stored JPEG posters, YouTube via preview images, Spotify via album art, or a text-preview card. Every tile carries a small corner badge for its kind, photo tiles included. Six type-filter buttons (photo, video, audio, YouTube, Spotify, text) solo-select one kind at a time; all posts show until a filter is chosen; filters apply to list and grid. Links to the archive always land on `/thinking/` unfiltered; choosing a filter updates the URL to a shareable path (`/thinking/images/`, `/thinking/videos/`, `/thinking/audio/`, `/thinking/youtube/`, `/thinking/music/`, `/thinking/text/`). Grid images load lazily when grid view is active
 - **Reading archive views** — [`/reading/latest/`](https://rommy.blog/reading/latest/) and [`/reading/must-reads/`](https://rommy.blog/reading/must-reads/) are path-based tabs (URL updates on switch). Sorted by read month (`ym`), not date added. List/grid toggle (remembered in `localStorage`); grid is a storefront-style cover catalog grouped by month (3 columns desktop, 2 mobile). Each tab opens with a taste summary redrafted by Claude Fable when books change. Optional author field and multi-source cover picker (Open Library, Apple Books, Google Books) in admin; custom covers can live in R2 under `reading/covers/`
 - **Section tooltips** — Homepage section headings have hover blurbs stored in D1; Claude Fable regenerates them after content changes (`refresh-section-hints` admin action or `npm run refresh-section-hints`)
 - **Reading tab intros** — Latest and Must Reads tabs have visitor-facing taste summaries stored in D1; Claude Fable redrafts them when books are added or removed (`refresh-reading-tab-intros` or `npm run refresh-reading-tab-intros` from repo root or `worker/`)
@@ -46,7 +46,7 @@ Pages build → D1 HTTP API (read) → scripts/build.mjs → dist/ → rommy.blo
 
 The Thinking **archive** and permalink pages are built from the `thinking_posts` table in D1 at deploy time (same source as the homepage blurb). Slugs use US Eastern time. External links in Thinking are rendered as basic `<a>` tags — no on-site unfurl cards — with two exceptions: YouTube links (`youtube.com/watch`, `/shorts/`, `/live/`, `youtu.be`) get a responsive `youtube-nocookie.com` iframe embed appended after the note text (see `scripts/lib/youtube.mjs`), and Spotify links (`open.spotify.com/track|album|playlist|episode|show|artist/...`) get a compact `open.spotify.com/embed` iframe the same way (see `scripts/lib/spotify.mjs`) — so both play natively on rommy.blog without leaving the page. A `t=`/`start=` timestamp on a YouTube URL is carried into the embed's start time.
 
-The archive at `/thinking/` renders both a List view (chronological feed) and a Grid view (posts grouped by month, one square thumbnail each) in the same page load; icon buttons swap `data-view` on a wrapper via CSS, and the choice persists in `localStorage`. Type filters (photo, video, audio, YouTube, Spotify, text) show all posts by default; clicking one solo-selects that kind (click again to clear). Filters apply to both views. Links to the archive from elsewhere always open `/thinking/` unfiltered; choosing a filter updates the URL to a shareable path (`/thinking/images/`, `/thinking/videos/`, `/thinking/audio/`, `/thinking/youtube/`, `/thinking/music/`, `/thinking/text/`). Static pages are generated at each filter path at build time. Grid thumbnails use the post's first photo (Worker-resized via `/media/thumb/512/...`), a stored JPEG poster for native video, YouTube's `sddefault` preview image, Spotify album art at 640×640 when available, or a text-preview card with a corner badge. Grid images defer loading until grid view is active and the tile is near the viewport.
+The archive at `/thinking/` renders both a List view (chronological feed) and a Grid view (posts grouped by month, one square thumbnail each) in the same page load; icon buttons swap `data-view` on a wrapper via CSS, and the choice persists in `localStorage`. Type filters (photo, video, audio, YouTube, Spotify, text) show all posts by default; clicking one solo-selects that kind (click again to clear). Filters apply to both views. Links to the archive from elsewhere always open `/thinking/` unfiltered; choosing a filter updates the URL to a shareable path (`/thinking/images/`, `/thinking/videos/`, `/thinking/audio/`, `/thinking/youtube/`, `/thinking/music/`, `/thinking/text/`). Static pages are generated at each filter path at build time. Grid thumbnails use the post's first photo (Worker-resized via `/media/thumb/512/...`), a stored JPEG poster for native video, YouTube's `sddefault` preview image, Spotify album art at 640×640 when available, or a text-preview card. Every tile — photo and video tiles included, not only the text cards — gets a small badge in its bottom-right corner naming the kind: camera, video camera, microphone, the YouTube and Spotify marks, or `Tt` for plain text. Grid images defer loading until grid view is active and the tile is near the viewport.
 
 Reading at `/reading/latest/` and `/reading/must-reads/` uses path-based tabs (URL updates on switch) and the same list/grid pattern (view choice in `localStorage`). Each tab has visitor-facing intro copy stored in D1, redrafted by Claude Fable when books are added or removed. Entries sort by `ym` descending. Grid covers come from D1 (`cover_url`), with build-time Open Library fallback for entries still missing art; Must Reads titles can use custom cover art in R2.
 
@@ -67,7 +67,7 @@ Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on the
 | `worker/` | Cloudflare Worker (`update-thinking.js`) — admin API |
 | `remark42/` | Legacy Remark42 server config, theme CSS, Docker / Fly deploy — unused now that Writing comments run on Webmentions, kept for reference |
 | `data/posts.json` | Legacy fallback if D1 env vars are not set |
-| `data/reading-covers.json` | Legacy cover-URL cache keyed by Bookshop URL — seeds and falls back for the `reading-covers` build-cache namespace in D1 |
+| `data/reading-covers.json` | Not committed (gitignored). Legacy on-disk cover-URL cache keyed by Bookshop URL — seeds and falls back for the `reading-covers` build-cache namespace in D1 |
 | `data/reading-favorites.json` | Must Reads seed data and custom `cover_url` values for build |
 | `data/*.json` build caches | Gitignored. Build caches live in the D1 `build_cache` table (`scripts/lib/build-cache.mjs`); any leftover files on disk are only a local fallback |
 | `styles.css` | Site styles (light/dark) |
@@ -173,7 +173,7 @@ wrangler deploy
 | `thinking` | Update Thinking text/photo/audio/video in D1; optional Micro.blog + Bluesky + Mastodon |
 | `thinking-video-upload-url` | Presigned PUT URL for direct video upload to R2 |
 | `list-thinking` | List Thinking archive from D1 (admin) |
-| `delete-thinking` | Delete Thinking post from archive (Micro.blog + Bluesky when saved) |
+| `delete-thinking` | Delete Thinking post from archive (Micro.blog + Bluesky + Mastodon when saved) |
 | `upload-media` | Upload image to R2 (`thinking/` or `writing/`) |
 | `post` | Publish Writing post |
 | `edit-post` | Edit post (version history) |
@@ -181,9 +181,11 @@ wrangler deploy
 | `fetch-post` | Load post for editing |
 | `list-drafts` / `save-draft` / `load-draft` / `delete-draft` | Writing drafts |
 | `reading` | Add Reading entry (optional author + cover) |
+| `list-reading` | List Reading entries from D1 (admin) |
 | `reading-cover-candidates` | Search Open Library, Apple Books, Google Books for cover art |
 | `update-reading-cover` | Save chosen cover URL and author on a Reading entry |
 | `delete-reading` | Delete Reading entry |
+| `reading-favorite` / `list-reading-favorites` / `delete-reading-favorite` / `update-reading-favorite-cover` | Must Reads entries and their cover art |
 | `sharing` | Add Sharing (linklog) entry |
 | `fetch-title` | Fetch page title for Sharing |
 | `refresh-section-hints` | Regenerate homepage section tooltips with Claude Fable |
@@ -191,6 +193,7 @@ wrangler deploy
 | `backfill-reading-genres` | Assign genre tags to Must Reads books missing a primary genre (Claude Fable) |
 | `backfill-linklog-tags` | Assign topic tags to Sharing links missing them (Claude Fable) |
 | `anthropic-usage-summary` | Token usage totals from logged Anthropic API calls |
+| `job-status` | Per-job last run, failure counts, and the recent-run log behind the admin Health tab (`job_runs`) |
 | `sync-oura` | Sync Oura daily steps into D1 (optional `backfill: true` for ~2 years) |
 | `oura-steps-summary` | Latest Oura steps and total days stored |
 | `list-locations` | Latest GPS points for admin Location tab (max 1000) |
@@ -215,7 +218,7 @@ wrangler deploy
 - List view: month + title linking to Bookshop.org
 - Grid view: cover art grouped by month (3 columns desktop, 2 mobile); list/grid choice in `localStorage`
 - Admin: optional **author** field improves cover search; **Find cover art** queries Open Library, Apple Books, and Google Books; covers can be changed later from the archive list
-- `cover_url` in D1 wins over build-time Open Library lookup; custom covers can be uploaded to R2 under `reading/covers/` (referenced in `data/reading-covers.json` and `data/reading-favorites.json` for build)
+- `cover_url` in D1 wins over build-time Open Library lookup; custom covers can be uploaded to R2 under `reading/covers/` (referenced from the `reading-covers` build-cache namespace in D1 and from `data/reading-favorites.json` for build)
 - **Must Reads genres:** Each favorite gets 1–3 ranked genre tags in D1 (`reading_genres`, `reading_favorite_genres`), assigned by Claude Fable on add. A genre dropdown on `/reading/must-reads/` filters the list client-side; tags are not shown under individual titles. Run migration + backfill once (see `worker/README.md`)
 
 ## Sharing
