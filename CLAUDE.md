@@ -20,6 +20,12 @@ Read the existing text for what the change makes *wrong*, not only for something
 
 `.claude/hooks/docs-guard.sh` (wired up in `.claude/settings.json`) refuses a `git commit` that stages `scripts/`, `worker/`, `admin/`, `styles.css`, `_headers`, `build-pages.mjs`, `about/`, or `contact/` without both `README.md` and `colophon/index.html`. It is a backstop for forgetting, not the trigger — write the docs as part of the work. For a change that genuinely needs none (a refactor, a chore, a fix with no visible effect), put `skip-docs` in the commit command; tests-only and docs-only commits pass without it.
 
+## Secrets
+
+`.githooks/pre-commit` (enabled with `git config core.hooksPath .githooks`) runs `gitleaks git --staged` and blocks a commit that stages a secret. It exists because a live Giphy API key reached this repo in July 2026 and sat in public history for five weeks — found only by scanning before adding a second public mirror.
+
+**The repo is public.** Anything committed is exposed the moment it is pushed, with no window to catch it. If a secret does get through, deleting it from `HEAD` is not a fix: revoke it at the provider, then verify the old value is dead before assuming the incident is closed.
+
 ## Skills to reach for in this repo
 
 These aren't project-configured (Claude Code has no per-project skill enablement — they're globally available); load them proactively when the work matches:

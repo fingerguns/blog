@@ -79,8 +79,25 @@ Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on the
 ## Requirements
 
 - [Node.js](https://nodejs.org/) 18+ (build scripts only)
+- [gitleaks](https://github.com/gitleaks/gitleaks) for the secret-scanning pre-commit hook (`brew install gitleaks`)
 - Cloudflare account with **D1**, **R2**, **Workers**, and **Pages**
 - [Wrangler](https://developers.cloudflare.com/workers/wrangler/) for the Worker
+
+## Secret scanning
+
+`.githooks/pre-commit` runs `gitleaks git --staged` and blocks any commit that stages a secret. `core.hooksPath` is local config and does not survive a clone, so **enable it once per checkout**:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Without `gitleaks` installed the hook warns and lets the commit through rather than bricking a fresh clone — so install it. To scan the whole history (do this before publishing any new mirror of the repo):
+
+```bash
+gitleaks git --log-opts="--all" --redact .
+```
+
+`git commit --no-verify` bypasses the hook for a false positive. A secret that has already been pushed must be **revoked**, not merely deleted — removing it from `HEAD` leaves it readable in history, and this repo is public.
 
 ## Local build
 

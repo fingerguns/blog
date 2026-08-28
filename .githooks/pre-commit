@@ -1,0 +1,25 @@
+#!/bin/sh
+# Block a commit that stages a secret.
+#
+# This exists because a Giphy API key reached this repo's history in July 2026
+# and sat in a public repo for five weeks — found only by scanning history
+# before adding a second public mirror. The key was live when found.
+#
+# Enable in a fresh clone (core.hooksPath is local config, it does not clone):
+#   git config core.hooksPath .githooks
+#
+# Bypass for a false positive: git commit --no-verify
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks not installed — staged changes were NOT scanned." >&2
+  echo "            brew install gitleaks" >&2
+  exit 0
+fi
+
+gitleaks git --staged --redact --no-banner . || {
+  echo >&2
+  echo "pre-commit: a secret was found in the staged changes. Commit blocked." >&2
+  echo "            Remove the secret, or commit with --no-verify if it is a false positive." >&2
+  echo "            A secret that has already been pushed must be revoked, not just deleted." >&2
+  exit 1
+}
