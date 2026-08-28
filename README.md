@@ -22,7 +22,7 @@ Built with [Cursor](https://cursor.com). See the [colophon](https://rommy.blog/c
 - **Section tooltips** — Homepage section headings have hover blurbs stored in D1; Claude Fable regenerates them after content changes (`refresh-section-hints` admin action or `npm run refresh-section-hints`)
 - **Reading tab intros** — Latest and Must Reads tabs have visitor-facing taste summaries stored in D1; Claude Fable redrafts them when books are added or removed (`refresh-reading-tab-intros` or `npm run refresh-reading-tab-intros` from repo root or `worker/`)
 - **Must Reads genre tags** — Each curated favorite gets 1–3 AI-assigned genre tags (primary required) stored in D1; a genre dropdown on `/reading/must-reads/` filters the list, with shareable paths like `/reading/must-reads/literary-realism/`. Tags are assigned automatically when books are added and pruned when unused after removal (`backfill-reading-genres` or `npm run backfill-reading-genres` for existing titles)
-- **Sharing archive** — [`/sharing/`](https://rommy.blog/sharing/) unfurls every link into a preview card (image, description, source), fetched via Open Graph at build time and cached in `data/linklog-unfurls.json`; the homepage list stays plain links. A dropdown filters by topic tag from a fixed 15-category taxonomy; new links are tagged automatically by Claude Fable right after being added, and that tag becomes `#hashtags` on the Micro.blog/Bluesky/Mastodon cross-post (`backfill-linklog-tags` or `npm run backfill-linklog-tags` for anything that predates this or failed silently)
+- **Sharing archive** — [`/sharing/`](https://rommy.blog/sharing/) unfurls every link into a preview card (image, description, source), fetched via Open Graph at build time and cached in the D1 `build_cache` table; the homepage list stays plain links. A dropdown filters by topic tag from a fixed 15-category taxonomy; new links are tagged automatically by Claude Fable right after being added, and that tag becomes `#hashtags` on the Micro.blog/Bluesky/Mastodon cross-post (`backfill-linklog-tags` or `npm run backfill-linklog-tags` for anything that predates this or failed silently)
 - **Security headers** — a `_headers` file at the repo root sets Content-Security-Policy, X-Frame-Options, Referrer-Policy, Permissions-Policy, and HSTS site-wide via Cloudflare Pages
 - **Thinking footers** — Date and neighborhood label on the homepage, archive, and permalinks; neighborhood links to Google Maps when GPS data is available
 - **Location tracking** — Private GPS ingest from [Overland](https://github.com/aaronpk/Overland-iOS) iOS; nearest fix within ±15 minutes at publish time → neighborhood label in D1 (NYC coords use Planning Labs GeoSearch). Admin **Location** tab shows the latest 1000 points on a MapLibre map (OpenFreeMap basemaps) with full coordinates, path history, and timeline
@@ -30,6 +30,9 @@ Built with [Cursor](https://cursor.com). See the [colophon](https://rommy.blog/c
 - **Elsewhere → Feeds** — Collapsible row on the homepage with links to Bluesky, Mastodon, and micro.blog
 - **Changelog** — Generated from Git history at build time
 - **Colophon** — [`/colophon/`](https://rommy.blog/colophon/) describes how the site is built, with an optional toggle to read it in the style of Walt Whitman
+- **Site search** — [`/search/`](https://rommy.blog/search/) covers Writing, Thinking, Reading, Must Reads, and Sharing. The build emits one JSON index (~75 KB raw, ~25 KB gzipped) fetched only on `/search/`; matching runs in the browser from `scripts/lib/search.mjs`, shipped verbatim as `search-core.js`. No search service, no runtime dependency (see [Search](#search) below)
+- **Theme** — Light/dark toggle in the footer next to the Search link, remembered in `localStorage`; visitors with no stored preference get dark. One typeface site-wide (Hanken Grotesk, via Google Fonts)
+- **Tests** — `npm test` runs `node --test` over `scripts/lib/*.test.mjs` (no framework, no config): search scoring, job status, build cache, and the render helpers that run over every page (linkify, thinking HTML, media URLs, YouTube/Spotify embeds)
 
 ## Architecture
 
@@ -47,7 +50,7 @@ The archive at `/thinking/` renders both a List view (chronological feed) and a 
 
 Reading at `/reading/latest/` and `/reading/must-reads/` uses path-based tabs (URL updates on switch) and the same list/grid pattern (view choice in `localStorage`). Each tab has visitor-facing intro copy stored in D1, redrafted by Claude Fable when books are added or removed. Entries sort by `ym` descending. Grid covers come from D1 (`cover_url`), with build-time Open Library fallback for entries still missing art; Must Reads titles can use custom cover art in R2.
 
-Sharing renders its `linklog` entries two ways from one dataset: the homepage list is plain date + title (`renderLinklogItem`), while the archive at `/sharing/` unfurls each into a card — image, description, and source — via `renderLinklogArchiveItem`, sourced from `data/linklog-unfurls.json` (see `scripts/lib/link-unfurl.mjs`). The archive's tag-filter dropdown is built from each link's stored `tags`, drawn from the fixed taxonomy in `scripts/lib/linklog-tags.mjs`. New links are tagged by Claude Fable synchronously, right after the D1 insert and before cross-posting (`worker/linklog-tags.mjs`), so the tag can be folded into the Micro.blog/Bluesky/Mastodon post as `#hashtags` — unlike Must Reads genres (`worker/reading-genres.mjs`), which assign in the background since nothing downstream needs them immediately.
+Sharing renders its `linklog` entries two ways from one dataset: the homepage list is plain date + title (`renderLinklogItem`), while the archive at `/sharing/` unfurls each into a card — image, description, and source — via `renderLinklogArchiveItem`, sourced from the `linklog-unfurls` namespace of the D1 `build_cache` table (see `scripts/lib/link-unfurl.mjs` and `scripts/lib/build-cache.mjs`). The archive's tag-filter dropdown is built from each link's stored `tags`, drawn from the fixed taxonomy in `scripts/lib/linklog-tags.mjs`. New links are tagged by Claude Fable synchronously, right after the D1 insert and before cross-posting (`worker/linklog-tags.mjs`), so the tag can be folded into the Micro.blog/Bluesky/Mastodon post as `#hashtags` — unlike Must Reads genres (`worker/reading-genres.mjs`), which assign in the background since nothing downstream needs them immediately.
 
 Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on their own platforms when you include links there.
 
@@ -57,13 +60,14 @@ Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on the
 |------|---------|
 | `admin/` | Admin UI (static HTML + JS) |
 | `scripts/build.mjs` | Regenerates site into `dist/` |
-| `scripts/lib/` | Shared HTML, slug, thinking, linkify, media-URL/thumb helpers, section hints, reading-tab intros, YouTube/Spotify-embed helpers, Open Graph link-unfurl fetching, the linklog tag taxonomy/prompts, and a small concurrency helper for build-time network lookups (build + Worker) |
+| `scripts/lib/` | Shared HTML, slug, thinking, linkify, media-URL/thumb helpers, section hints, reading-tab intros, YouTube/Spotify-embed helpers, Open Graph link-unfurl fetching, the linklog tag taxonomy/prompts, the D1 build-cache and job-run helpers, the site-search index/scoring (`search.mjs`) and its browser entry point (`search-page.mjs`), and a small concurrency helper for build-time network lookups (build + Worker) |
+| `scripts/lib/*.test.mjs` | Unit tests, run by `npm test` (`node --test`; no framework, no config) |
 | `scripts/d1-client.mjs` | D1 queries for local/Pages builds |
 | `build-pages.mjs` | Cloudflare Pages entrypoint (git unshallow + build) |
 | `worker/` | Cloudflare Worker (`update-thinking.js`) — admin API |
 | `remark42/` | Legacy Remark42 server config, theme CSS, Docker / Fly deploy — unused now that Writing comments run on Webmentions, kept for reference |
 | `data/posts.json` | Legacy fallback if D1 env vars are not set |
-| `data/reading-covers.json` | Build-time cover URL overrides keyed by Bookshop URL |
+| `data/reading-covers.json` | Legacy cover-URL cache keyed by Bookshop URL — seeds and falls back for the `reading-covers` build-cache namespace in D1 |
 | `data/reading-favorites.json` | Must Reads seed data and custom `cover_url` values for build |
 | `data/*.json` build caches | Gitignored. Build caches live in the D1 `build_cache` table (`scripts/lib/build-cache.mjs`); any leftover files on disk are only a local fallback |
 | `styles.css` | Site styles (light/dark) |
@@ -91,6 +95,7 @@ npm run backfill-thinking-locations  # backfill neighborhood labels on Thinking 
 npm run backfill-oura                # sync Oura step history into D1 (~2 years on first run)
 npm run backfill-linklog-tags        # assign topic tags to Sharing links missing them via Claude Fable
 npm run lint:md                      # lint all Markdown docs (markdownlint-cli2)
+npm test                             # node --test over scripts/lib/*.test.mjs
 ```
 
 Output goes to **`dist/`** (gitignored). Generated HTML is not committed; CI/Pages builds from source + D1.
@@ -216,10 +221,19 @@ wrangler deploy
 ## Sharing
 
 - Homepage shows the 5 most recent links as plain date + title; the full archive at [`/sharing/`](https://rommy.blog/sharing/) unfurls each into a preview card (image, description, source)
-- Previews are fetched via Open Graph at build time and cached in `data/linklog-unfurls.json`, keyed by URL, so only new links get fetched on later builds; a hotlinked image that fails to load hides itself instead of showing a broken-image icon
+- Previews are fetched via Open Graph at build time and cached in D1 (`build_cache`, namespace `linklog-unfurls`), keyed by URL, so only new links get fetched on later builds; a hotlinked image that fails to load hides itself instead of showing a broken-image icon
 - A tag-filter dropdown on the archive lists each topic with its count, sorted descending — tags come from a fixed 15-category taxonomy in `scripts/lib/linklog-tags.mjs`, not an open-ended set
 - New links are tagged by Claude Fable synchronously, right after being added and before cross-posting; `backfill-linklog-tags` (or `npm run backfill-linklog-tags`) catches anything that predates this feature or failed silently (e.g. no `ANTHROPIC_API_KEY`)
 - That tag becomes `#hashtags` on the Micro.blog, Bluesky, and Mastodon cross-post — each category's label is split on `&`/`,` into one hashtag per term, so `food` (label "Food & Recipes") posts as `#food #recipes`, and `film` ("Film, TV & Comedy") as `#film #tv #comedy` (`hashtagWordsForTags` in `scripts/lib/linklog-tags.mjs`). Bluesky auto-facets `#word` patterns in any post text, Micro.blog and Mastodon hashtag-link plain text natively, so no extra formatting is needed
+
+## Search
+
+- [`/search/`](https://rommy.blog/search/) searches the whole site — Writing, Thinking, Reading, Must Reads, and Sharing — from the footer of every public page. `/admin/` is deliberately excluded from both the index and the link
+- The corpus is a few hundred short items (~50 KB of text), so there is no search service: the build writes `dist/search-index.json` (one entry per item — kind, title, body truncated to 600 chars, URL, date) and matching runs in the browser. The index is fetched only on `/search/`; items with neither title nor body text (a bare photo note, say) are skipped
+- Matching lives in `scripts/lib/search.mjs`, copied into `dist/` as `search-core.js` and imported by `dist/search.js` (built from `scripts/lib/search-page.mjs`), so what `npm test` covers is what actually runs in the browser
+- Scoring: every term must match somewhere, so adding a word narrows rather than widens; title outranks body, word-boundary outranks mid-word, and the whole phrase outranks scattered terms. Ties break toward the more recent item so a growing archive doesn't bury new writing. Queries fold accents ("cortazar" finds "Cortázar"). Results cap at 50
+- `?q=` is kept in the URL so a search can be linked or reloaded, `/` focuses the box, and each result carries a highlighted excerpt centred on the first match. Known cosmetic limit: matching folds accents but `<mark>` highlighting does not, so an accented occurrence is found and shown without being highlighted
+- Results use their own `.search-results` class rather than `.post-list` — that class carries both a narrow grid column and the batch-reveal script bound in `archiveFoot`, either of which would break the results list
 
 ## Audio & Video Syndication
 
