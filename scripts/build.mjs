@@ -26,6 +26,7 @@ import {
   loadReadingFavoritesOverrides,
 } from "./lib/reading-favorites-overrides.mjs";
 import { thinkingSlugFromIso } from "./lib/thinking-slug.mjs";
+import { distanceTextFromSteps } from "./lib/steps-distance.mjs";
 import {
   CACHE_NAMESPACES,
   loadBuildCache,
@@ -1591,9 +1592,11 @@ const nowTodayEt = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_Yor
 const nowMovingHtml = (() => {
   if (!ouraSteps?.day) return "";
   const stepsText = Number(ouraSteps.steps).toLocaleString("en-US");
+  const distanceText = distanceTextFromSteps(ouraSteps.steps);
+  const stepsWithDistance = distanceText ? `${stepsText} steps (${distanceText})` : `${stepsText} steps`;
   if (ouraSteps.day === nowTodayEt) {
     return `        <h2>Walking</h2>
-        <p>${stepsText} steps today.</p>
+        <p>${stepsWithDistance} today.</p>
 `;
   }
   const dayLabel = new Intl.DateTimeFormat("en-US", {
@@ -1602,7 +1605,7 @@ const nowMovingHtml = (() => {
     day: "numeric",
   }).format(new Date(`${ouraSteps.day}T12:00:00`));
   return `        <h2>Walking</h2>
-        <p>${stepsText} steps on ${escHtml(dayLabel)}.</p>
+        <p>${stepsWithDistance} on ${escHtml(dayLabel)}.</p>
 `;
 })();
 const nowMapHead = `    <link
