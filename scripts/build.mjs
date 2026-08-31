@@ -351,6 +351,52 @@ const thinkingDeleteLinkScript = `    <script>(function(){
       window.addEventListener("pageshow",attachDeleteLinks);
     }());</script>`;
 
+// Writing post pages carry an "edit" link next to the reading time, injected
+// client-side only when an admin session is in this browser's storage — the
+// same session check the Thinking delete link uses. The page itself is static
+// and public; nothing here is a permission grant, the Worker still checks the
+// password on fetch-post/edit-post.
+const postEditLinkScript = `    <script>(function(){
+      var SESSION_KEY="admin_session";
+      var SESSION_TTL=${30 * 24 * 60 * 60 * 1000};
+      function loadPw(){
+        try{
+          var raw=localStorage.getItem(SESSION_KEY);
+          if(raw){
+            var s=JSON.parse(raw);
+            if(s&&s.pw&&s.ts&&Date.now()-s.ts<SESSION_TTL)return s.pw;
+          }
+          raw=sessionStorage.getItem(SESSION_KEY);
+          if(raw){
+            var tab=JSON.parse(raw);
+            if(tab&&tab.pw)return tab.pw;
+          }
+        }catch(e){}
+        return null;
+      }
+      function attachEditLink(){
+        if(!loadPw())return;
+        var article=document.querySelector("article.post[data-slug]");
+        if(!article)return;
+        if(article.querySelector("a.post-admin-edit"))return;
+        var slug=article.getAttribute("data-slug");
+        if(!slug)return;
+        var meta=article.querySelector(":scope > time .reading-time");
+        if(!meta)return;
+        var sep=document.createElement("span");
+        sep.setAttribute("aria-hidden","true");
+        sep.textContent=" \u00b7 ";
+        var a=document.createElement("a");
+        a.className="post-admin-edit";
+        a.href="/admin/?post="+encodeURIComponent(slug);
+        a.textContent="edit";
+        meta.appendChild(sep);
+        meta.appendChild(a);
+      }
+      if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",attachEditLink);else attachEditLink();
+      window.addEventListener("pageshow",attachEditLink);
+    }());</script>`;
+
 const thinkingDeleteConfirmScript = `    <script>(function(){
       var API_URL=(function(){var h=location.hostname;if(h==="localhost"||h==="127.0.0.1")return"https://rommy-blog-admin.fingerguns.workers.dev";return"/api/admin";})();
       var SESSION_KEY="admin_session";
@@ -707,7 +753,7 @@ ${ogMetaTags({
 ${gaSnippet}
   </head>
   <body>
-    <article class="post">
+    <article class="post" data-slug="${escHtml(slug)}">
       <a class="post-back" href="../../index.html">←</a>
       <h1>${escHtml(p.title)}</h1>
       <time datetime="${escHtml(displayDate)}"><span>${escHtml(displayDate)}</span><span class="reading-time">${readMins} min read</span></time>
@@ -767,6 +813,7 @@ ${gaSnippet}
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'dark');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
 ${portraitPhotoToggleScript}
 ${thinkingLightboxScript}
+${postEditLinkScript}
   </body>
 </html>
 `;

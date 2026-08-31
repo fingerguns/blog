@@ -435,6 +435,10 @@ export default {
       return handleDeleteDraft(payload, db, cors);
     }
 
+    if (action === "list-posts") {
+      return handleListPosts(db, cors);
+    }
+
     if (action === "fetch-post") {
       return handleFetchPost(payload, db, cors);
     }
@@ -2964,6 +2968,22 @@ async function handleSharing(body, db, cors, env, ctx) {
     return json({ ok: true, entry, tags, microblogWarning, blueskyWarning, mastodonWarning }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
+  }
+}
+
+// ─── List Posts ──────────────────────────────────────────────────────────────
+
+// Powers the Writing > Published sub-tab in the admin: every published post,
+// newest first, with just enough to render a link and an Edit button.
+async function handleListPosts(db, cors) {
+  try {
+    const { results } = await dbAll(
+      db,
+      "SELECT slug, title, summary, date, datetime, updated_at FROM posts ORDER BY datetime DESC"
+    );
+    return json({ ok: true, posts: results || [] }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Could not list posts" }, 500, cors);
   }
 }
 

@@ -380,6 +380,19 @@ h2 {
   color: var(--muted);
 }
 
+/* Admin-only "edit" link on a Writing post page (injected client-side when a
+   signed-in admin session is present in this browser). */
+a.post-admin-edit {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-underline-offset: 0.2em;
+}
+a.post-admin-edit:hover {
+  color: var(--link);
+  text-decoration-color: currentColor;
+}
+
 /* Back to top */
 .back-to-top {
   display: block;
