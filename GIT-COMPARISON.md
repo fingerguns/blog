@@ -98,7 +98,7 @@ The condition under which each row's verdict changes. The weekly sweep checks th
 | T5 | Secret scanning | A second GitHub-caught-nothing incident, or Forgejo ships native scanning. Note the local `gitleaks` hook already levels this row — it is forge-independent |
 | T6 | Deploy path | Cloudflare Pages adds a third git provider, or Workers Builds does. Unlikely; would collapse rows 2 and 3 at once |
 | T7 | Independence | A GitHub policy change you object to — training data, licensing terms, account requirements |
-| T8 | Durability | Codeberg's storage soft caps (750 MiB git, 1.5 GiB LFS/packages) come within reach. Repo is **~1.8 MB** today — re-measured 2026-08-31; GitHub reports 1,770 KB and a full clone packs to 1.37 MiB — so this is decades away at the current rate |
+| T8 | Durability | Codeberg's storage soft caps (750 MiB git, 1.5 GiB LFS/packages) come within reach. Repo is **~1.8 MB** today — re-measured 2026-08-31; GitHub reports 1,791 KB and a full clone packs to 1.37 MiB — so this is decades away at the current rate |
 | T9 | Cost | GitHub bills for anything this repo uses, or the Cursor subscription lapses (Origin only) |
 | T10 | Licensing | Repo content stops being MIT-compatible. Codeberg requires free/open licensing and does not sell exceptions — the source qualifies, though note the README already reserves prose and photos from the MIT grant |
 
