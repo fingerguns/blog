@@ -483,8 +483,15 @@
         padding: 0;
         cursor: pointer;
         flex-shrink: 0;
+        text-decoration: none;
       }
       .draft-item-edit:hover { color: var(--link); }
+      .published-item-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+        flex-shrink: 0;
+      }
       .cover-picker {
         display: flex;
         flex-wrap: wrap;
@@ -1083,6 +1090,7 @@
         </div>
 
         <div class="writing-subpanel" id="writing-published">
+          <p class="admin-hint">Unpublish returns a post to Drafts; Delete removes it for good. Both open the post and confirm on the page (no pop-up).</p>
           <p class="admin-hint" id="p-published-empty" hidden>No published posts yet.</p>
           <ul class="drafts-list" id="p-published-list"></ul>
           <p class="admin-status" id="p-published-status" hidden></p>
@@ -3508,6 +3516,9 @@
             main.appendChild(titleEl);
             main.appendChild(dateEl);
 
+            var actions = document.createElement("div");
+            actions.className = "published-item-actions";
+
             var edit = document.createElement("button");
             edit.type = "button";
             edit.className = "draft-item-edit";
@@ -3516,8 +3527,23 @@
               if (window._enterEditMode) window._enterEditMode(p.slug);
             });
 
+            // Both confirm on the post's own page — no pop-up, same as Thinking.
+            var unpub = document.createElement("a");
+            unpub.className = "draft-item-edit";
+            unpub.textContent = "Unpublish";
+            unpub.href = "/posts/" + p.slug + "/?unpublish";
+
+            var del = document.createElement("a");
+            del.className = "draft-item-delete";
+            del.textContent = "Delete";
+            del.href = "/posts/" + p.slug + "/?delete";
+
+            actions.appendChild(edit);
+            actions.appendChild(unpub);
+            actions.appendChild(del);
+
             li.appendChild(main);
-            li.appendChild(edit);
+            li.appendChild(actions);
             publishedList.appendChild(li);
           });
         }

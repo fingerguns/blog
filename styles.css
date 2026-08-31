@@ -380,18 +380,26 @@ h2 {
   color: var(--muted);
 }
 
-/* Admin-only "edit" link on a Writing post page (injected client-side when a
-   signed-in admin session is present in this browser). */
-a.post-admin-edit {
+/* Admin-only "edit" / "delete" links on a Writing post page (injected
+   client-side when a signed-in admin session is present in this browser). */
+a.post-admin-edit,
+a.post-admin-unpublish,
+a.post-admin-delete {
   color: inherit;
   text-decoration: underline;
   text-decoration-color: var(--rule);
   text-underline-offset: 0.2em;
 }
-a.post-admin-edit:hover {
+a.post-admin-edit:hover,
+a.post-admin-unpublish:hover {
   color: var(--link);
   text-decoration-color: currentColor;
 }
+a.post-admin-delete:hover {
+  color: #b44;
+  text-decoration-color: currentColor;
+}
+[data-theme="dark"] a.post-admin-delete:hover { color: #e88; }
 
 /* Back to top */
 .back-to-top {
@@ -1110,7 +1118,7 @@ a.post-admin-edit:hover {
 .microblog-entry .post-location {
   color: inherit;
 }
-.thinking-delete-panel {
+.thinking-delete-panel, .post-delete-panel {
   margin-top: 1.5rem;
   padding: 1rem 1.15rem;
   border: 1px solid var(--rule);
@@ -1119,11 +1127,12 @@ a.post-admin-edit:hover {
   font-synthesis: style;
 }
 @supports (background: color-mix(in srgb, white 50%, black)) {
-  .thinking-delete-panel {
+  .thinking-delete-panel,
+  .post-delete-panel {
     background: color-mix(in srgb, var(--muted) 10%, var(--bg));
   }
 }
-.thinking-delete-lead {
+.thinking-delete-lead, .post-delete-lead {
   margin: 0;
   line-height: 1.65;
   font-size: 0.92rem;
@@ -1132,11 +1141,11 @@ a.post-admin-edit:hover {
   font-style: italic;
   font-weight: 400;
 }
-.thinking-delete-lead em {
+.thinking-delete-lead em, .post-delete-lead em {
   font-style: inherit;
   font-weight: inherit;
 }
-.thinking-delete-signin {
+.thinking-delete-signin, .post-delete-signin {
   margin: 0;
   color: var(--muted);
   font-size: 0.9rem;
@@ -1144,17 +1153,17 @@ a.post-admin-edit:hover {
   font-style: italic;
   font-weight: 400;
 }
-.thinking-delete-signin code {
+.thinking-delete-signin code, .post-delete-signin code {
   font-size: 0.85em;
   font-style: normal;
   font-family: ui-monospace, monospace;
 }
-.thinking-delete-actions {
+.thinking-delete-actions, .post-delete-actions {
   margin: 0.65rem 0 0;
   font-size: 0.92rem;
   line-height: 1.5;
 }
-.thinking-delete-actions a {
+.thinking-delete-actions a, .post-delete-actions a {
   font-family: "Hanken Grotesk", system-ui, -apple-system, sans-serif;
   font-style: normal;
   font-weight: 500;
@@ -1162,27 +1171,27 @@ a.post-admin-edit:hover {
   text-decoration-color: var(--rule);
   text-underline-offset: 0.2em;
 }
-.thinking-delete-go {
+.thinking-delete-go, .post-delete-go {
   color: var(--text);
   font-weight: 500;
 }
-.thinking-delete-go:hover {
+.thinking-delete-go:hover, .post-delete-go:hover {
   color: #b44;
   text-decoration-color: currentColor;
 }
-[data-theme="dark"] .thinking-delete-go:hover { color: #e88; }
-.thinking-delete-go[aria-disabled="true"] {
+[data-theme="dark"] .thinking-delete-go:hover, [data-theme="dark"] .post-delete-go:hover { color: #e88; }
+.thinking-delete-go[aria-disabled="true"], .post-delete-go[aria-disabled="true"] {
   opacity: 0.5;
   pointer-events: none;
 }
-.thinking-delete-cancel {
+.thinking-delete-cancel, .post-delete-cancel {
   color: var(--muted);
 }
-.thinking-delete-cancel:hover {
+.thinking-delete-cancel:hover, .post-delete-cancel:hover {
   color: var(--link-hover);
   text-decoration-color: currentColor;
 }
-.thinking-delete-status {
+.thinking-delete-status, .post-delete-status {
   margin: 0.75rem 0 0;
   font-size: 0.85rem;
   color: var(--muted);
@@ -1190,9 +1199,9 @@ a.post-admin-edit:hover {
   font-style: italic;
   font-weight: 400;
 }
-.thinking-delete-status.ok { color: var(--text); }
-.thinking-delete-status.err { color: #b44; }
-[data-theme="dark"] .thinking-delete-status.err { color: #e88; }
+.thinking-delete-status.ok, .post-delete-status.ok { color: var(--text); }
+.thinking-delete-status.err, .post-delete-status.err { color: #b44; }
+[data-theme="dark"] .thinking-delete-status.err, [data-theme="dark"] .post-delete-status.err { color: #e88; }
 .microblog-body p  { margin: 0 0 0.65rem; line-height: 1.65; overflow-wrap: anywhere; }
 .microblog-body p:last-child { margin-bottom: 0; }
 .microblog-entry .post-meta { margin-top: 0.75rem; }
