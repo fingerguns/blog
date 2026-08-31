@@ -435,6 +435,10 @@ export default {
       return handleDeleteDraft(payload, db, cors);
     }
 
+    if (action === "list-posts") {
+      return handleListPosts(db, cors);
+    }
+
     if (action === "fetch-post") {
       return handleFetchPost(payload, db, cors);
     }
@@ -445,6 +449,10 @@ export default {
 
     if (action === "delete-post") {
       return handleDeletePost(payload, db, cors, env, ctx);
+    }
+
+    if (action === "unpublish-post") {
+      return handleUnpublishPost(payload, db, cors, env, ctx);
     }
 
     if (action === "delete-thinking") {
@@ -2967,6 +2975,22 @@ async function handleSharing(body, db, cors, env, ctx) {
   }
 }
 
+// ─── List Posts ──────────────────────────────────────────────────────────────
+
+// Powers the Writing > Published sub-tab in the admin: every published post,
+// newest first, with just enough to render a link and an Edit button.
+async function handleListPosts(db, cors) {
+  try {
+    const { results } = await dbAll(
+      db,
+      "SELECT slug, title, summary, date, datetime, updated_at FROM posts ORDER BY datetime DESC"
+    );
+    return json({ ok: true, posts: results || [] }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Could not list posts" }, 500, cors);
+  }
+}
+
 // ─── Fetch Post ──────────────────────────────────────────────────────────────
 
 async function handleFetchPost(body, db, cors) {
@@ -3084,6 +3108,57 @@ async function handleDeletePost(body, db, cors, env, ctx) {
     return json({ ok: true }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Delete failed" }, 500, cors);
+  }
+}
+
+// ─── Unpublish Post ──────────────────────────────────────────────────────────
+
+// Takes a post down from the site and puts its text back in Drafts. Unlike
+// delete-post this keeps post_versions: republishing derives the same slug
+// from the same title (see handlePost), so the history picks up where it left
+// off. Syndicated cross-posts aren't retracted — nothing stores their URLs.
+async function handleUnpublishPost(body, db, cors, env, ctx) {
+  const { slug } = body;
+  if (typeof slug !== "string" || !slug.trim()) {
+    return json({ error: "Missing slug" }, 400, cors);
+  }
+
+  const cleanSlug = slug.trim().replace(/[^a-zA-Z0-9-_]/g, "");
+
+  try {
+    const post = await dbFirst(
+      db,
+      "SELECT title, summary, body_html FROM posts WHERE slug = ?",
+      cleanSlug
+    );
+    if (!post) {
+      return json({ error: "Post not found" }, 404, cors);
+    }
+
+    // Snapshot what was live before it stops being live.
+    await savePostVersion(db, cleanSlug, post.title, post.summary, post.body_html);
+
+    const draftId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await dbRun(
+      db,
+      "INSERT INTO drafts (id, title, summary, body_html, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+      draftId,
+      post.title,
+      post.summary,
+      post.body_html,
+      now,
+      now
+    );
+
+    await dbRun(db, "DELETE FROM posts WHERE slug = ?", cleanSlug);
+
+    await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Writing", triggerRebuild);
+
+    return json({ ok: true, draftId }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Unpublish failed" }, 500, cors);
   }
 }
 

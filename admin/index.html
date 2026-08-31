@@ -392,6 +392,8 @@
       }
       .writing-subtab {
         font: inherit;
+        flex: 0 0 auto;
+        white-space: nowrap;
         font-size: 0.72rem;
         font-weight: 600;
         letter-spacing: 0.1em;
@@ -467,6 +469,29 @@
       }
       .draft-item-delete:hover { color: #b44; }
       [data-theme="dark"] .draft-item-delete:hover { color: #e88; }
+      .draft-item-title-link {
+        color: inherit;
+        text-decoration: none;
+      }
+      .draft-item-title-link:hover { color: var(--link); text-decoration: underline; }
+      .draft-item-edit {
+        font: inherit;
+        font-size: 0.78rem;
+        color: var(--muted);
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+        flex-shrink: 0;
+        text-decoration: none;
+      }
+      .draft-item-edit:hover { color: var(--link); }
+      .published-item-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+        flex-shrink: 0;
+      }
       .cover-picker {
         display: flex;
         flex-wrap: wrap;
@@ -1025,6 +1050,7 @@
         <div class="writing-subtabs" id="writing-subtabs">
           <button type="button" class="writing-subtab active" data-writing-sub="compose">Compose</button>
           <button type="button" class="writing-subtab" data-writing-sub="drafts">Drafts</button>
+          <button type="button" class="writing-subtab" data-writing-sub="published">Published</button>
         </div>
 
         <div class="writing-subpanel active" id="writing-compose">
@@ -1051,6 +1077,7 @@
             <div class="p-submit-row">
               <button type="submit" id="p-submit">Publish</button>
               <button type="button" class="draft-save-btn" id="p-save-draft">Save draft</button>
+              <button type="button" class="draft-save-btn" id="p-cancel-edit" hidden>Cancel edit</button>
               <span class="admin-hint" id="p-draft-notice" hidden></span>
             </div>
             <p class="admin-status" id="p-status" hidden></p>
@@ -1060,6 +1087,13 @@
         <div class="writing-subpanel" id="writing-drafts">
           <p class="admin-hint" id="p-drafts-empty" hidden>No drafts yet.</p>
           <ul class="drafts-list" id="p-drafts-list"></ul>
+        </div>
+
+        <div class="writing-subpanel" id="writing-published">
+          <p class="admin-hint">Unpublish returns a post to Drafts; Delete removes it for good. Both open the post and confirm on the page (no pop-up).</p>
+          <p class="admin-hint" id="p-published-empty" hidden>No published posts yet.</p>
+          <ul class="drafts-list" id="p-published-list"></ul>
+          <p class="admin-status" id="p-published-status" hidden></p>
         </div>
       </div>
 
@@ -1313,16 +1347,33 @@
 
       var _editSlug = new URLSearchParams(location.search).get("post") || null;
 
-      async function enterEditMode() {
+      // Leaves edit mode and returns the Writing form to "publish a new post".
+      // Called on Cancel edit and after a successful Update.
+      function exitEditMode() {
+        _editSlug = null;
+        document.getElementById("p-lead").textContent = "Publish a new WRITING post.";
+        document.getElementById("p-submit").textContent = "Publish";
+        document.getElementById("p-save-draft").hidden = false;
+        document.getElementById("p-cancel-edit").hidden = true;
+        if (window._newCompose) window._newCompose();
+      }
+      window._exitEditMode = exitEditMode;
+
+      // Loads a published post into the Compose editor. `slug` comes either
+      // from ?post= in the URL or from the Published sub-tab's Edit button.
+      async function enterEditMode(slug) {
+        _editSlug = slug || _editSlug;
+        if (!_editSlug) return;
+
         // Switch to Writing tab
         document.querySelectorAll(".admin-tab").forEach(function(t){ t.classList.remove("active"); });
         document.querySelectorAll(".admin-section").forEach(function(s){ s.classList.remove("active"); });
         document.querySelector("[data-tab='post']").classList.add("active");
         document.getElementById("tab-post").classList.add("active");
 
-        // Edit mode: compose only, no drafts
-        document.getElementById("writing-subtabs").hidden = true;
+        // Edit mode: compose, and drafts don't apply to an already-published post
         document.getElementById("p-save-draft").hidden = true;
+        document.getElementById("p-cancel-edit").hidden = false;
         if (window._showWritingSub) window._showWritingSub("compose");
 
         var status = document.getElementById("p-status");
@@ -1340,11 +1391,18 @@
           document.getElementById("p-submit").textContent = "Update";
           status.hidden = true;
           // Clear the ?post param from the URL without reloading
-          history.replaceState(null, "", "/admin/");
+          if (location.search) history.replaceState(null, "", "/admin/");
         } catch (err) {
           showStatus(status, "Could not load post: " + err.message, true);
         }
       }
+      window._enterEditMode = enterEditMode;
+
+      document.getElementById("p-cancel-edit").addEventListener("click", function () {
+        var status = document.getElementById("p-status");
+        if (status) status.hidden = true;
+        exitEditMode();
+      });
 
       // If already logged in and a post slug is in the URL, enter edit mode
       // (after Quill initialises — deferred with setTimeout)
@@ -3347,13 +3405,8 @@
               quill.setContents([]);
               if (window._clearWritingDraft) window._clearWritingDraft();
             } else {
-              // Reset edit mode UI
-              _editSlug = null;
-              document.getElementById("p-lead").textContent = "Publish a new WRITING post.";
-              submit.textContent = "Publish";
-              document.getElementById("writing-subtabs").hidden = false;
-              document.getElementById("p-save-draft").hidden = false;
-              if (window._newCompose) window._newCompose();
+              exitEditMode();
+              if (window._refreshPublishedList) window._refreshPublishedList();
             }
           } catch (err) {
             showStatus(status, err.message, true);
@@ -3396,7 +3449,9 @@
           });
           document.getElementById("writing-compose").classList.toggle("active", name === "compose");
           document.getElementById("writing-drafts").classList.toggle("active", name === "drafts");
+          document.getElementById("writing-published").classList.toggle("active", name === "published");
           if (name === "drafts") refreshDraftList();
+          if (name === "published") refreshPublishedList();
         }
         window._showWritingSub = showWritingSub;
 
@@ -3414,6 +3469,97 @@
           notice.hidden = true;
         }
         window._newCompose = newCompose;
+
+        // ── Published posts ────────────────────────────────────────────────
+        var publishedList = document.getElementById("p-published-list");
+        var publishedEmpty = document.getElementById("p-published-empty");
+        var publishedStatus = document.getElementById("p-published-status");
+        var _published = [];
+
+        var etPublishedFmt = new Intl.DateTimeFormat("en-US", {
+          timeZone: "America/New_York",
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        });
+
+        function publishedDate(p) {
+          var raw = p.datetime || p.date;
+          if (!raw) return "";
+          var d = new Date(raw);
+          return isNaN(d) ? String(raw) : etPublishedFmt.format(d);
+        }
+
+        function renderPublishedList() {
+          publishedList.innerHTML = "";
+          publishedEmpty.hidden = _published.length > 0;
+          _published.forEach(function (p) {
+            var li = document.createElement("li");
+
+            var main = document.createElement("div");
+            main.className = "draft-item-main";
+
+            var titleEl = document.createElement("div");
+            titleEl.className = "draft-item-title";
+            var link = document.createElement("a");
+            link.className = "draft-item-title-link";
+            link.href = "/posts/" + p.slug + "/";
+            link.target = "_blank";
+            link.rel = "noopener";
+            link.textContent = (p.title || "").trim() || p.slug;
+            titleEl.appendChild(link);
+
+            var dateEl = document.createElement("div");
+            dateEl.className = "draft-item-date";
+            dateEl.textContent = publishedDate(p);
+
+            main.appendChild(titleEl);
+            main.appendChild(dateEl);
+
+            var actions = document.createElement("div");
+            actions.className = "published-item-actions";
+
+            var edit = document.createElement("button");
+            edit.type = "button";
+            edit.className = "draft-item-edit";
+            edit.textContent = "Edit";
+            edit.addEventListener("click", function () {
+              if (window._enterEditMode) window._enterEditMode(p.slug);
+            });
+
+            // Both confirm on the post's own page — no pop-up, same as Thinking.
+            var unpub = document.createElement("a");
+            unpub.className = "draft-item-edit";
+            unpub.textContent = "Unpublish";
+            unpub.href = "/posts/" + p.slug + "/?unpublish";
+
+            var del = document.createElement("a");
+            del.className = "draft-item-delete";
+            del.textContent = "Delete";
+            del.href = "/posts/" + p.slug + "/?delete";
+
+            actions.appendChild(edit);
+            actions.appendChild(unpub);
+            actions.appendChild(del);
+
+            li.appendChild(main);
+            li.appendChild(actions);
+            publishedList.appendChild(li);
+          });
+        }
+
+        async function refreshPublishedList() {
+          if (!loadSession()) return;
+          publishedStatus.hidden = true;
+          try {
+            var data = await callAPI({ action: "list-posts" });
+            _published = data.posts || [];
+            renderPublishedList();
+          } catch (e) {
+            showStatus(publishedStatus, e.message || "Could not load published posts.", true);
+          }
+        }
+        window._refreshPublishedList = refreshPublishedList;
 
         function renderDraftsList() {
           draftsList.innerHTML = "";

@@ -15,6 +15,10 @@ Built with [Cursor](https://cursor.com). See the [colophon](https://rommy.blog/c
 - **Cross-posting** — Thinking can publish to [Micro.blog](https://micro.blog) (Micropub), [Bluesky](https://bsky.app), and [Mastodon](https://joinmastodon.org) when configured; photos, audio, and video render as native attachments/players in each feed (see [Audio & Video Syndication](#audio--video-syndication) below), with the Thinking permalink included in the syndicated text alongside native media. Writing, Reading, and Sharing cross-posts to Bluesky include link cards; large og:image thumbnails are compressed to ≤ 1 MB before upload
 - **Comments** — [Webmentions](https://webmention.io) on Writing posts: incoming likes, reposts, and replies are received by webmention.io and rendered client-side; [Bridgy](https://brid.gy) bridges Mastodon replies/boosts back in
 - **Writing editor** — [Quill](https://quilljs.com/) with image upload, text wrap (left / right / center / full), drafts, and post version history
+- **Managing published posts** — the Writing tab's **Published** sub-tab lists every published post (newest first) with a link to the live page plus Edit, Unpublish, and Delete. Post pages carry matching `edit`, `unpublish`, and `delete` links beside the reading time, injected client-side only when a signed-in admin session is present in that browser. Edit lands on `/admin/?post=<slug>`; Unpublish and Delete open the post at `?unpublish` / `?delete` and confirm on the page rather than in a pop-up (the same flow the Thinking archive uses, so it works on a phone)
+  - **Unpublish** takes the post off the site and writes its text back to Drafts, *keeping* `post_versions` — republishing derives the same slug from the same title, so the history continues. Republishing does send a fresh cross-post
+  - **Delete** drops the post *and* its version history
+  - Neither retracts cross-posts already sent to Micro.blog, Bluesky, or Mastodon — Writing posts don't store their syndication URLs. The Worker still checks the password on `fetch-post` / `edit-post` / `unpublish-post` / `delete-post`
 - **Social previews** — Open Graph / Twitter meta on Writing and Thinking permalinks (first in-post image when available)
 - **Plain links in Thinking** — URLs in notes are normal hyperlinks on the site (no on-site unfurl cards), except YouTube links (native video embed) and Spotify links (native track/album/playlist/episode/show/artist embed), which render below the note
 - **Thinking archive views** — [`/thinking/`](https://rommy.blog/thinking/) offers List and Grid views (icon buttons under the heading; choice remembered in `localStorage`). Grid groups notes by month with one square thumbnail per post — photos via edge-resized 512px thumbs, native video via stored JPEG posters, YouTube via preview images, Spotify via album art, or a text-preview card. Every tile carries a small corner badge for its kind, photo tiles included. Six type-filter buttons (photo, video, audio, YouTube, Spotify, text) solo-select one kind at a time; all posts show until a filter is chosen; filters apply to list and grid. Links to the archive always land on `/thinking/` unfiltered; choosing a filter updates the URL to a shareable path (`/thinking/images/`, `/thinking/videos/`, `/thinking/audio/`, `/thinking/youtube/`, `/thinking/music/`, `/thinking/text/`). Grid images load lazily when grid view is active
@@ -196,6 +200,8 @@ wrangler deploy
 | `edit-post` | Edit post (version history) |
 | `delete-post` | Delete published post |
 | `fetch-post` | Load post for editing |
+| `list-posts` | List published posts from D1 (admin **Published** sub-tab) |
+| `unpublish-post` | Take a post off the site and return it to Drafts (keeps version history) |
 | `list-drafts` / `save-draft` / `load-draft` / `delete-draft` | Writing drafts |
 | `reading` | Add Reading entry (optional author + cover) |
 | `list-reading` | List Reading entries from D1 (admin) |

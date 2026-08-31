@@ -351,6 +351,174 @@ const thinkingDeleteLinkScript = `    <script>(function(){
       window.addEventListener("pageshow",attachDeleteLinks);
     }());</script>`;
 
+// Writing post pages carry "edit" and "delete" links next to the reading time,
+// injected client-side only when an admin session is in this browser's storage
+// — the same session check the Thinking delete link uses. The page itself is
+// static and public; nothing here is a permission grant, the Worker still
+// checks the password on fetch-post/edit-post/delete-post.
+const postAdminLinksScript = `    <script>(function(){
+      var SESSION_KEY="admin_session";
+      var SESSION_TTL=${30 * 24 * 60 * 60 * 1000};
+      function loadPw(){
+        try{
+          var raw=localStorage.getItem(SESSION_KEY);
+          if(raw){
+            var s=JSON.parse(raw);
+            if(s&&s.pw&&s.ts&&Date.now()-s.ts<SESSION_TTL)return s.pw;
+          }
+          raw=sessionStorage.getItem(SESSION_KEY);
+          if(raw){
+            var tab=JSON.parse(raw);
+            if(tab&&tab.pw)return tab.pw;
+          }
+        }catch(e){}
+        return null;
+      }
+      function sep(){
+        var s=document.createElement("span");
+        s.setAttribute("aria-hidden","true");
+        s.textContent=" \u00b7 ";
+        return s;
+      }
+      function attachAdminLinks(){
+        if(!loadPw())return;
+        var article=document.querySelector("article.post[data-slug]");
+        if(!article)return;
+        if(article.querySelector("a.post-admin-edit"))return;
+        var slug=article.getAttribute("data-slug");
+        if(!slug)return;
+        var meta=article.querySelector(":scope > time .reading-time");
+        if(!meta)return;
+        var edit=document.createElement("a");
+        edit.className="post-admin-edit";
+        edit.href="/admin/?post="+encodeURIComponent(slug);
+        edit.textContent="edit";
+        var unpub=document.createElement("a");
+        unpub.className="post-admin-unpublish";
+        unpub.href="?unpublish";
+        unpub.textContent="unpublish";
+        var del=document.createElement("a");
+        del.className="post-admin-delete";
+        del.href="?delete";
+        del.textContent="delete";
+        meta.appendChild(sep());
+        meta.appendChild(edit);
+        meta.appendChild(sep());
+        meta.appendChild(unpub);
+        meta.appendChild(sep());
+        meta.appendChild(del);
+      }
+      if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",attachAdminLinks);else attachAdminLinks();
+      window.addEventListener("pageshow",attachAdminLinks);
+    }());</script>`;
+
+const postAdminActionPanelHtml = `      <div id="post-admin-panel" class="post-delete-panel" hidden>
+        <p class="post-delete-signin" hidden>Sign in at <a href="/admin/">admin</a> on this device, then open this page again.</p>
+        <div class="post-delete-confirm" hidden>
+          <p class="post-delete-lead"><em class="post-admin-lead"></em></p>
+          <p class="post-delete-actions">
+            <a href="#" class="post-delete-go"></a>
+            ·
+            <a class="post-delete-cancel" href="#">Cancel</a>
+          </p>
+          <p class="post-delete-status" hidden></p>
+        </div>
+      </div>`;
+
+// ?delete and ?unpublish both confirm here, in the page, rather than in a
+// pop-up — the same flow the Thinking archive uses, so it works on a phone.
+const postAdminActionScript = `    <script>(function(){
+      var API_URL=(function(){var h=location.hostname;if(h==="localhost"||h==="127.0.0.1")return"https://rommy-blog-admin.fingerguns.workers.dev";return"/api/admin";})();
+      var SESSION_KEY="admin_session";
+      var SESSION_TTL=${30 * 24 * 60 * 60 * 1000};
+      var MODES={
+        "delete":{
+          action:"delete-post",
+          lead:"Delete this post and its version history from rommy.blog? Cross-posts already sent to Micro.blog, Bluesky, or Mastodon stay up \u2014 take those down yourself.",
+          go:"Delete permanently?",
+          working:"Deleting\u2026",
+          done:"Deleted. Returning to the archive\u2026",
+          fail:"Could not delete.",
+          next:"/writing/"
+        },
+        "unpublish":{
+          action:"unpublish-post",
+          lead:"Unpublish this post? It comes down from rommy.blog and goes back to Drafts in the admin, keeping its version history, so you can edit and publish it again. Cross-posts already sent stay up.",
+          go:"Unpublish?",
+          working:"Unpublishing\u2026",
+          done:"Unpublished. It's in Drafts \u2014 opening the admin\u2026",
+          fail:"Could not unpublish.",
+          next:"/admin/"
+        }
+      };
+      function loadPw(){
+        try{
+          var raw=localStorage.getItem(SESSION_KEY);
+          if(raw){
+            var s=JSON.parse(raw);
+            if(s&&s.pw&&s.ts&&Date.now()-s.ts<SESSION_TTL)return s.pw;
+          }
+          raw=sessionStorage.getItem(SESSION_KEY);
+          if(raw){
+            var tab=JSON.parse(raw);
+            if(tab&&tab.pw)return tab.pw;
+          }
+        }catch(e){}
+        return null;
+      }
+      function initActionPage(){
+        var mode=null;
+        if(/[?&]delete(?:=|$)/.test(location.search))mode=MODES["delete"];
+        else if(/[?&]unpublish(?:=|$)/.test(location.search))mode=MODES["unpublish"];
+        if(!mode)return;
+        var article=document.querySelector("article.post[data-slug]");
+        var panel=document.getElementById("post-admin-panel");
+        if(!article||!panel)return;
+        var slug=article.getAttribute("data-slug");
+        var signin=panel.querySelector(".post-delete-signin");
+        var confirm=panel.querySelector(".post-delete-confirm");
+        var status=panel.querySelector(".post-delete-status");
+        var cancel=panel.querySelector(".post-delete-cancel");
+        var lead=panel.querySelector(".post-admin-lead");
+        var go=panel.querySelector(".post-delete-go");
+        panel.hidden=false;
+        try{panel.scrollIntoView({behavior:"smooth",block:"nearest"});}catch(e){}
+        if(cancel)cancel.href=location.pathname;
+        if(lead)lead.textContent=mode.lead;
+        if(go)go.textContent=mode.go;
+        var pw=loadPw();
+        if(!pw){
+          if(signin)signin.hidden=false;
+          if(confirm)confirm.hidden=true;
+          return;
+        }
+        if(signin)signin.hidden=true;
+        if(confirm)confirm.hidden=false;
+        if(!go||go.dataset.bound)return;
+        go.dataset.bound="1";
+        go.addEventListener("click",function(e){
+          e.preventDefault();
+          if(go.getAttribute("aria-disabled")==="true")return;
+          go.setAttribute("aria-disabled","true");
+          if(status){status.hidden=false;status.textContent=mode.working;status.className="post-delete-status";}
+          (async function(){
+            try{
+              var res=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:pw,action:mode.action,slug:slug})});
+              var data={};
+              try{data=await res.json();}catch(err){}
+              if(!res.ok)throw new Error(data.error||("Failed (HTTP "+res.status+")"));
+              if(status){status.textContent=mode.done;status.className="post-delete-status ok";}
+              setTimeout(function(){location.href=mode.next;},900);
+            }catch(err){
+              if(status){status.textContent=err&&err.message?err.message:mode.fail;status.className="post-delete-status err";}
+              go.removeAttribute("aria-disabled");
+            }
+          })();
+        });
+      }
+      if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",initActionPage);else initActionPage();
+    }());</script>`;
+
 const thinkingDeleteConfirmScript = `    <script>(function(){
       var API_URL=(function(){var h=location.hostname;if(h==="localhost"||h==="127.0.0.1")return"https://rommy-blog-admin.fingerguns.workers.dev";return"/api/admin";})();
       var SESSION_KEY="admin_session";
@@ -707,13 +875,14 @@ ${ogMetaTags({
 ${gaSnippet}
   </head>
   <body>
-    <article class="post">
+    <article class="post" data-slug="${escHtml(slug)}">
       <a class="post-back" href="../../index.html">←</a>
       <h1>${escHtml(p.title)}</h1>
       <time datetime="${escHtml(displayDate)}"><span>${escHtml(displayDate)}</span><span class="reading-time">${readMins} min read</span></time>
       <div class="body">
         ${bodyHtml}
       </div>
+${postAdminActionPanelHtml}
       <section class="webmentions" id="webmentions" hidden aria-labelledby="wm-heading"></section>
       <script>(function(){
         var url=${JSON.stringify(postUrl)};
@@ -767,6 +936,8 @@ ${gaSnippet}
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'dark');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
 ${portraitPhotoToggleScript}
 ${thinkingLightboxScript}
+${postAdminLinksScript}
+${postAdminActionScript}
   </body>
 </html>
 `;
