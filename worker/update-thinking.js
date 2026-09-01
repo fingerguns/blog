@@ -36,6 +36,7 @@ import { thinkingVideoPosterKey, uploadVideoPosterToR2 } from "./video-poster.mj
 import {
   handleLocationIngest,
   handleLocationQuery,
+  handleLocationHeatmap,
   handleBackfillThinkingLocations,
   handleNowLocation,
   resolveLocationLabelForDatetime,
@@ -330,6 +331,15 @@ export default {
         return json(result, 200, cors);
       } catch (err) {
         return json({ error: err.message || "Location query failed" }, 500, cors);
+      }
+    }
+
+    if (action === "location-heatmap") {
+      try {
+        const result = await handleLocationHeatmap(db);
+        return json(result, 200, cors);
+      } catch (err) {
+        return json({ error: err.message || "Heatmap query failed" }, 500, cors);
       }
     }
 
