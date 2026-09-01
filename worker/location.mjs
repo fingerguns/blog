@@ -314,6 +314,49 @@ export async function handleLocationQuery(payload, db, env) {
   };
 }
 
+// All-time heatmap for the admin Location tab.
+//
+// The raw log is far too large to ship to the browser (~1,550 points/day and
+// growing without bound), so the grid is built in SQL: round each point to
+// LOCATION_HEATMAP_PRECISION decimals and count the rows that land in each
+// cell. That collapses tens of thousands of points into a few hundred cells
+// and — because it is a live GROUP BY rather than a stored snapshot — every
+// new point Overland sends shows up the next time the tab is opened.
+//
+// Precision 3 is ~110 m of latitude per cell, which reads as a dot cloud at
+// city zoom. Precision 4 (~11 m) looks better zoomed in but multiplies the
+// cell count roughly sevenfold, so it does not scale as the log grows.
+export const LOCATION_HEATMAP_PRECISION = 3;
+
+export async function handleLocationHeatmap(db) {
+  const { results } = await db
+    .prepare(
+      `SELECT ROUND(lat, ?) AS lat, ROUND(lon, ?) AS lon, COUNT(*) AS n
+       FROM location_points
+       GROUP BY 1, 2
+       ORDER BY n DESC`
+    )
+    .bind(LOCATION_HEATMAP_PRECISION, LOCATION_HEATMAP_PRECISION)
+    .all();
+
+  const cells = results || [];
+  let total = 0;
+  let max = 0;
+  for (const c of cells) {
+    total += c.n;
+    if (c.n > max) max = c.n;
+  }
+
+  return {
+    ok: true,
+    precision: LOCATION_HEATMAP_PRECISION,
+    cells,
+    cellCount: cells.length,
+    pointCount: total,
+    maxCount: max,
+  };
+}
+
 export async function resolveCurrentNeighborhood(db, env) {
   const { results } = await db
     .prepare(

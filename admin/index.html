@@ -812,7 +812,8 @@
         margin: 0 0 0.75rem;
         font-variant-numeric: tabular-nums;
       }
-      #loc-map {
+      #loc-map,
+      #loc-heat-map {
         width: 100%;
         height: min(420px, 55vh);
         border: 1px solid var(--rule);
@@ -821,85 +822,29 @@
         z-index: 0;
         background: #e8e2d8;
       }
-      [data-theme="dark"] #loc-map {
+      [data-theme="dark"] #loc-map,
+      [data-theme="dark"] #loc-heat-map {
         background: #1e1a14;
       }
-      [data-theme="dark"] #loc-map .maplibregl-ctrl-group {
+      [data-theme="dark"] #loc-map .maplibregl-ctrl-group,
+      [data-theme="dark"] #loc-heat-map .maplibregl-ctrl-group {
         filter: invert(1) hue-rotate(180deg);
       }
-      #loc-map .maplibregl-ctrl-attrib {
+      #loc-map .maplibregl-ctrl-attrib,
+      #loc-heat-map .maplibregl-ctrl-attrib {
         font-size: 0.62rem;
       }
-      #loc-map .maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show) .maplibregl-ctrl-attrib-inner {
+      #loc-map .maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show) .maplibregl-ctrl-attrib-inner,
+      #loc-heat-map .maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show) .maplibregl-ctrl-attrib-inner {
         display: none;
       }
-      .location-coords-toggle-wrap {
-        margin: 0 0 1rem;
-      }
-      .location-timeline {
-        border-top: 1px solid var(--rule);
-        padding-top: 1rem;
-        margin-bottom: 1.25rem;
-      }
-      .location-day {
-        margin-bottom: 1.25rem;
-      }
-      .location-day-label {
+      .location-heat-heading {
         font-size: 0.7rem;
         font-weight: 600;
         letter-spacing: 0.12em;
         text-transform: uppercase;
         color: var(--muted);
-        margin: 0 0 0.5rem;
-      }
-      .location-point-list {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-      }
-      .location-point-item {
-        display: grid;
-        grid-template-columns: 5.5rem 1fr auto;
-        gap: 0.5rem 0.75rem;
-        align-items: baseline;
-        padding: 0.35rem 0.5rem;
-        margin: 0 -0.5rem;
-        border-radius: 0.25rem;
-        font-size: 0.85rem;
-        cursor: pointer;
-      }
-      .location-point-item:hover,
-      .location-point-item.is-active {
-        background: color-mix(in srgb, var(--text) 8%, transparent);
-      }
-      .location-point-time {
-        font-variant-numeric: tabular-nums;
-        color: var(--muted);
-      }
-      .location-point-coords {
-        font-variant-numeric: tabular-nums;
-        color: var(--text);
-      }
-      .location-point-meta {
-        font-size: 0.75rem;
-        color: var(--muted);
-        font-variant-numeric: tabular-nums;
-        text-align: right;
-      }
-      @media (max-width: 520px) {
-        .location-point-item {
-          grid-template-columns: 1fr auto;
-        }
-        .location-point-time {
-          grid-column: 1;
-        }
-        .location-point-coords {
-          grid-column: 1 / -1;
-        }
-        .location-point-meta {
-          grid-column: 2;
-          grid-row: 1;
-        }
+        margin: 1.5rem 0 0.5rem;
       }
     </style>
     <link
@@ -1190,14 +1135,11 @@
         </div>
         <p class="location-stats" id="loc-stats">Loading latest points…</p>
         <div id="loc-map" role="region" aria-label="Location map"></div>
-        <p class="location-coords-toggle-wrap" id="loc-coords-toggle-wrap" hidden>
-          <button type="button" class="admin-secondary-btn" id="loc-coords-toggle" aria-expanded="false">
-            Show coordinates
-          </button>
-        </p>
-        <div class="location-timeline" id="loc-timeline" hidden>
-          <div id="loc-timeline-days"></div>
-        </div>
+
+        <h3 class="location-heat-heading">All time</h3>
+        <p class="location-stats" id="loc-heat-stats">Loading heatmap…</p>
+        <div id="loc-heat-map" role="region" aria-label="All-time location heatmap"></div>
+
         <p class="admin-status" id="loc-status" hidden></p>
       </div>
 
@@ -1437,13 +1379,11 @@
         var locMapReady = false;
         var locBaseMarkers = [];
         var locPoints = [];
-        var locActiveIdx = -1;
         var locMapStyles = {
           light: "https://tiles.openfreemap.org/styles/liberty",
           dark: "https://tiles.openfreemap.org/styles/dark",
         };
         var locMaplibreSrc = "https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js";
-        var LOC_COORDS_VISIBLE_KEY = "admin_loc_coords_visible";
         var locEtDateFmt = new Intl.DateTimeFormat("en-US", {
           timeZone: "America/New_York",
           month: "long",
@@ -1493,8 +1433,8 @@
           });
         }
 
-        function locCollapseAttribution() {
-          var el = document.getElementById("loc-map");
+        function locCollapseAttribution(id) {
+          var el = document.getElementById(id || "loc-map");
           if (!el) return;
           var attrib = el.querySelector(".maplibregl-ctrl-attrib");
           if (!attrib) return;
@@ -1590,26 +1530,6 @@
           });
         }
 
-        function locCoordsVisible() {
-          return localStorage.getItem(LOC_COORDS_VISIBLE_KEY) === "1";
-        }
-
-        function locSyncCoordsPanel() {
-          var wrap = document.getElementById("loc-timeline");
-          var toggleWrap = document.getElementById("loc-coords-toggle-wrap");
-          var toggle = document.getElementById("loc-coords-toggle");
-          var hasPoints = locPoints.length > 0;
-          toggleWrap.hidden = !hasPoints;
-          if (!hasPoints) {
-            wrap.hidden = true;
-            return;
-          }
-          var visible = locCoordsVisible();
-          wrap.hidden = !visible;
-          toggle.textContent = visible ? "Hide coordinates" : "Show coordinates";
-          toggle.setAttribute("aria-expanded", visible ? "true" : "false");
-        }
-
         function locChronological(points) {
           return points.slice().sort(function (a, b) {
             return new Date(a.recorded_at) - new Date(b.recorded_at);
@@ -1669,89 +1589,6 @@
           locBaseMarkers = [];
           locMap.getSource("loc-track").setData({ type: "FeatureCollection", features: [] });
           locSetMarkerData(null);
-        }
-
-        function locHighlightPoint(idx) {
-          locActiveIdx = idx;
-          document.querySelectorAll(".location-point-item").forEach(function (el) {
-            el.classList.toggle("is-active", Number(el.getAttribute("data-idx")) === idx);
-          });
-          if (idx < 0 || !locPoints[idx] || !locMap) {
-            locSetMarkerData(null);
-            return;
-          }
-          var p = locPoints[idx];
-          locMap.flyTo({
-            center: [p.lon, p.lat],
-            zoom: Math.max(locMap.getZoom(), 15),
-            speed: 1.2,
-          });
-          locSetMarkerData({
-            type: "Feature",
-            geometry: { type: "Point", coordinates: [p.lon, p.lat] },
-            properties: { color: "#2563eb" },
-          });
-        }
-
-        function locRenderTimeline(points) {
-          var daysEl = document.getElementById("loc-timeline-days");
-          daysEl.innerHTML = "";
-          if (!points.length) {
-            locSyncCoordsPanel();
-            return;
-          }
-
-          var groups = [];
-          var groupMap = {};
-          points.forEach(function (p, idx) {
-            var key = locDayKeyFmt.format(new Date(p.recorded_at));
-            if (!groupMap[key]) {
-              groupMap[key] = { key: key, label: locEtDateFmt.format(new Date(p.recorded_at)), items: [] };
-              groups.push(groupMap[key]);
-            }
-            groupMap[key].items.push({ p: p, idx: idx });
-          });
-
-          groups.forEach(function (g) {
-            var section = document.createElement("section");
-            section.className = "location-day";
-            var h = document.createElement("h3");
-            h.className = "location-day-label";
-            h.textContent = g.label;
-            section.appendChild(h);
-
-            var ul = document.createElement("ul");
-            ul.className = "location-point-list";
-            g.items.forEach(function (item) {
-              var li = document.createElement("li");
-              li.className = "location-point-item";
-              li.setAttribute("data-idx", String(item.idx));
-              var acc =
-                item.p.horizontal_accuracy != null
-                  ? "±" + Math.round(item.p.horizontal_accuracy) + " m"
-                  : "";
-              li.innerHTML =
-                '<span class="location-point-time">' +
-                locEtTimeFmt.format(new Date(item.p.recorded_at)) +
-                "</span>" +
-                '<span class="location-point-coords">' +
-                item.p.lat.toFixed(5) +
-                ", " +
-                item.p.lon.toFixed(5) +
-                (item.p.device_id ? " · " + item.p.device_id : "") +
-                "</span>" +
-                '<span class="location-point-meta">' +
-                acc +
-                "</span>";
-              li.addEventListener("click", function () {
-                locHighlightPoint(item.idx);
-              });
-              ul.appendChild(li);
-            });
-            section.appendChild(ul);
-            daysEl.appendChild(section);
-          });
-          locSyncCoordsPanel();
         }
 
         function locRenderMapData(points) {
@@ -1817,10 +1654,181 @@
           });
         }
 
+        // ── All-time heatmap ────────────────────────────────────────────
+        //
+        // A second map under the track map. The Worker returns the whole log
+        // already collapsed into a lat/lon grid with a count per cell, so this
+        // draws one dot per cell and darkens it by count — no line work, and
+        // the payload stays small however long the log gets. Reading it live
+        // on every load is what keeps it current as new points arrive.
+        var locHeatMap = null;
+        var locHeatMapReady = false;
+        var locHeatCells = [];
+
+        // Counts are wildly skewed: home holds tens of thousands of pings while
+        // a corner walked past once holds one, and home is ~24x the next
+        // busiest cell. Two things follow.
+        //
+        // A linear ramp is useless — it puts 548 of 549 cells in the lightest
+        // 5% and paints only home. A plain log ramp against the maximum is
+        // better but still lopsided, because that one outlier sets the top of
+        // the scale: 416 cells land in the lightest third.
+        //
+        // So normalize against the 95th percentile instead and clamp above it.
+        // Home and the handful of other real anchors saturate at full dark
+        // (which is correct — they are the darkest), and everything below
+        // spreads across the ramp: ~314/105/130 across light/mid/dark.
+        function locHeatSoftMax(cells) {
+          if (!cells.length) return 2;
+          var sorted = cells
+            .map(function (c) { return c.n; })
+            .sort(function (a, b) { return a - b; });
+          var p95 = sorted[Math.min(Math.floor(0.95 * (sorted.length - 1)), sorted.length - 1)];
+          return Math.max(p95, 2);
+        }
+
+        function locHeatIntensity(n, softMax) {
+          return Math.min(1, Math.log(n) / Math.log(softMax));
+        }
+
+        function locHeatGeoJson() {
+          var softMax = locHeatSoftMax(locHeatCells);
+          return {
+            type: "FeatureCollection",
+            features: locHeatCells.map(function (c) {
+              return {
+                type: "Feature",
+                geometry: { type: "Point", coordinates: [c.lon, c.lat] },
+                properties: { n: c.n, t: locHeatIntensity(c.n, softMax) },
+              };
+            }),
+          };
+        }
+
+        function locHeatEnsureLayers() {
+          if (!locHeatMap) return;
+          if (!locHeatMap.getSource("loc-heat")) {
+            locHeatMap.addSource("loc-heat", {
+              type: "geojson",
+              data: { type: "FeatureCollection", features: [] },
+            });
+            locHeatMap.addLayer({
+              id: "loc-heat-dots",
+              type: "circle",
+              source: "loc-heat",
+              paint: {
+                // Grid cells are a fixed size on the ground, so the dots have
+                // to grow with zoom or they drift apart into confetti.
+                "circle-radius": [
+                  "interpolate", ["linear"], ["zoom"],
+                  8, 2,
+                  12, 4,
+                  15, 9,
+                  18, 22,
+                ],
+                "circle-color": [
+                  "interpolate", ["linear"], ["get", "t"],
+                  0, "#93c5fd",
+                  0.5, "#3b82f6",
+                  0.8, "#1d4ed8",
+                  1, "#172554",
+                ],
+                "circle-opacity": [
+                  "interpolate", ["linear"], ["get", "t"],
+                  0, 0.35,
+                  1, 0.9,
+                ],
+                "circle-blur": 0.35,
+              },
+            });
+          }
+        }
+
+        function locHeatRender(fit) {
+          if (!locHeatMap || !locHeatMapReady) return;
+          locHeatEnsureLayers();
+          var data = locHeatGeoJson();
+          locHeatMap.getSource("loc-heat").setData(data);
+          if (!fit || !data.features.length) return;
+          var first = data.features[0].geometry.coordinates;
+          var bounds = data.features.reduce(function (b, f) {
+            return b.extend(f.geometry.coordinates);
+          }, new maplibregl.LngLatBounds(first, first));
+          locHeatMap.fitBounds(bounds, { padding: 28, maxZoom: 15 });
+        }
+
+        function ensureLocHeatMap() {
+          if (locHeatMap) return Promise.resolve(locHeatMap);
+          return loadLocMapLibre().then(function () {
+            if (typeof maplibregl === "undefined") {
+              throw new Error("MapLibre unavailable");
+            }
+            locHeatMap = new maplibregl.Map({
+              container: "loc-heat-map",
+              style: locMapStyles[locIsDark() ? "dark" : "light"],
+              center: [-73.97, 40.69],
+              zoom: 11,
+              scrollZoom: true,
+              attributionControl: false,
+            });
+            locHeatMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
+            locHeatMap.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
+            return new Promise(function (resolve) {
+              locHeatMap.on("load", function () {
+                locHeatMapReady = true;
+                locHeatEnsureLayers();
+                locCollapseAttribution("loc-heat-map");
+                resolve(locHeatMap);
+              });
+              // A style swap (theme toggle) drops every custom layer.
+              locHeatMap.on("style.load", function () {
+                if (!locHeatMapReady) return;
+                locHeatEnsureLayers();
+                locHeatRender(false);
+                locCollapseAttribution("loc-heat-map");
+              });
+              locHeatMap.on("error", function (e) {
+                if (e && e.error) console.error("Heatmap error", e.error);
+              });
+            });
+          });
+        }
+
+        async function loadLocationHeatmap() {
+          var stats = document.getElementById("loc-heat-stats");
+          stats.textContent = "Loading heatmap…";
+          try {
+            var data = await callAPI({ action: "location-heatmap" });
+            locHeatCells = data.cells || [];
+            await ensureLocHeatMap();
+            locHeatRender(true);
+
+            if (!locHeatCells.length) {
+              stats.textContent = "No points logged yet.";
+              return;
+            }
+            stats.textContent =
+              (data.pointCount || 0).toLocaleString() +
+              " points in " +
+              locHeatCells.length.toLocaleString() +
+              " cells · busiest " +
+              (data.maxCount || 0).toLocaleString();
+            setTimeout(function () {
+              if (locHeatMap) locHeatMap.resize();
+            }, 50);
+          } catch (err) {
+            stats.textContent = "Could not load heatmap.";
+          }
+        }
+
         window.loadLocationViewer = async function loadLocationViewer() {
           var status = document.getElementById("loc-status");
           var stats = document.getElementById("loc-stats");
           status.hidden = true;
+
+          // Independent of the track map below: its own query, its own map, so
+          // one stalling doesn't hide the other.
+          loadLocationHeatmap();
 
           stats.textContent = "Loading…";
           try {
@@ -1830,8 +1838,6 @@
             });
             locPoints = data.points || [];
             await locRenderMap(locPoints);
-            locRenderTimeline(locPoints);
-            locActiveIdx = -1;
 
             if (!locPoints.length) {
               stats.textContent = "No points yet. Check Overland is sending to /api/locations.";
@@ -1863,14 +1869,10 @@
           loadLocationViewer();
         });
 
-        document.getElementById("loc-coords-toggle").addEventListener("click", function () {
-          localStorage.setItem(LOC_COORDS_VISIBLE_KEY, locCoordsVisible() ? "0" : "1");
-          locSyncCoordsPanel();
-        });
-
         new MutationObserver(function () {
-          if (!locMap || !locMapReady) return;
-          locMap.setStyle(locMapStyles[locIsDark() ? "dark" : "light"]);
+          var style = locMapStyles[locIsDark() ? "dark" : "light"];
+          if (locMap && locMapReady) locMap.setStyle(style);
+          if (locHeatMap && locHeatMapReady) locHeatMap.setStyle(style);
         }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
       })();
 
