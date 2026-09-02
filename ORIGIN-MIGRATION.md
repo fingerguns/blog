@@ -401,7 +401,7 @@ Keep the existing project rather than making a new one. Cloudflare does not let 
 
 ### 5.2 Admin Worker
 
-Replace `triggerRebuild()` at `worker/update-thinking.js` lines 612–666. Both current branches die: the deploy hook is deleted, and the GitHub `workflow_dispatch` fallback targets a workflow that no longer exists.
+Replace `triggerRebuild()` at `worker/update-thinking.js` lines 612–675. Both current branches die: the deploy hook is deleted, and the GitHub `workflow_dispatch` fallback targets a workflow that no longer exists.
 
 ```js
 async function triggerRebuild(env) {
@@ -470,7 +470,7 @@ The alternative, if you would rather keep those links alive, is leaving the GitH
 
 ### Docs to update
 
-- `README.md` lines 146–157 and 181 — the Pages git build and the GitHub rebuild fallback
+- `README.md` lines 147–158 and 184 — the Pages git build and the GitHub rebuild fallback
 - `worker/README.md` lines 5, 77, 83, 103–114, and 148–156 — same, plus the `git pull origin main` instruction at line 163
 - `colophon/index.html` line 29 — "Saving from the admin triggers a Pages rebuild; so does pushing to `main`". The first half stays true; the second half does not.
 - `worker/update-power-and-the-glory-cover.sql` line 3 — comment says to run via GitHub Actions
