@@ -624,10 +624,19 @@ async function triggerRebuild(env) {
   if (env.PAGES_DEPLOY_HOOK) {
     try {
       const res = await fetch(env.PAGES_DEPLOY_HOOK, { method: "POST" });
-      await record(
-        res.ok ? JOB_STATUS.OK : JOB_STATUS.FAILED,
-        res.ok ? null : `Deploy hook returned HTTP ${res.status}`
-      );
+      // A publish fires the hook more than once within a few seconds (the write
+      // and the syndication that follows it). Pages answers the redundant call
+      // with 304 rather than queueing a second build — the deploy asked for is
+      // already coming, so that is the hook working, not failing. Recording it
+      // as FAILED is what used to redden the Health tab for a week at a time.
+      if (res.status === 304) {
+        await record(JOB_STATUS.SKIPPED, "Deploy already queued (HTTP 304)");
+      } else {
+        await record(
+          res.ok ? JOB_STATUS.OK : JOB_STATUS.FAILED,
+          res.ok ? null : `Deploy hook returned HTTP ${res.status}`
+        );
+      }
     } catch (err) {
       await record(JOB_STATUS.FAILED, err?.message || String(err));
     }

@@ -1,0 +1,22 @@
+# Admin tab URLs.
+#
+# The admin is one page that shows one tab at a time; each tab has its own URL
+# so a tab can be linked, bookmarked and reached with the back button. None of
+# these paths is a real file, so every one is rewritten (200, not a redirect —
+# the URL in the address bar has to survive) to the single admin page, which
+# reads location.pathname to decide which tab to open. Both slash forms are
+# listed because only an exact path match is rewritten.
+/admin/login        /admin/           200
+/admin/login/       /admin/           200
+/admin/thinking     /admin/           200
+/admin/thinking/    /admin/           200
+/admin/writing      /admin/           200
+/admin/writing/     /admin/           200
+/admin/reading      /admin/           200
+/admin/reading/     /admin/           200
+/admin/sharing      /admin/           200
+/admin/sharing/     /admin/           200
+/admin/location     /admin/           200
+/admin/location/    /admin/           200
+/admin/health       /admin/           200
+/admin/health/      /admin/           200

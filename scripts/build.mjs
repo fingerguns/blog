@@ -2531,7 +2531,7 @@ for (const p of ordered) {
   writeFileSync(join(outDir, "posts", slug, "index.html"), renderPostPage(p), "utf8");
 }
 
-const STATIC_ENTRIES = ["styles.css", "favicon.png", "about", "admin", "colophon", "contact", "_headers"];
+const STATIC_ENTRIES = ["styles.css", "favicon.png", "about", "admin", "colophon", "contact", "_headers", "_redirects"];
 for (const entry of STATIC_ENTRIES) {
   const src = join(root, entry);
   if (existsSync(src)) {

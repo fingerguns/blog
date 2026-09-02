@@ -4,12 +4,14 @@
 
 This gates the admin UI before anyone sees the password form. The Worker API still requires the admin password and rate limiting (below).
 
+The admin page also bounces a signed-out visitor from a working tab's URL to the public site, but that is a courtesy in the browser, not a boundary: the page itself is the same file at every `/admin/*` URL, and what actually protects the content is Access here plus the password the Worker demands on every API call.
+
 1. Open [Cloudflare Zero Trust](https://one.dash.cloudflare.com/) → **Access** → **Applications** → **Add an application**.
 2. Type: **Self-hosted**.
 3. **Application domain**
    - Subdomain: leave blank or `www` as needed
    - Domain: `rommy.blog`
-   - Path: `/admin` (covers `/admin/` and `/admin/index.html`)
+   - Path: `/admin` (a prefix — covers `/admin/`, `/admin/index.html`, and the per-tab URLs `/admin/thinking`, `/admin/writing`, `/admin/reading`, `/admin/sharing`, `/admin/location`, `/admin/health`, `/admin/login`)
 4. **Identity providers**: e.g. **One-time PIN** to your email, or **GitHub** (restrict to your account).
 5. **Policy**: Allow only your identity (e.g. `Emails` → `rommy@gha.ly`, or GitHub username).
 6. Save. Test in a private window: `https://rommy.blog/admin/` should show Cloudflare login before the blog password.

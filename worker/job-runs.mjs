@@ -1,10 +1,11 @@
 import {
   getJobStatus,
+  JOB_HEALTH,
   JOB_RETENTION_DAYS,
   JOB_STATUS,
 } from "../scripts/lib/job-runs.mjs";
 
-export { getJobStatus, JOB_STATUS };
+export { getJobStatus, JOB_HEALTH, JOB_STATUS };
 
 const DETAIL_MAX = 500;
 

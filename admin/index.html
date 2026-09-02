@@ -178,6 +178,7 @@
         background: var(--muted);
       }
       .tab-dot.ok, .job-dot.ok { background: #4a8; }
+      .tab-dot.warn, .job-dot.warn { background: #c90; }
       .tab-dot.bad, .job-dot.bad { background: #b44; }
       .health-summary {
         display: flex;
@@ -189,6 +190,8 @@
       }
       .health-summary.bad { color: #b44; }
       [data-theme="dark"] .health-summary.bad { color: #e88; }
+      .health-summary.warn { color: #8a6a12; }
+      [data-theme="dark"] .health-summary.warn { color: #e3b45c; }
       .health-heading {
         margin: 1.9rem 0 0.35rem;
         font-size: 0.7rem;
@@ -210,6 +213,10 @@
       .job-row-state { flex: 0 0 4.5rem; color: var(--muted); }
       .job-row.bad .job-row-state { color: #b44; }
       [data-theme="dark"] .job-row.bad .job-row-state { color: #e88; }
+      /* A recovered job's state column still says "ok", because it is — only
+         the failure count beside it earns the amber. */
+      .job-row.warn .job-row-when { color: #8a6a12; }
+      [data-theme="dark"] .job-row.warn .job-row-when { color: #e3b45c; }
       .job-row-when { flex: 0 0 9rem; color: var(--muted); }
       .job-row-detail {
         flex: 1 1 auto;
@@ -1145,7 +1152,7 @@
 
       <!-- ── HEALTH ───────────────────────────────── -->
       <div class="admin-section" id="tab-health">
-        <p class="lead">Background jobs: cron syncs, site rebuilds, and each syndication attempt. A job that failed, or a scheduled one that has gone quiet, turns the dot on this tab red.</p>
+        <p class="lead">Background jobs: cron syncs, site rebuilds, and each syndication attempt. A job whose <em>latest</em> run failed, or a scheduled one that has gone quiet, turns the dot on this tab red; one that failed earlier in the week but has run fine since turns it amber.</p>
 
         <div class="location-toolbar">
           <button type="button" id="health-refresh">Refresh</button>
@@ -1248,6 +1255,7 @@
           sessionStorage.removeItem(SESSION_KEY);
         } catch (e) {}
         setLoginState(false);
+        activateTab("login", "replace");
       }
 
       function setLoginState(signedIn) {
@@ -1307,11 +1315,8 @@
         _editSlug = slug || _editSlug;
         if (!_editSlug) return;
 
-        // Switch to Writing tab
-        document.querySelectorAll(".admin-tab").forEach(function(t){ t.classList.remove("active"); });
-        document.querySelectorAll(".admin-section").forEach(function(s){ s.classList.remove("active"); });
-        document.querySelector("[data-tab='post']").classList.add("active");
-        document.getElementById("tab-post").classList.add("active");
+        // Switch to the Writing tab (and off ?post= onto /admin/writing)
+        activateTab("post", "replace");
 
         // Edit mode: compose, and drafts don't apply to an already-published post
         document.getElementById("p-save-draft").hidden = true;
@@ -1332,8 +1337,6 @@
           document.getElementById("p-lead").textContent = "Editing: " + (data.title || _editSlug);
           document.getElementById("p-submit").textContent = "Update";
           status.hidden = true;
-          // Clear the ?post param from the URL without reloading
-          if (location.search) history.replaceState(null, "", "/admin/");
         } catch (err) {
           showStatus(status, "Could not load post: " + err.message, true);
         }
@@ -1352,24 +1355,93 @@
         window.addEventListener("load", function() { setTimeout(enterEditMode, 50); });
       }
 
-      // ── Tab switching ──────────────────────────────────────────────────────
+      // ── Tab routing ────────────────────────────────────────────────────────
+      //
+      // Each tab has its own URL — /admin/thinking, /admin/writing, and so on —
+      // so a tab can be linked, bookmarked and walked back to. None of those
+      // paths is a real file: the root `_redirects` rewrites all of them to
+      // this page, which then reads location.pathname to pick the tab. Every
+      // tab but Login is behind the password, so landing on one of their URLs
+      // signed out sends you to the public site instead.
+
+      // data-tab value -> URL slug. They differ in one place: the Writing tab
+      // is data-tab="post" but lives at /admin/writing.
+      var TAB_SLUGS = {
+        login: "login",
+        thinking: "thinking",
+        post: "writing",
+        reading: "reading",
+        sharing: "sharing",
+        location: "location",
+        health: "health",
+      };
+      var SLUG_TABS = {};
+      Object.keys(TAB_SLUGS).forEach(function (t) { SLUG_TABS[TAB_SLUGS[t]] = t; });
+      var PUBLIC_TABS = { login: true };
+
+      // "/admin/writing/" -> "post". /admin/ and anything unrecognised -> login.
+      function tabFromPath() {
+        var m = location.pathname.match(/^\/admin\/([^/]+)\/?$/);
+        return (m && SLUG_TABS[m[1].toLowerCase()]) || "login";
+      }
+
+      function runTabLoader(tab) {
+        if (tab === "thinking") loadThinkingArchive();
+        if (tab === "reading") loadReadingArchive();
+        if (tab === "location") loadLocationViewer();
+        if (tab === "health") loadJobStatus();
+      }
+
+      // Shows a tab. `nav` is "push" (a click), "replace" (correcting the URL
+      // without adding history) or "none" (a popstate — the URL is already the
+      // one being honoured). `skipLoader` defers the tab's data fetch to the
+      // caller, for the first paint: loadLocationViewer is assigned further
+      // down this script and doesn't exist yet while this runs.
+      function activateTab(tab, nav, skipLoader) {
+        var button = document.querySelector('.admin-tab[data-tab="' + tab + '"]');
+        var section = document.getElementById("tab-" + tab);
+        if (!button || !section) return;
+        document.querySelectorAll(".admin-tab").forEach(function (t) { t.classList.remove("active"); });
+        document.querySelectorAll(".admin-section").forEach(function (s) { s.classList.remove("active"); });
+        button.classList.add("active");
+        section.classList.add("active");
+        if (nav === "push" || nav === "replace") {
+          var url = "/admin/" + TAB_SLUGS[tab];
+          if (url !== location.pathname + location.search) {
+            history[nav === "push" ? "pushState" : "replaceState"](null, "", url);
+          }
+        }
+        if (!skipLoader) runTabLoader(tab);
+      }
+
+      // Returns the tab to show, or null after sending a signed-out visitor to
+      // the public site. Login stays reachable — it's where you sign in.
+      function guardTab(tab) {
+        if (PUBLIC_TABS[tab] || loadSession()) return tab;
+        location.replace("https://rommy.blog/");
+        return null;
+      }
 
       (function () {
-        var tabs = document.querySelectorAll(".admin-tab");
-        var sections = document.querySelectorAll(".admin-section");
-        tabs.forEach(function (tab) {
+        document.querySelectorAll(".admin-tab").forEach(function (tab) {
           tab.addEventListener("click", function () {
-            var target = tab.getAttribute("data-tab");
-            tabs.forEach(function (t) { t.classList.remove("active"); });
-            sections.forEach(function (s) { s.classList.remove("active"); });
-            tab.classList.add("active");
-            document.getElementById("tab-" + target).classList.add("active");
-            if (target === "thinking") loadThinkingArchive();
-            if (target === "reading") loadReadingArchive();
-            if (target === "location") loadLocationViewer();
-            if (target === "health") loadJobStatus();
+            activateTab(tab.getAttribute("data-tab"), "push");
           });
         });
+
+        window.addEventListener("popstate", function () {
+          var tab = guardTab(tabFromPath());
+          if (tab) activateTab(tab, "none");
+        });
+
+        var initial = guardTab(tabFromPath());
+        if (initial) {
+          // /admin/ is a legitimate URL for the Login tab, so don't rewrite it
+          // to /admin/login; any other tab arrived at by its own URL is already
+          // on the right one, and this only normalises the trailing slash.
+          activateTab(initial, initial === "login" ? "none" : "replace", true);
+          setTimeout(function () { runTabLoader(initial); }, 0);
+        }
       })();
 
       // ── Location viewer (Overland GPS log) ───────────────────────────────
@@ -1916,34 +1988,42 @@
         return "ok";
       }
 
-      // `healthy` true -> green, false -> red, null -> neutral (signed out, or
-      // not checked yet). The tab dot and the in-tab dot always agree.
-      function setHealthDot(healthy) {
+      // "ok" -> green, "warn" -> amber, "bad" -> red, null -> neutral (signed
+      // out, or not checked yet). The tab dot and the in-tab dot always agree.
+      // Amber is the recency state: something failed recently but has since
+      // recovered, so it is worth noting and not worth interrupting for.
+      var HEALTH_TITLES = {
+        ok: "Background jobs healthy",
+        warn: "A background job failed recently but has recovered",
+        bad: "A background job needs attention",
+      };
+
+      function setHealthDot(health) {
         [
           document.getElementById("health-tab-dot"),
           document.getElementById("health-dot"),
         ].forEach(function (dot) {
           if (!dot) return;
-          dot.classList.remove("ok", "bad");
-          if (healthy === true) dot.classList.add("ok");
-          if (healthy === false) dot.classList.add("bad");
+          dot.classList.remove("ok", "warn", "bad");
+          if (health) dot.classList.add(health);
         });
         var summary = document.getElementById("health-summary");
-        if (summary) summary.classList.toggle("bad", healthy === false);
+        if (summary) {
+          summary.classList.toggle("bad", health === "bad");
+          summary.classList.toggle("warn", health === "warn");
+        }
         var tab = document.getElementById("health-tab-dot");
         if (tab && tab.parentElement) {
           tab.parentElement.title =
-            healthy === true
-              ? "Background jobs healthy"
-              : healthy === false
-                ? "A background job needs attention"
-                : "Background job status unknown";
+            HEALTH_TITLES[health] || "Background job status unknown";
         }
       }
 
-      function jobRow(label, state, when, detail, isBad) {
+      // `tone` is "bad", "warn", or null — the row's own state, independent of
+      // the board's rollup, so one recovered job doesn't tint the rest.
+      function jobRow(label, state, when, detail, tone) {
         var row = document.createElement("div");
-        row.className = "job-row" + (isBad ? " bad" : "");
+        row.className = "job-row" + (tone ? " " + tone : "");
 
         var labelEl = document.createElement("span");
         labelEl.className = "job-row-label";
@@ -1976,15 +2056,15 @@
         var recentWrap = document.getElementById("health-recent");
         var jobs = data.jobs || [];
 
-        setHealthDot(!!data.healthy);
+        var health = data.health || (data.healthy ? "ok" : "bad");
+        setHealthDot(health);
 
-        if (data.healthy) {
-          text.textContent =
-            "All background jobs healthy · " + jobs.length + " tracked";
-        } else {
-          var bad = jobs.filter(function (j) {
-            return j.status === "failed" || j.stale || j.failures > 0;
-          });
+        // `broken` and `recovered` are decided server-side (job-runs.mjs) so the
+        // dot, the summary line, and the rows can't disagree about what counts.
+        var bad = jobs.filter(function (j) { return j.broken; });
+        var recovered = jobs.filter(function (j) { return j.recovered; });
+
+        if (health === "bad") {
           var names = bad
             .map(function (j) {
               return j.label + " " + jobStateLabel(j);
@@ -1992,13 +2072,20 @@
             .join(", ");
           text.textContent =
             bad.length + (bad.length === 1 ? " problem: " : " problems: ") + names;
+        } else if (health === "warn") {
+          text.textContent =
+            recovered.length +
+            (recovered.length === 1 ? " job recovered: " : " jobs recovered: ") +
+            recovered
+              .map(function (j) { return j.label; })
+              .join(", ");
+        } else {
+          text.textContent =
+            "All background jobs healthy · " + jobs.length + " tracked";
         }
 
         detail.innerHTML = "";
         jobs.forEach(function (job) {
-          // `stale` already covers a scheduled job that has never run; an
-          // event-driven job with no runs yet is unknown, not broken.
-          var isBad = job.status === "failed" || job.stale;
           detail.appendChild(
             jobRow(
               job.label,
@@ -2008,7 +2095,7 @@
                   ? " · " + job.failures + " failed in " + data.days + "d"
                   : ""),
               job.detail,
-              isBad
+              job.broken ? "bad" : job.recovered ? "warn" : null
             )
           );
         });
@@ -2035,7 +2122,7 @@
               jobRelativeTime(run.created_at) +
                 (run.duration_ms ? " · " + run.duration_ms + "ms" : ""),
               run.detail || run.context,
-              run.status === "failed"
+              run.status === "failed" ? "bad" : null
             )
           );
         });
@@ -2055,7 +2142,7 @@
           var data = await callAPI({ action: "job-status", days: 7 });
           renderJobStatus(data);
         } catch (err) {
-          setHealthDot(false);
+          setHealthDot("bad");
           text.textContent =
             "Could not load job status — " + (err.message || "request failed");
         }
