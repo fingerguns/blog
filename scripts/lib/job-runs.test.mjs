@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-import { getJobStatus, JOB_STATUS } from "./job-runs.mjs";
+import { getJobStatus, JOB_HEALTH, JOB_STATUS } from "./job-runs.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -64,7 +64,10 @@ test("reports the most recent run per job", async () => {
   assert.equal(rebuild.status, "failed");
   assert.equal(rebuild.detail, "Deploy hook returned HTTP 500");
   assert.equal(rebuild.failures, 1);
+  assert.equal(rebuild.broken, true);
+  assert.equal(rebuild.recovered, false);
   assert.equal(status.healthy, false);
+  assert.equal(status.health, JOB_HEALTH.BAD);
 });
 
 test("a job that has never run is reported rather than omitted", async () => {
@@ -86,6 +89,7 @@ test("a scheduled job that has never run counts as a problem", async () => {
   assert.equal(oura.scheduled, true);
   assert.equal(oura.stale, true);
   assert.equal(status.healthy, false);
+  assert.equal(status.health, JOB_HEALTH.BAD);
   assert.ok(status.problems.includes("oura-sync"));
 });
 
@@ -160,5 +164,58 @@ test("all jobs healthy reports healthy", async () => {
   const status = await getJobStatus(db, { days: 7 });
 
   assert.equal(status.healthy, true);
+  assert.equal(status.health, JOB_HEALTH.OK);
   assert.deepEqual(status.problems, []);
+  assert.deepEqual(status.recovered, []);
+});
+
+test("a job that failed but has since succeeded is a warning, not a problem", async () => {
+  const { db, insert } = freshDb();
+  insert("oura-sync", JOB_STATUS.OK, null, hoursAgo(2));
+  insert("rebuild", JOB_STATUS.FAILED, "Deploy hook returned HTTP 304", hoursAgo(30));
+  insert("rebuild", JOB_STATUS.OK, null, hoursAgo(1));
+
+  const status = await getJobStatus(db, { days: 7 });
+  const rebuild = status.jobs.find((j) => j.job === "rebuild");
+
+  // The failure is still counted and still shown — it just doesn't hold the
+  // board red for the rest of the window once the job is working again.
+  assert.equal(rebuild.failures, 1);
+  assert.equal(rebuild.broken, false);
+  assert.equal(rebuild.recovered, true);
+  assert.equal(status.health, JOB_HEALTH.WARN);
+  assert.equal(status.healthy, true);
+  assert.deepEqual(status.problems, []);
+  assert.deepEqual(status.recovered, ["rebuild"]);
+});
+
+test("a recovered job still goes red if it is also stale", async () => {
+  const { db, insert } = freshDb();
+  insert("oura-sync", JOB_STATUS.OK, null, hoursAgo(2));
+  // Succeeded last, so not failing — but rebuild's 72h threshold is blown.
+  insert("rebuild", JOB_STATUS.FAILED, "boom", hoursAgo(120));
+  insert("rebuild", JOB_STATUS.OK, null, hoursAgo(100));
+
+  const status = await getJobStatus(db, { days: 7 });
+  const rebuild = status.jobs.find((j) => j.job === "rebuild");
+
+  assert.equal(rebuild.broken, true);
+  assert.equal(rebuild.recovered, false);
+  assert.equal(status.health, JOB_HEALTH.BAD);
+});
+
+test("a skipped run is neither a failure nor a warning", async () => {
+  const { db, insert } = freshDb();
+  insert("oura-sync", JOB_STATUS.OK, null, hoursAgo(2));
+  // What a redundant deploy hook now records: the build was already queued.
+  insert("rebuild", JOB_STATUS.SKIPPED, "Deploy already queued (HTTP 304)", hoursAgo(1));
+
+  const status = await getJobStatus(db, { days: 7 });
+  const rebuild = status.jobs.find((j) => j.job === "rebuild");
+
+  assert.equal(rebuild.status, "skipped");
+  assert.equal(rebuild.failures, 0);
+  assert.equal(rebuild.broken, false);
+  assert.equal(rebuild.recovered, false);
+  assert.equal(status.health, JOB_HEALTH.OK);
 });

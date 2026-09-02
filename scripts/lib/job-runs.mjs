@@ -3,6 +3,14 @@
 
 export const JOB_STATUS = { OK: "ok", FAILED: "failed", SKIPPED: "skipped" };
 
+// Rollup state for the whole board, in order of severity. `warn` is the recency
+// state: a job that failed inside the window but has succeeded since is neither
+// broken nor spotless, and collapsing it into either one loses something. Red
+// used to mean "failed at some point in the last seven days", which left the
+// dot red for a week after a blip the job had already recovered from — long
+// enough that red stopped meaning "look now".
+export const JOB_HEALTH = { OK: "ok", WARN: "warn", BAD: "bad" };
+
 // Jobs the admin Health tab expects to exist. A job listed here but absent from
 // job_runs renders as "never run", which is itself a finding — a cron that has
 // never fired looks identical to a healthy one without this list.
@@ -81,6 +89,11 @@ export async function getJobStatus(db, { days = 7, limit = 25 } = {}) {
     const scheduled = Boolean(known?.staleAfterHours);
     const stale = scheduled && (row === null || age > known.staleAfterHours);
 
+    const failures = failuresByJob.get(name) || 0;
+    // Broken *now*: the last thing this job did was fail, or it is overdue.
+    // Only the latest run counts, because that is the only one still true.
+    const broken = row?.status === JOB_STATUS.FAILED || stale;
+
     return {
       job: name,
       label: known?.label || name,
@@ -92,21 +105,34 @@ export async function getJobStatus(db, { days = 7, limit = 25 } = {}) {
       last_run_at: row?.created_at || null,
       age_hours: age === null ? null : Math.round(age * 10) / 10,
       stale,
-      failures: failuresByJob.get(name) || 0,
+      failures,
+      broken,
+      // Failed inside the window, but the most recent run was fine. Worth
+      // showing, not worth an alarm.
+      recovered: !broken && failures > 0,
     };
   });
 
   jobs.sort((a, b) => a.label.localeCompare(b.label));
 
-  const problems = jobs.filter(
-    (j) => j.status === JOB_STATUS.FAILED || j.stale || j.failures > 0
-  );
+  const problems = jobs.filter((j) => j.broken);
+  const recovered = jobs.filter((j) => j.recovered);
+
+  const health = problems.length
+    ? JOB_HEALTH.BAD
+    : recovered.length
+      ? JOB_HEALTH.WARN
+      : JOB_HEALTH.OK;
 
   return {
     days,
     since,
+    health,
+    // Nothing is currently broken. True in the `warn` state too — read `health`
+    // when you need to tell "clean" from "recovered".
     healthy: problems.length === 0,
     problems: problems.map((j) => j.job),
+    recovered: recovered.map((j) => j.job),
     jobs,
     recent: recent || [],
   };
