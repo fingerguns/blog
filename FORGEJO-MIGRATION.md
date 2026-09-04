@@ -19,9 +19,9 @@ Re-audited against the current tree, not inherited from the Origin document. Two
 | 1 | The git remote | `https://github.com/fingerguns/blog.git` |
 | 2 | Three Actions workflows | `.github/workflows/{build,d1-execute,deploy-worker}.yml` |
 | 3 | Pages project `rommy-blog` builds on push to `main` | Cloudflare dashboard, build command `node build-pages.mjs` |
-| 4 | `triggerRebuild()` — deploy hook, with a GitHub `workflow_dispatch` fallback | `worker/update-thinking.js:619-647` |
+| 4 | `triggerRebuild()` — deploy hook, with a GitHub `workflow_dispatch` fallback | `worker/update-thinking.js:646-674` |
 | 5 | Worker vars `GITHUB_OWNER` / `GITHUB_REPO` / `GITHUB_BRANCH`, secret `GITHUB_TOKEN` | `worker/wrangler.toml:11-13,58` |
-| 6 | Changelog entries link to `github.com/.../commit/{hash}` | `scripts/build.mjs:1770` |
+| 6 | Changelog entries link to `github.com/.../commit/{hash}` | `scripts/build.mjs:1944` |
 | 7 | Footer "GitHub" link, rendered with `rel="me"` | `scripts/d1-client.mjs:235` |
 | 8 | Colophon links: "repo", and "MIT licensed" → GitHub-hosted `LICENSE` | `colophon/index.html:29,44` |
 | 9 | **NEW —** the docs drift sweep routine clones `github.com/fingerguns/blog` | Cloud routine `trig_01RGunVKiR5vRmb56tVDoWjA` |
@@ -246,7 +246,7 @@ Disable automatic branch deployments on `rommy-blog`. Leave the project git-conn
 
 ### 6.2 The admin Worker
 
-`triggerRebuild()` at `worker/update-thinking.js:619-647` currently tries `PAGES_DEPLOY_HOOK`, then falls back to GitHub `workflow_dispatch`. After migration the hook is dead and the fallback becomes the only path.
+`triggerRebuild()` at `worker/update-thinking.js:646-674` currently tries `PAGES_DEPLOY_HOOK`, then falls back to GitHub `workflow_dispatch`. After migration the hook is dead and the fallback becomes the only path.
 
 **Option A:** replace both with a service binding to the builder Worker — Origin document section 5.2, unchanged.
 
