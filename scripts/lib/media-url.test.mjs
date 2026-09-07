@@ -117,11 +117,13 @@ test("grid thumbs upgrade Spotify art rather than resizing it", () => {
   );
 });
 
-test("grid thumbs promote YouTube previews to sddefault", () => {
+test("grid thumbs normalise YouTube previews to hqdefault", () => {
+  // Not sddefault: YouTube only generates that for videos whose source was at
+  // least that big, so it 404s on Shorts and low-resolution uploads.
   for (const size of ["default", "mqdefault", "hqdefault", "sddefault"]) {
     assert.equal(
       thinkingGridThumbUrl(`https://i.ytimg.com/vi/abc/${size}.jpg`, SITE),
-      "https://i.ytimg.com/vi/abc/sddefault.jpg",
+      "https://i.ytimg.com/vi/abc/hqdefault.jpg",
       size
     );
   }
