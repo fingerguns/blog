@@ -212,6 +212,8 @@ Estimates use approximate Fable list rates; check [Anthropic Console → Cost](h
 
 Book covers, Spotify art, video-poster checks, and Sharing link unfurls are looked up once and cached, so the build only fetches what is new. These used to live in committed `data/*.json` files, which did not work: Pages builds in an ephemeral checkout, so every cache write was discarded and only a local build followed by a commit ever warmed anything.
 
+A cached `false` means "checked, nothing there", and for most of these that verdict is final — a track with no cover art will not grow one, so `cacheKeysToLookUp` skips any key already present rather than hammering someone else's service every build. **Video posters are the exception** and pass `retryEmpty`, because a missing poster is temporary: it appears whenever `npm run backfill-video-posters` fills in one the admin's upload-time capture missed. Trusting `false` there stranded those tiles as placeholders permanently and made the backfill script's closing advice ("run `npm run build` to refresh the grid poster cache") a no-op. The recheck costs one `HEAD` per posterless video per build.
+
 They now live in the D1 `build_cache` table, one namespace per cache. To migrate:
 
 ```bash

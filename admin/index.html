@@ -2844,17 +2844,24 @@
         var audioName = document.getElementById("t-audio-name");
         var videoName = document.getElementById("t-video-name");
         var photoPreviewUrls = [];
-        var videoPosterBlob = null;
+        var videoPosterPromise = null;
         var GRID_POSTER_SIZE = 512;
 
         function captureVideoPosterBlob(videoEl) {
           return new Promise(function (resolve) {
+            var settled = false;
+            function settle(blob) {
+              if (settled) return;
+              settled = true;
+              resolve(blob || null);
+            }
+
             function snap() {
               try {
                 var vw = videoEl.videoWidth;
                 var vh = videoEl.videoHeight;
                 if (!vw || !vh) {
-                  resolve(null);
+                  settle(null);
                   return;
                 }
                 var canvas = document.createElement("canvas");
@@ -2873,21 +2880,21 @@
                 );
                 canvas.toBlob(
                   function (blob) {
-                    resolve(blob || null);
+                    settle(blob);
                   },
                   "image/jpeg",
                   0.82
                 );
               } catch (err) {
-                resolve(null);
+                settle(null);
               }
             }
 
             function seekAndSnap() {
-              var done = false;
+              var sought = false;
               function finish() {
-                if (done) return;
-                done = true;
+                if (sought) return;
+                sought = true;
                 snap();
               }
               videoEl.addEventListener("seeked", finish, { once: true });
@@ -2902,25 +2909,30 @@
             if (videoEl.readyState >= 2) {
               seekAndSnap();
             } else {
+              // Clear the deadline once data arrives: a decode that lands just
+              // under it would otherwise lose the race and have its frame
+              // thrown away, since the first settle wins.
+              var dataDeadline = setTimeout(function () {
+                settle(null);
+              }, 8000);
               videoEl.addEventListener(
                 "loadeddata",
                 function () {
+                  clearTimeout(dataDeadline);
                   seekAndSnap();
                 },
                 { once: true }
               );
-              setTimeout(function () {
-                resolve(null);
-              }, 5000);
             }
           });
         }
 
         function queueVideoPosterCapture() {
-          videoPosterBlob = null;
-          captureVideoPosterBlob(videoPreview).then(function (blob) {
-            videoPosterBlob = blob;
-          });
+          // Start on selection and keep the promise, rather than assigning a
+          // blob to a variable that submit reads whenever it happens to run.
+          // Posting straight after choosing a file used to beat the capture and
+          // upload no poster at all, leaving a permanently blank grid tile.
+          videoPosterPromise = captureVideoPosterBlob(videoPreview);
         }
 
         function selectedPhotoFiles() {
@@ -3008,7 +3020,7 @@
           if (photoName) photoName.textContent = "No photos";
           if (audioName) audioName.textContent = "No audio";
           if (videoName) videoName.textContent = "No video";
-          videoPosterBlob = null;
+          videoPosterPromise = null;
         }
 
         function clearPhotoSelection() {
@@ -3034,7 +3046,7 @@
           videoPreview.removeAttribute("src");
           revokeVideoPreviewUrl();
           if (videoName) videoName.textContent = "No video";
-          videoPosterBlob = null;
+          videoPosterPromise = null;
         }
 
         mediaRemove.addEventListener("click", clearThinkingMedia);
@@ -3141,9 +3153,15 @@
           audioPreview.hidden = true;
           revokeVideoPreviewUrl();
           videoPreview._objectUrl = URL.createObjectURL(file);
+          // captureVideoPosterBlob waits for readyState itself, so start it
+          // here rather than from a "loadeddata" listener: iOS Safari will not
+          // pull media data for a video nobody has played, so that event can
+          // never fire and the capture would never even begin. preload="auto"
+          // nudges it to decode enough of the local blob to yield a frame.
+          videoPreview.preload = "auto";
           videoPreview.src = videoPreview._objectUrl;
           videoPreview.hidden = false;
-          videoPreview.addEventListener("loadeddata", queueVideoPosterCapture, { once: true });
+          queueVideoPosterCapture();
           mediaRemove.hidden = false;
           if (videoName) videoName.textContent = file.name;
           if (photoName) photoName.textContent = "No photos";
@@ -3270,13 +3288,15 @@
                   }
                 }
               : null;
+            var videoPoster =
+              videoFile && videoPosterPromise ? await videoPosterPromise : null;
             var result = await callThinkingAPI(
               textInput.value,
               sitePhotos,
               blueskyFiles,
               audioFile || null,
               videoFile || null,
-              videoPosterBlob,
+              videoPoster,
               onProgress
             );
             hideThinkingUploadProgress();
