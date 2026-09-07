@@ -51,7 +51,7 @@ flowchart LR
 
 ### Why a container rather than porting the build into the Worker
 
-`scripts/build.mjs` imports `node:child_process` at line 6 to shell out to `git log` for the changelog, and `node:fs` at line 7 to write the `dist/` tree. A container reuses all 2,542 lines untouched. Porting into a Worker means rewriting both and replacing the output path with the Pages Direct Upload API. The container is the low-risk path.
+`scripts/build.mjs` imports `node:child_process` at line 6 to shell out to `git log` for the changelog, and `node:fs` at line 7 to write the `dist/` tree. A container reuses all 2,864 lines untouched. Porting into a Worker means rewriting both and replacing the output path with the Pages Direct Upload API. The container is the low-risk path.
 
 ### Options that were ruled out
 
@@ -136,9 +136,9 @@ Do not delete or archive the GitHub repo until Phase 5 passes. It is your rollba
 
 ### 4.1 Fix the changelog first
 
-`scripts/build.mjs` lines 992–1009 derive the changelog by shelling out to git, and swallow any failure:
+`scripts/build.mjs` lines 1002–1019 derive the changelog by shelling out to git, and swallow any failure:
 
-```992:1009:scripts/build.mjs
+```1002:1019:scripts/build.mjs
 // Changelog from git log
 let changelogEntries = [];
 try {
@@ -462,7 +462,7 @@ Origin repos are **Internal or Private only** — there is no public visibility 
 
 ### Links to fix
 
-- `scripts/build.mjs` line 1944 renders each changelog entry as a link to `github.com/fingerguns/blog/commit/{hash}`. Recommended: render the message as plain text with the short hash beside it.
+- `scripts/build.mjs` line 1948 renders each changelog entry as a link to `github.com/fingerguns/blog/commit/{hash}`. Recommended: render the message as plain text with the short hash beside it.
 - `colophon/index.html` line 29 links the word "repo" to GitHub. Recommended: unlink it.
 - `colophon/index.html` line 44 links "MIT licensed" to the GitHub-hosted LICENSE. Recommended: serve a copy of `LICENSE` from the site and point there.
 
@@ -470,7 +470,7 @@ The alternative, if you would rather keep those links alive, is leaving the GitH
 
 ### Docs to update
 
-- `README.md` lines 147–158 and 188 — the Pages git build and the GitHub rebuild fallback
+- `README.md` lines 149–160 and 190 — the Pages git build and the GitHub rebuild fallback
 - `worker/README.md` lines 5, 77, 83, 103–114, and 148–156 — same, plus the `git pull origin main` instruction at line 163
 - `colophon/index.html` line 29 — "Saving from the admin triggers a Pages rebuild; so does pushing to `main`". The first half stays true; the second half does not.
 - `worker/update-power-and-the-glory-cover.sql` line 3 — comment says to run via GitHub Actions
@@ -513,9 +513,9 @@ Phases 1–5 move the repo and rebuild the deploy pipeline. What they do not cov
       { label: "GitHub", url: "https://github.com/fingerguns" },
 ```
 
-It renders through `scripts/build.mjs` line 1383, which applies `rel="me noopener"` to every footer link. Recommended: drop the entry, or repoint it at whichever public mirror you choose in [section 8.5](#85-public-source-browsing).
+It renders through `scripts/build.mjs` line 1393, which applies `rel="me noopener"` to every footer link. Recommended: drop the entry, or repoint it at whichever public mirror you choose in [section 8.5](#85-public-source-browsing).
 
-**That `rel="me"` has a consequence.** GitHub is currently one of your IndieAuth identity links. If you ever signed in to [webmention.io](https://webmention.io) through the GitHub `rel=me` chain, removing the account can lock you out of the service that receives Writing comments. Bluesky, Mastodon, and micro.blog are also `rel="me"` (`scripts/build.mjs` lines 1394–1400), so identity is recoverable — but **verify webmention.io sign-in through a non-GitHub identity before deleting anything on GitHub**, not after.
+**That `rel="me"` has a consequence.** GitHub is currently one of your IndieAuth identity links. If you ever signed in to [webmention.io](https://webmention.io) through the GitHub `rel=me` chain, removing the account can lock you out of the service that receives Writing comments. Bluesky, Mastodon, and micro.blog are also `rel="me"` (`scripts/build.mjs` lines 1404–1410), so identity is recoverable — but **verify webmention.io sign-in through a non-GitHub identity before deleting anything on GitHub**, not after.
 
 **`data/posts.json`** carries a GitHub link in the legacy fallback data used when D1 env vars are absent. Cosmetic, but it should match the footer.
 
