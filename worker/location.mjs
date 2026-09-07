@@ -357,6 +357,23 @@ export async function handleLocationHeatmap(db) {
   };
 }
 
+// The place name behind one heatmap cell, resolved when a dot is clicked.
+//
+// Labelling every cell up front would be hundreds of reverse-geocode calls per
+// heatmap load, for labels nobody asked to see. Clicking is human-paced, and
+// `getGeocodeLabel` caches into `geocode_cache` keyed to GEOCODE_DECIMALS — a
+// coarser grid than the heatmap's — so a cell costs one lookup ever, and
+// neighbouring cells often cost none. The label is already
+// "Neighborhood, Borough" (see `neighborhoodLabelFromAddress`).
+export async function handleLocationPlace(payload, db, env) {
+  const lat = Number(payload?.lat);
+  const lon = Number(payload?.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+    throw new Error("Invalid coordinates");
+  }
+  return { ok: true, lat, lon, label: await getGeocodeLabel(db, lat, lon, env) };
+}
+
 export async function resolveCurrentNeighborhood(db, env) {
   const { results } = await db
     .prepare(
