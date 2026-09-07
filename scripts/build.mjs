@@ -29,6 +29,7 @@ import { thinkingSlugFromIso } from "./lib/thinking-slug.mjs";
 import { distanceTextFromSteps } from "./lib/steps-distance.mjs";
 import {
   CACHE_NAMESPACES,
+  cacheKeysToLookUp,
   loadBuildCache,
   saveBuildCache,
 } from "./lib/build-cache.mjs";
@@ -2134,7 +2135,12 @@ for (const item of microblogItems) {
   if (videoSrc) videoSrcsNeeded.add(videoSrc);
 }
 
-const missingVideoPosters = [...videoSrcsNeeded].filter((videoSrc) => !(videoSrc in videoPosterCache));
+// retryEmpty: a poster missing today can be backfilled tomorrow, so a cached
+// `false` is rechecked rather than trusted. Costs one HEAD per posterless
+// video per build.
+const missingVideoPosters = cacheKeysToLookUp(videoPosterCache, videoSrcsNeeded, {
+  retryEmpty: true,
+});
 await mapWithConcurrency(missingVideoPosters, 6, async (videoSrc) => {
   const posterKey = videoPosterKeyFromVideoUrl(videoSrc, base);
   if (!posterKey) {

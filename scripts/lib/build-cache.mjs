@@ -22,6 +22,24 @@ export const CACHE_NAMESPACES = {
   LINKLOG_UNFURLS: "linklog-unfurls",
 };
 
+/**
+ * Which of `keys` the build still has to look up.
+ *
+ * By default a key that is present is settled, even when its value is `false`:
+ * for covers, Spotify art and unfurls a miss is permanent, and refetching it
+ * every build would be wasted requests against someone else's service.
+ *
+ * `retryEmpty` is for a cache whose misses are *transient*. A video poster is
+ * the one such case: it appears in R2 later, whenever a capture that failed at
+ * upload time gets filled in by `npm run backfill-video-posters`. Trusting a
+ * cached `false` there strands the tile as a placeholder forever, and made the
+ * backfill script's own advice ("run npm run build to refresh the grid poster
+ * cache") do nothing at all.
+ */
+export function cacheKeysToLookUp(cache, keys, { retryEmpty = false } = {}) {
+  return [...keys].filter((key) => (retryEmpty ? !cache[key] : !(key in cache)));
+}
+
 /** Legacy on-disk locations, used to seed D1 and as a read fallback. */
 export const LEGACY_CACHE_FILES = {
   [CACHE_NAMESPACES.READING_COVERS]: "data/reading-covers.json",

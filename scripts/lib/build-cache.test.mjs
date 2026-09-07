@@ -15,7 +15,8 @@ process.env.CF_ACCOUNT_ID = "test-account";
 process.env.CF_API_TOKEN = "test-token";
 process.env.CF_D1_DATABASE_ID = "test-db";
 
-const { CACHE_NAMESPACES, loadBuildCache, saveBuildCache } = await import("./build-cache.mjs");
+const { CACHE_NAMESPACES, cacheKeysToLookUp, loadBuildCache, saveBuildCache } =
+  await import("./build-cache.mjs");
 
 const NS = CACHE_NAMESPACES.READING_COVERS;
 const realFetch = globalThis.fetch;
@@ -183,4 +184,28 @@ test("save reports zero written when D1 rejects the write", async () => {
 
   const { written } = await saveBuildCache(NS, cache);
   assert.equal(written, 0, "a failed cache write is a slow build, not a broken one");
+});
+
+test("a present key is settled by default, even when its value is false", () => {
+  const cache = { found: "https://example.com/a.jpg", "checked-empty": false };
+  assert.deepEqual(
+    cacheKeysToLookUp(cache, ["found", "checked-empty", "unseen"]),
+    ["unseen"],
+    "a permanent miss must not be refetched every build"
+  );
+});
+
+test("retryEmpty looks a falsy entry up again", () => {
+  // Video posters only: one arrives in R2 whenever backfill-video-posters runs,
+  // so a cached false has to be rechecked or the grid tile stays a placeholder
+  // for good and the backfill can never reach it.
+  const cache = { posted: true, "no-poster-yet": false };
+  assert.deepEqual(
+    cacheKeysToLookUp(cache, ["posted", "no-poster-yet", "unseen"], { retryEmpty: true }),
+    ["no-poster-yet", "unseen"]
+  );
+});
+
+test("keys to look up accepts a Set, as the build passes one", () => {
+  assert.deepEqual(cacheKeysToLookUp({ a: true }, new Set(["a", "b"])), ["b"]);
 });

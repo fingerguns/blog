@@ -240,7 +240,7 @@ wrangler deploy
 - Up to **5 MB** per photo on rommy.blog and Micro.blog (JPEG, PNG, WebP, GIF)
 - Bluesky gets a compressed JPEG per photo when the original is over **2 MB**
 - **Thinking gallery:** 1 photo renders full width; 2–4 photos render as an equal-size, cropped 2×2 grid at the blog's content width (no letterboxing). Clicking any photo opens a same-page lightbox — full-viewport width, prev/next buttons, `←`/`→`/`Esc`, and swipe-to-navigate on mobile, wrapping at both ends — used identically on the homepage, `/thinking/` archive, and permalinks. On phones (including landscape orientation), lightbox photos render edge-to-edge with no corner rounding
-- **Thinking grid thumbs:** Photo tiles request square JPEGs from `/media/thumb/512/{key}` (Worker-resized, edge-cached). Native video tiles use a paired `-poster.jpg` in R2 (512×512 on upload or via `npm run backfill-video-posters`). Images in grid view load lazily with a small concurrency cap
+- **Thinking grid thumbs:** Photo tiles request square JPEGs from `/media/thumb/512/{key}` (Worker-resized, edge-cached). Native video tiles use a paired `-poster.jpg` in R2 (512×512 on upload or via `npm run backfill-video-posters`); a video with no poster yet falls back to a grey placeholder tile with a play triangle. The build's `video-posters` cache is the one build cache that rechecks its misses, so a poster added after the fact reaches the grid on the next build (see below). Images in grid view load lazily with a small concurrency cap
 - On Writing posts, portrait-oriented photos default to half width; click to expand/collapse
 
 ## Reading
