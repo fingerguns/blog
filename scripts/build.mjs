@@ -1647,32 +1647,35 @@ function setFiltersFromPath(){
   if(fromPath){kinds.forEach(function(kind){active[kind]=(kind===fromPath);});}
   else{active=defaultFilters();}
 }
+// One element per call, so its handlers close over their own binding. Inlining
+// this in the drain loop shared a single function-scoped var across every
+// iteration: each handler then revealed whichever tile the loop happened to
+// reach last, and the rest stayed at opacity 0 with their bytes already in.
+function startGridMedia(el){
+  var url=el.getAttribute('data-src');
+  if(!url)return false;
+  mediaInflight++;
+  function done(){
+    el.removeEventListener('load',done);
+    el.removeEventListener('error',done);
+    el.classList.add('is-loaded');
+    mediaInflight--;
+    drainMediaQueue();
+  }
+  el.addEventListener('load',done);
+  el.addEventListener('error',done);
+  el.src=url;
+  el.removeAttribute('data-src');
+  el.dataset.loaded='1';
+  if(gridMediaObs)gridMediaObs.unobserve(el);
+  return true;
+}
 function drainMediaQueue(){
   if(wrap.getAttribute('data-view')!=='grid')return;
   while(mediaInflight<MEDIA_MAX&&mediaQueue.length){
     var el=mediaQueue.shift();
     if(!el||el.dataset.loaded==='1')continue;
-    var url=el.getAttribute('data-src');
-    if(!url){continue;}
-    mediaInflight++;
-    el.addEventListener('load',function done(){
-      el.removeEventListener('load',done);
-      el.removeEventListener('error',done);
-      el.classList.add('is-loaded');
-      mediaInflight--;
-      drainMediaQueue();
-    });
-    el.addEventListener('error',function done(){
-      el.removeEventListener('load',done);
-      el.removeEventListener('error',done);
-      el.classList.add('is-loaded');
-      mediaInflight--;
-      drainMediaQueue();
-    });
-    el.src=url;
-    el.removeAttribute('data-src');
-    el.dataset.loaded='1';
-    if(gridMediaObs)gridMediaObs.unobserve(el);
+    startGridMedia(el);
   }
 }
 function hydrateGridMedia(el){
