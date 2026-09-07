@@ -401,7 +401,7 @@ Keep the existing project rather than making a new one. Cloudflare does not let 
 
 ### 5.2 Admin Worker
 
-Replace `triggerRebuild()` at `worker/update-thinking.js` lines 612–675. Both current branches die: the deploy hook is deleted, and the GitHub `workflow_dispatch` fallback targets a workflow that no longer exists.
+Replace `triggerRebuild()` at `worker/update-thinking.js` lines 622–685. Both current branches die: the deploy hook is deleted, and the GitHub `workflow_dispatch` fallback targets a workflow that no longer exists.
 
 ```js
 async function triggerRebuild(env) {
@@ -572,7 +572,7 @@ async function backup() {
 
 Then route it in the `createServer` block the same way `/build` is routed.
 
-Trigger it from the admin Worker's existing cron. `worker/update-thinking.js` lines 475–487 already run every four hours for the Oura sync; take the first run of the day:
+Trigger it from the admin Worker's existing cron. `worker/update-thinking.js` lines 485–497 already run every four hours for the Oura sync; take the first run of the day:
 
 ```js
 async scheduled(event, env, ctx) {
