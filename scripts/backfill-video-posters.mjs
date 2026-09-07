@@ -3,7 +3,7 @@
  * Run from project root: node --env-file=.env scripts/backfill-video-posters.mjs
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,7 +35,26 @@ async function posterExists(posterKey) {
   }
 }
 
-function extractPoster(videoUrl, outPath) {
+/**
+ * Pull the video down before decoding it.
+ *
+ * ffmpeg reads an https input fine in principle, but the ffmpeg-static build is
+ * statically linked against glibc and so cannot dlopen the NSS modules it needs
+ * to resolve a hostname: on some Linux hosts, handing it a URL segfaults before
+ * it reads a byte. Fetching first also spares the Worker a run of range
+ * requests to produce one frame.
+ */
+async function downloadVideo(videoUrl, outPath) {
+  const res = await fetch(videoUrl);
+  if (!res.ok) {
+    console.error(`  download failed (HTTP ${res.status}): ${videoUrl}`);
+    return false;
+  }
+  writeFileSync(outPath, Buffer.from(await res.arrayBuffer()));
+  return true;
+}
+
+function extractPoster(videoPath, outPath) {
   if (!ffmpegStatic) {
     throw new Error("ffmpeg-static binary is unavailable on this platform.");
   }
@@ -48,7 +67,7 @@ function extractPoster(videoUrl, outPath) {
       "-ss",
       "0.001",
       "-i",
-      videoUrl,
+      videoPath,
       "-frames:v",
       "1",
       "-vf",
@@ -97,7 +116,7 @@ function uploadPoster(posterKey, filePath) {
 }
 
 if (!d1Configured()) {
-  console.error("D1 is not configured — set CLOUDFLARE_ACCOUNT_ID, D1_DATABASE_ID, D1_API_TOKEN.");
+  console.error("D1 is not configured — set CF_ACCOUNT_ID, CF_API_TOKEN, CF_D1_DATABASE_ID in .env.");
   process.exit(1);
 }
 
@@ -129,8 +148,15 @@ try {
     }
 
     const outPath = join(tmpDir, posterKey.replace(/\//g, "_"));
+    const videoPath = `${outPath}.src`;
     console.log(`  generating: ${posterKey}`);
-    if (!extractPoster(videoSrc, outPath)) {
+    if (!(await downloadVideo(videoSrc, videoPath))) {
+      failed++;
+      continue;
+    }
+    const extracted = extractPoster(videoPath, outPath);
+    rmSync(videoPath, { force: true });
+    if (!extracted) {
       failed++;
       continue;
     }
