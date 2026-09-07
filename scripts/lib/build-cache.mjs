@@ -20,6 +20,7 @@ export const CACHE_NAMESPACES = {
   SPOTIFY_THUMBNAILS: "spotify-thumbnails",
   VIDEO_POSTERS: "video-posters",
   LINKLOG_UNFURLS: "linklog-unfurls",
+  NEIGHBORHOOD_PLACES: "neighborhood-places",
 };
 
 /**
