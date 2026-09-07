@@ -42,6 +42,7 @@ import {
 } from "./lib/geocode-neighborhood.mjs";
 import { referencePointsFromRows, LABEL_REFERENCE_SQL } from "./lib/label-references.mjs";
 import { jsonForScript } from "./lib/script-json.mjs";
+import { DARK_MAP_RECOLOR_JS } from "./lib/map-dark.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
@@ -1795,6 +1796,7 @@ const nowLocationMapScript = `    <script>(function(){
   var apiUrl=(function(){var h=location.hostname;if(h==='localhost'||h==='127.0.0.1')return'https://rommy-blog-admin.fingerguns.workers.dev/api/locations/now';return'/api/locations/now';})();
   var maplibreSrc='https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js';
   function isDark(){return document.documentElement.getAttribute('data-theme')==='dark';}
+  ${DARK_MAP_RECOLOR_JS}
   function escLabel(label){
     return String(label).replace(/&/g,'&amp;').replace(/</g,'&lt;');
   }
@@ -1888,6 +1890,9 @@ const nowLocationMapScript = `    <script>(function(){
       }
       mlMap.on('load',refreshNeighborhoodOverlay);
       mlMap.on('style.load',refreshNeighborhoodOverlay);
+      // Lift the dark basemap out of near-black. Re-applied on every styledata
+      // because a theme swap replaces the whole style. See lib/map-dark.mjs.
+      mlMap.on('styledata',function(){if(isDark())recolorDarkBasemap(mlMap);});
       mlMap.on('error',function(e){
         if(e&&e.error)console.error('MapLibre map error',e.error);
       });
@@ -2259,6 +2264,7 @@ var MAPLIBRE_SRC='https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-
 var MAPLIBRE_CSS='https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css';
 var map=null,ready=false,starting=false,markers=[],overlay=null,openPlace=null;
 function isDark(){return document.documentElement.getAttribute('data-theme')==='dark';}
+${DARK_MAP_RECOLOR_JS}
 // The stylesheet is not optional decoration: without it .maplibregl-marker
 // never gets position:absolute, and every pin stacks in normal document flow
 // below the map instead of sitting on it. It is loaded here rather than in the
@@ -2416,6 +2422,7 @@ function start(){
     collapseAttribution();
     map.on('load',collapseAttribution);
     map.once('idle',collapseAttribution);
+    map.on('styledata',function(){if(isDark())recolorDarkBasemap(map);});
     map.on('click',closeOverlay);
     // Markers are DOM elements the map merely positions, so they can go on the
     // moment the Map exists — waiting for 'load' (style parsed + first frame)

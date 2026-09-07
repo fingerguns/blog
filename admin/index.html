@@ -1523,6 +1523,39 @@
           return document.documentElement.getAttribute("data-theme") === "dark";
         }
 
+
+        // Dark basemaps ship at near-black: land rgb(12,12,12) against water
+        // rgb(27,27,29) is a contrast ratio of 1.14, so the coastline all but
+        // disappears. This repaints the loaded style to open that gap. Keep the
+        // palette identical to scripts/lib/map-dark.mjs — map-dark.test.mjs fails
+        // if the two drift apart.
+        function recolorDarkBasemap(map){
+          if(!map)return;
+          var P={"land":"#1e1a15","water":"#2b4360","label":"#d3cec3","halo":"#0b0a08","road":"#5e584f","boundary":"#948b7f","building":"#282218","landuse":"#221e18","park":"#1f2a1c"};
+          var layers;
+          try{layers=(map.getStyle()||{}).layers||[];}catch(e){return;}
+          layers.forEach(function(l){
+            // Only the basemap's own layers: ours are drawn from other sources and
+            // repainting them would turn a neighborhood outline into a road.
+            if(l.id!=='background'&&l.source!=='openmaptiles')return;
+            try{
+              if(l.id==='background')map.setPaintProperty(l.id,'background-color',P.land);
+              else if(/water/.test(l.id)&&l.type!=='symbol')map.setPaintProperty(l.id,l.type==='fill'?'fill-color':'line-color',P.water);
+              else if(l.type==='symbol'){
+                map.setPaintProperty(l.id,'text-color',P.label);
+                map.setPaintProperty(l.id,'text-halo-color',P.halo);
+              }
+              else if(l.type==='line')map.setPaintProperty(l.id,'line-color',/boundary|admin/.test(l.id)?P.boundary:P.road);
+              else if(l.type==='fill'){
+                var fill=P.land;
+                if(l.id==='building')fill=P.building;
+                else if(/wood|forest|park|grass|scrub/.test(l.id))fill=P.park;
+                else if(/landuse/.test(l.id))fill=P.landuse;
+                map.setPaintProperty(l.id,'fill-color',fill);
+              }
+            }catch(e){/* a layer that has no such paint property; leave it as it is */}
+          });
+        }
         function loadLocMapLibre() {
           if (typeof maplibregl !== "undefined") return Promise.resolve();
           return new Promise(function (resolve, reject) {
@@ -1639,6 +1672,9 @@
               });
               locMap.on("style.load", function () {
                 locRefreshMapLayers();
+              });
+              locMap.on("styledata", function () {
+                if (locIsDark()) recolorDarkBasemap(locMap);
               });
               locMap.on("error", function (e) {
                 if (e && e.error) console.error("Location map error", e.error);
@@ -1997,6 +2033,9 @@
                 locHeatBindInteractions();
                 locCollapseAttribution("loc-heat-map");
                 resolve(locHeatMap);
+              });
+              locHeatMap.on("styledata", function () {
+                if (locIsDark()) recolorDarkBasemap(locHeatMap);
               });
               // A style swap (theme toggle) drops every custom layer.
               locHeatMap.on("style.load", function () {
