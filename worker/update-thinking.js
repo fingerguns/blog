@@ -37,6 +37,7 @@ import {
   handleLocationIngest,
   handleLocationQuery,
   handleLocationHeatmap,
+  handleLocationPlace,
   handleBackfillThinkingLocations,
   handleNowLocation,
   resolveLocationLabelForDatetime,
@@ -340,6 +341,15 @@ export default {
         return json(result, 200, cors);
       } catch (err) {
         return json({ error: err.message || "Heatmap query failed" }, 500, cors);
+      }
+    }
+
+    if (action === "location-place") {
+      try {
+        const result = await handleLocationPlace(payload, db, env);
+        return json(result, 200, cors);
+      } catch (err) {
+        return json({ error: err.message || "Place lookup failed" }, 500, cors);
       }
     }
 

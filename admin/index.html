@@ -845,6 +845,51 @@
       #loc-heat-map .maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show) .maplibregl-ctrl-attrib-inner {
         display: none;
       }
+      /* Popup on a heatmap dot: site paper, not MapLibre's white card. */
+      .loc-popup-shell .maplibregl-popup-content {
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--rule);
+        border-radius: 0.35rem;
+        padding: 0.5rem 1.5rem 0.5rem 0.6rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+      }
+      .loc-popup-shell .maplibregl-popup-close-button {
+        color: var(--muted);
+        font-size: 1rem;
+        padding: 0 0.3rem;
+      }
+      .loc-popup-shell.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+      .loc-popup-shell.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+      .loc-popup-shell.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+        border-bottom-color: var(--bg);
+      }
+      .loc-popup-shell.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+      .loc-popup-shell.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+      .loc-popup-shell.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+        border-top-color: var(--bg);
+      }
+      .loc-popup-shell.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+        border-right-color: var(--bg);
+      }
+      .loc-popup-shell.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+        border-left-color: var(--bg);
+      }
+      .loc-popup {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+        line-height: 1.3;
+      }
+      .loc-popup strong {
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+      .loc-popup span {
+        font-size: 0.72rem;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
       .location-heat-heading {
         font-size: 0.7rem;
         font-weight: 600;
@@ -1777,6 +1822,45 @@
           };
         }
 
+        // The dots have to hold up against two different basemaps, so the ramp
+        // is per-theme rather than one ramp drawn twice. On the light map a
+        // pale low end disappears into the paper, so the quiet cells start at a
+        // saturated mid-blue and the busy ones darken from there. On the dark
+        // map that reading inverts — a near-black busiest cell would be the
+        // invisible one — so intensity runs dim-blue to near-white instead.
+        // Blur is kept low on light: a soft edge costs contrast that the light
+        // basemap has none to spare.
+        var locHeatRamps = {
+          light: {
+            color: [0, "#0284c7", 0.4, "#2563eb", 0.7, "#1e3a8a", 1, "#172554"],
+            opacity: [0, 0.7, 1, 0.95],
+            blur: 0.1,
+          },
+          dark: {
+            color: [0, "#2563eb", 0.4, "#38bdf8", 0.7, "#67e8f9", 1, "#f0f9ff"],
+            opacity: [0, 0.6, 1, 0.95],
+            blur: 0.3,
+          },
+        };
+
+        function locHeatCirclePaint() {
+          var ramp = locHeatRamps[locIsDark() ? "dark" : "light"];
+          return {
+            // Grid cells are a fixed size on the ground, so the dots have
+            // to grow with zoom or they drift apart into confetti.
+            "circle-radius": [
+              "interpolate", ["linear"], ["zoom"],
+              8, 2,
+              12, 4,
+              15, 9,
+              18, 22,
+            ],
+            "circle-color": ["interpolate", ["linear"], ["get", "t"]].concat(ramp.color),
+            "circle-opacity": ["interpolate", ["linear"], ["get", "t"]].concat(ramp.opacity),
+            "circle-blur": ramp.blur,
+          };
+        }
+
         function locHeatEnsureLayers() {
           if (!locHeatMap) return;
           if (!locHeatMap.getSource("loc-heat")) {
@@ -1788,32 +1872,93 @@
               id: "loc-heat-dots",
               type: "circle",
               source: "loc-heat",
-              paint: {
-                // Grid cells are a fixed size on the ground, so the dots have
-                // to grow with zoom or they drift apart into confetti.
-                "circle-radius": [
-                  "interpolate", ["linear"], ["zoom"],
-                  8, 2,
-                  12, 4,
-                  15, 9,
-                  18, 22,
-                ],
-                "circle-color": [
-                  "interpolate", ["linear"], ["get", "t"],
-                  0, "#93c5fd",
-                  0.5, "#3b82f6",
-                  0.8, "#1d4ed8",
-                  1, "#172554",
-                ],
-                "circle-opacity": [
-                  "interpolate", ["linear"], ["get", "t"],
-                  0, 0.35,
-                  1, 0.9,
-                ],
-                "circle-blur": 0.35,
-              },
+              // Recomputed on every rebuild, which includes the one a theme
+              // swap forces — that is how the ramp follows the basemap.
+              paint: locHeatCirclePaint(),
             });
           }
+        }
+
+        // ── Click a dot, name the place ─────────────────────────────────────
+        //
+        // The label comes from the Worker one cell at a time (`location-place`,
+        // D1-cached), so the popup opens with the count immediately and fills
+        // the neighborhood in when the lookup lands. Clicks are faster than
+        // geocodes, so each open is stamped with its cell key and a reply that
+        // no longer matches the open popup is dropped.
+        var locHeatPopup = null;
+        var locHeatPopupKey = "";
+        var locHeatPlaces = {};
+        var locHeatBound = false;
+
+        function locHeatCellKey(coords) {
+          return coords[1].toFixed(4) + "," + coords[0].toFixed(4);
+        }
+
+        function locHeatPopupContent(count, label) {
+          var el = document.createElement("div");
+          el.className = "loc-popup";
+          var name = document.createElement("strong");
+          name.textContent = label;
+          var meta = document.createElement("span");
+          meta.textContent =
+            count.toLocaleString() + (count === 1 ? " point" : " points");
+          el.appendChild(name);
+          el.appendChild(meta);
+          return el;
+        }
+
+        function locHeatShowPlace(coords, count) {
+          var key = locHeatCellKey(coords);
+          if (!locHeatPopup) {
+            locHeatPopup = new maplibregl.Popup({
+              closeButton: true,
+              closeOnClick: true,
+              maxWidth: "240px",
+              className: "loc-popup-shell",
+            });
+          }
+          locHeatPopupKey = key;
+          var known = locHeatPlaces[key];
+          locHeatPopup
+            .setLngLat(coords)
+            .setDOMContent(locHeatPopupContent(count, known || "Looking up…"))
+            .addTo(locHeatMap);
+          if (known) return;
+
+          callAPI({ action: "location-place", lat: coords[1], lon: coords[0] })
+            .then(function (res) {
+              return (res && res.label) || "Unnamed place";
+            })
+            .catch(function () {
+              return "Lookup failed";
+            })
+            .then(function (label) {
+              if (label !== "Lookup failed") locHeatPlaces[key] = label;
+              if (locHeatPopupKey !== key || !locHeatPopup.isOpen()) return;
+              locHeatPopup.setDOMContent(locHeatPopupContent(count, label));
+            });
+        }
+
+        // Layer-scoped handlers live on the map, not on the layer, so binding
+        // once survives the layer teardown a style swap causes.
+        function locHeatBindInteractions() {
+          if (!locHeatMap || locHeatBound) return;
+          locHeatBound = true;
+          locHeatMap.on("click", "loc-heat-dots", function (e) {
+            var feature = e.features && e.features[0];
+            if (!feature) return;
+            locHeatShowPlace(
+              feature.geometry.coordinates.slice(),
+              Number(feature.properties.n) || 0
+            );
+          });
+          locHeatMap.on("mouseenter", "loc-heat-dots", function () {
+            locHeatMap.getCanvas().style.cursor = "pointer";
+          });
+          locHeatMap.on("mouseleave", "loc-heat-dots", function () {
+            locHeatMap.getCanvas().style.cursor = "";
+          });
         }
 
         function locHeatRender(fit) {
@@ -1849,6 +1994,7 @@
               locHeatMap.on("load", function () {
                 locHeatMapReady = true;
                 locHeatEnsureLayers();
+                locHeatBindInteractions();
                 locCollapseAttribution("loc-heat-map");
                 resolve(locHeatMap);
               });
