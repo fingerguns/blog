@@ -285,7 +285,7 @@ Writing, Reading, and Sharing cross-posts to Bluesky always include a link card 
 
 For files that exceed the per-platform size limit, or when bytes are unavailable (presigned video uploads over the threshold), syndication falls back to the previous behaviour: a plain-text post with a permalink and an "Audio: " or "Video: " prefix. Multiple photos syndicate to all three platforms (Micro.blog via repeated `photo[]` parts, Mastodon and Bluesky via multiple media attachments/images, up to 4).
 
-Native video uploads capture a JPEG grid poster at save time (`thinking/.../uuid-poster.jpg`). The Worker also serves square grid thumbnails at `/media/thumb/{width}/{key}` for rommy.blog-hosted photos.
+Native video uploads capture a JPEG grid poster at save time (`thinking/.../uuid-poster.jpg`): the admin draws a frame off the preview `<video>` onto a canvas and `PUT`s it to its own presigned URL. The capture starts when the file is chosen and the save **awaits** it, because it is slower than it looks — the browser has to decode a frame first, and posting immediately after choosing a file used to beat it and silently upload no poster at all. Starting it on selection rather than from a `loadeddata` listener also matters: iOS Safari will not pull media data for a video nobody has played, so that event can never fire, which is why the misses skewed towards posting from a phone. The Worker also serves square grid thumbnails at `/media/thumb/{width}/{key}` for rommy.blog-hosted photos.
 
 ## Open Graph previews
 
