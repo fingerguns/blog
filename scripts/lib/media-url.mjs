@@ -67,8 +67,13 @@ export function thinkingGridThumbUrl(url, siteUrl = "https://rommy.blog") {
   if (/spotifycdn\.com\/image\//i.test(url)) {
     return upgradeSpotifyImageUrl(url);
   }
+  // hqdefault (480×360) is the largest rendition YouTube generates for every
+  // video. sddefault and maxresdefault only exist when the source was that big,
+  // so asking for them 404s on low-resolution uploads and Shorts — and since
+  // nothing verifies these URLs at build time, a 404 is a permanently blank
+  // tile. Prefer the smaller size that is always there.
   if (/i\.ytimg\.com\/vi\/[^/]+\/(default|mqdefault|hqdefault|sddefault)\.jpg/i.test(url)) {
-    return url.replace(/\/(default|mqdefault|hqdefault|sddefault)\.jpg/i, "/sddefault.jpg");
+    return url.replace(/\/(default|mqdefault|hqdefault|sddefault)\.jpg/i, "/hqdefault.jpg");
   }
   return url;
 }

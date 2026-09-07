@@ -7,7 +7,7 @@ import { execSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { d1Configured, loadBlogDataFromD1 } from "./d1-client.mjs";
+import { d1Configured, d1Query, loadBlogDataFromD1 } from "./d1-client.mjs";
 import { escHtml, escXml } from "./lib/html.mjs";
 import { mergeSectionHints } from "./lib/section-hints.mjs";
 import { mergeReadingTabIntros } from "./lib/reading-tab-intros.mjs";
@@ -29,10 +29,20 @@ import { thinkingSlugFromIso } from "./lib/thinking-slug.mjs";
 import { distanceTextFromSteps } from "./lib/steps-distance.mjs";
 import {
   CACHE_NAMESPACES,
+  cacheKeysToLookUp,
   loadBuildCache,
   saveBuildCache,
 } from "./lib/build-cache.mjs";
 import { MAX_TEXT, truncate as truncateSearchText } from "./lib/search.mjs";
+import { groupThinkingByPlace, placesBounds } from "./lib/thinking-map.mjs";
+import {
+  geocodeNeighborhoodLabels,
+  haversineKm,
+  MAX_REFERENCE_DRIFT_KM,
+} from "./lib/geocode-neighborhood.mjs";
+import { referencePointsFromRows, LABEL_REFERENCE_SQL } from "./lib/label-references.mjs";
+import { jsonForScript } from "./lib/script-json.mjs";
+import { DARK_MAP_RECOLOR_JS } from "./lib/map-dark.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
@@ -1646,32 +1656,35 @@ function setFiltersFromPath(){
   if(fromPath){kinds.forEach(function(kind){active[kind]=(kind===fromPath);});}
   else{active=defaultFilters();}
 }
+// One element per call, so its handlers close over their own binding. Inlining
+// this in the drain loop shared a single function-scoped var across every
+// iteration: each handler then revealed whichever tile the loop happened to
+// reach last, and the rest stayed at opacity 0 with their bytes already in.
+function startGridMedia(el){
+  var url=el.getAttribute('data-src');
+  if(!url)return false;
+  mediaInflight++;
+  function done(){
+    el.removeEventListener('load',done);
+    el.removeEventListener('error',done);
+    el.classList.add('is-loaded');
+    mediaInflight--;
+    drainMediaQueue();
+  }
+  el.addEventListener('load',done);
+  el.addEventListener('error',done);
+  el.src=url;
+  el.removeAttribute('data-src');
+  el.dataset.loaded='1';
+  if(gridMediaObs)gridMediaObs.unobserve(el);
+  return true;
+}
 function drainMediaQueue(){
   if(wrap.getAttribute('data-view')!=='grid')return;
   while(mediaInflight<MEDIA_MAX&&mediaQueue.length){
     var el=mediaQueue.shift();
     if(!el||el.dataset.loaded==='1')continue;
-    var url=el.getAttribute('data-src');
-    if(!url){continue;}
-    mediaInflight++;
-    el.addEventListener('load',function done(){
-      el.removeEventListener('load',done);
-      el.removeEventListener('error',done);
-      el.classList.add('is-loaded');
-      mediaInflight--;
-      drainMediaQueue();
-    });
-    el.addEventListener('error',function done(){
-      el.removeEventListener('load',done);
-      el.removeEventListener('error',done);
-      el.classList.add('is-loaded');
-      mediaInflight--;
-      drainMediaQueue();
-    });
-    el.src=url;
-    el.removeAttribute('data-src');
-    el.dataset.loaded='1';
-    if(gridMediaObs)gridMediaObs.unobserve(el);
+    startGridMedia(el);
   }
 }
 function hydrateGridMedia(el){
@@ -1729,19 +1742,6 @@ if(filterBtns.length){
 }else{scanGridMedia();}
 }());</script>`;
 
-const thinkingArchiveFoot = `      <footer class="site-footer">
-        <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle"></a></span></p>
-        <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
-      </footer>
-    </article>
-    <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'dark');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
-${portraitPhotoToggleScript}
-${thinkingViewToggleScript}
-${thinkingLightboxScript}
-${thinkingDeleteLinkScript}
-  </body>
-</html>
-`;
 
 const writingPageHtml = `${archiveHead("Writing", sectionHeading("Writing", "h1"))}
       <ol class="post-list" reversed>
@@ -1796,6 +1796,7 @@ const nowLocationMapScript = `    <script>(function(){
   var apiUrl=(function(){var h=location.hostname;if(h==='localhost'||h==='127.0.0.1')return'https://rommy-blog-admin.fingerguns.workers.dev/api/locations/now';return'/api/locations/now';})();
   var maplibreSrc='https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js';
   function isDark(){return document.documentElement.getAttribute('data-theme')==='dark';}
+  ${DARK_MAP_RECOLOR_JS}
   function escLabel(label){
     return String(label).replace(/&/g,'&amp;').replace(/</g,'&lt;');
   }
@@ -1889,6 +1890,9 @@ const nowLocationMapScript = `    <script>(function(){
       }
       mlMap.on('load',refreshNeighborhoodOverlay);
       mlMap.on('style.load',refreshNeighborhoodOverlay);
+      // Lift the dark basemap out of near-black. Re-applied on every styledata
+      // because a theme swap replaces the whole style. See lib/map-dark.mjs.
+      mlMap.on('styledata',function(){if(isDark())recolorDarkBasemap(mlMap);});
       mlMap.on('error',function(e){
         if(e&&e.error)console.error('MapLibre map error',e.error);
       });
@@ -2134,7 +2138,12 @@ for (const item of microblogItems) {
   if (videoSrc) videoSrcsNeeded.add(videoSrc);
 }
 
-const missingVideoPosters = [...videoSrcsNeeded].filter((videoSrc) => !(videoSrc in videoPosterCache));
+// retryEmpty: a poster missing today can be backfilled tomorrow, so a cached
+// `false` is rechecked rather than trusted. Costs one HEAD per posterless
+// video per build.
+const missingVideoPosters = cacheKeysToLookUp(videoPosterCache, videoSrcsNeeded, {
+  retryEmpty: true,
+});
 await mapWithConcurrency(missingVideoPosters, 6, async (videoSrc) => {
   const posterKey = videoPosterKeyFromVideoUrl(videoSrc, base);
   if (!posterKey) {
@@ -2156,12 +2165,323 @@ await mapWithConcurrency(missingVideoPosters, 6, async (videoSrc) => {
 });
 await saveBuildCache(CACHE_NAMESPACES.VIDEO_POSTERS, videoPosterCache);
 
+// ── Thinking map view ──────────────────────────────────────────────────────
+//
+// Posts carry a neighborhood label, never a coordinate, so the map is drawn by
+// geocoding the distinct labels forward — see scripts/lib/geocode-neighborhood.mjs
+// for why that indirection is deliberate rather than a limitation worked around.
+const neighborhoodPlaceCache = await loadBuildCache(CACHE_NAMESPACES.NEIGHBORHOOD_PLACES, {
+  skipLegacy: true,
+});
+
+const thinkingMapEntries = microblogItems
+  .filter((item) => String(item.location_label || "").trim())
+  .map((item) => ({
+    slug: thinkingSlug(item),
+    label: String(item.location_label).trim(),
+    kind: thinkingGridKind(item, spotifyThumbnailCache),
+    text: stripHtml(item.content_html),
+    date: item.date_published,
+    dateText: formatMbDate(item.date_published),
+  }));
+
+const thinkingMapLabels = new Set(thinkingMapEntries.map((e) => e.label));
+
+// Which "Harris Township"? The bare label does not say, and Nominatim's first
+// answer for it is in Michigan while the note was written in Pennsylvania. The
+// Worker's geocode_cache read backwards gives the fix that produced each label,
+// which is enough to pick the right candidate. Build-time only — the published
+// coordinate stays Nominatim's neighborhood centre.
+let labelReferences = {};
+if (d1Configured()) {
+  try {
+    labelReferences = referencePointsFromRows(await d1Query(LABEL_REFERENCE_SQL));
+  } catch (err) {
+    console.warn(`Thinking map: could not read label references — ${err.message}`);
+  }
+}
+
+// A point already in the cache is re-checked against its reference, so the two
+// townships that resolved to Michigan before the reference existed correct
+// themselves on the next build instead of needing the row deleted by hand.
+for (const [label, point] of Object.entries(neighborhoodPlaceCache)) {
+  const reference = labelReferences[label];
+  if (!point || !reference) continue;
+  const km = haversineKm(reference, point);
+  if (km > MAX_REFERENCE_DRIFT_KM) {
+    console.log(`  "${label}" cached ${Math.round(km)}km from its fix — re-resolving`);
+    delete neighborhoodPlaceCache[label];
+  }
+}
+
+// retryEmpty: a label that failed to resolve is usually Nominatim being down or
+// rate-limiting, not a place that will never exist, and there are only a couple
+// of dozen labels. Retrying costs ~1s each on a build that would otherwise skip
+// them entirely; trusting the `false` would strand the neighborhood forever.
+const missingPlaces = cacheKeysToLookUp(neighborhoodPlaceCache, thinkingMapLabels, {
+  retryEmpty: true,
+});
+if (missingPlaces.length > 0) {
+  console.log(`Geocoding ${missingPlaces.length} neighborhood label(s) for the Thinking map…`);
+  Object.assign(
+    neighborhoodPlaceCache,
+    await geocodeNeighborhoodLabels(missingPlaces, {
+      references: labelReferences,
+      onResult: (label, point) => {
+        if (!point) console.log(`  no match for "${label}" — will retry next build`);
+      },
+    })
+  );
+}
+await saveBuildCache(CACHE_NAMESPACES.NEIGHBORHOOD_PLACES, neighborhoodPlaceCache);
+
+const thinkingMapPlaces = groupThinkingByPlace(thinkingMapEntries, neighborhoodPlaceCache);
+const thinkingMapLocatedCount = thinkingMapPlaces.reduce((n, p) => n + p.posts.length, 0);
+
+// The map view: markup is a static shell, everything inside it is drawn by
+// thinkingMapScript once the view is actually opened. MapLibre is ~200 KB and
+// most visits never switch views, so nothing loads until the tab is clicked.
+const thinkingMapViewHtml = `      <div class="thinking-map-wrap">
+        <p class="thinking-map-note" id="thinking-map-note">${
+          thinkingMapLocatedCount === 0
+            ? "No posts have a location yet."
+            : `${thinkingMapLocatedCount} post${thinkingMapLocatedCount === 1 ? "" : "s"} across ${thinkingMapPlaces.length} neighborhood${thinkingMapPlaces.length === 1 ? "" : "s"}. Pins sit at the centre of a neighborhood, never at an exact spot.`
+        }</p>
+        <div class="thinking-map" id="thinking-map" role="region" aria-label="Map of located Thinking posts"></div>
+      </div>`;
+
+const thinkingMapScript = `    <script>(function(){
+var wrap=document.querySelector('.thinking-views');
+if(!wrap)return;
+var mapEl=document.getElementById('thinking-map');
+if(!mapEl)return;
+var PLACES=${jsonForScript(thinkingMapPlaces)};
+var ICONS=${jsonForScript(THINKING_MEDIA_ICONS)};
+var BOUNDS=${jsonForScript(placesBounds(thinkingMapPlaces))};
+if(!PLACES.length)return;
+var STYLES={light:'https://tiles.openfreemap.org/styles/liberty',dark:'https://tiles.openfreemap.org/styles/dark'};
+var MAPLIBRE_SRC='https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js';
+var MAPLIBRE_CSS='https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css';
+var map=null,ready=false,starting=false,markers=[],overlay=null,openPlace=null;
+function isDark(){return document.documentElement.getAttribute('data-theme')==='dark';}
+${DARK_MAP_RECOLOR_JS}
+// The stylesheet is not optional decoration: without it .maplibregl-marker
+// never gets position:absolute, and every pin stacks in normal document flow
+// below the map instead of sitting on it. It is loaded here rather than in the
+// page head so a visitor who never opens the map never pays for it.
+function loadCss(){
+  if(document.querySelector('link[data-thinking-maplibre-css="1"]'))return;
+  var link=document.createElement('link');
+  link.rel='stylesheet';
+  link.href=MAPLIBRE_CSS;
+  link.crossOrigin='anonymous';
+  link.dataset.thinkingMaplibreCss='1';
+  document.head.appendChild(link);
+}
+function load(){
+  loadCss();
+  if(typeof maplibregl!=='undefined')return Promise.resolve();
+  return new Promise(function(resolve,reject){
+    var existing=document.querySelector('script[data-thinking-maplibre="1"]');
+    if(existing){existing.addEventListener('load',function(){resolve();});existing.addEventListener('error',reject);return;}
+    var el=document.createElement('script');
+    el.src=MAPLIBRE_SRC;
+    el.crossOrigin='anonymous';
+    el.dataset.thinkingMaplibre='1';
+    el.onload=function(){resolve();};
+    el.onerror=reject;
+    document.head.appendChild(el);
+  });
+}
+// The filter buttons are owned by thinkingViewToggleScript. Rather than keep a
+// second copy of that state in sync, read the pressed buttons back off the DOM
+// whenever the markers are rebuilt — one source of truth, no coupling.
+function activeKinds(){
+  var on=[];
+  document.querySelectorAll('.thinking-filter-btn').forEach(function(b){
+    if(b.getAttribute('aria-pressed')==='true')on.push(b.getAttribute('data-filter'));
+  });
+  return on;
+}
+function postsFor(place){
+  var on=activeKinds();
+  if(!on.length)return place.posts;
+  return place.posts.filter(function(p){return on.indexOf(p.kind)>=0;});
+}
+function closeOverlay(){
+  openPlace=null;
+  if(overlay){overlay.remove();overlay=null;}
+  markers.forEach(function(m){m.el.setAttribute('aria-expanded','false');});
+}
+function openOverlay(place,posts){
+  closeOverlay();
+  openPlace=place.label;
+  overlay=document.createElement('div');
+  overlay.className='thinking-map-overlay';
+  overlay.addEventListener('click',function(e){e.stopPropagation();});
+
+  var head=document.createElement('div');
+  head.className='thinking-map-overlay-head';
+  var title=document.createElement('h3');
+  title.className='thinking-map-overlay-title';
+  title.textContent=place.label;
+  var close=document.createElement('button');
+  close.type='button';
+  close.className='thinking-map-overlay-close';
+  close.setAttribute('aria-label','Close');
+  close.textContent='×';
+  close.addEventListener('click',closeOverlay);
+  head.appendChild(title);
+  head.appendChild(close);
+  overlay.appendChild(head);
+
+  var list=document.createElement('ul');
+  list.className='thinking-map-overlay-list';
+  posts.forEach(function(p){
+    var li=document.createElement('li');
+    if(p.text){
+      var txt=document.createElement('p');
+      txt.className='thinking-map-overlay-text';
+      txt.textContent=p.text;
+      li.appendChild(txt);
+    }
+    var link=document.createElement('a');
+    link.className='thinking-map-overlay-link';
+    link.href='/thinking/'+p.slug+'/';
+    link.textContent=p.dateText||'Open post';
+    li.appendChild(link);
+    list.appendChild(li);
+  });
+  overlay.appendChild(list);
+  mapEl.appendChild(overlay);
+}
+function collapseAttribution(){
+  var el=mapEl.querySelector('.maplibregl-ctrl-attrib');
+  if(!el)return;
+  el.classList.add('maplibregl-compact');
+  el.classList.remove('maplibregl-compact-show');
+  el.removeAttribute('open');
+}
+function pinEl(place,posts){
+  var el=document.createElement('button');
+  el.type='button';
+  el.className='thinking-map-pin';
+  el.setAttribute('aria-expanded','false');
+  el.setAttribute('aria-label',place.label+' — '+posts.length+' post'+(posts.length===1?'':'s'));
+  if(posts.length===1){
+    el.classList.add('thinking-map-pin--icon');
+    el.innerHTML=ICONS[posts[0].kind]||ICONS.text;
+  }else{
+    el.classList.add('thinking-map-pin--count');
+    el.textContent=String(posts.length);
+  }
+  el.addEventListener('click',function(e){
+    // Without this the click reaches the map canvas underneath and the
+    // close-on-map-click handler shuts the overlay in the same gesture.
+    e.stopPropagation();
+    if(openPlace===place.label){closeOverlay();return;}
+    openOverlay(place,posts);
+    el.setAttribute('aria-expanded','true');
+  });
+  return el;
+}
+function drawMarkers(){
+  if(!ready)return;
+  markers.forEach(function(m){m.marker.remove();});
+  markers=[];
+  var stillOpen=false;
+  // Reversed: markers stack in insertion order, so the quietest go down first
+  // and the busiest neighborhood ends up on top. Added busiest-first, a pin
+  // reading "38" would sit under whichever single post shares its block.
+  PLACES.slice().reverse().forEach(function(place){
+    var posts=postsFor(place);
+    if(!posts.length)return;
+    if(place.label===openPlace)stillOpen=true;
+    var el=pinEl(place,posts);
+    if(place.label===openPlace)el.setAttribute('aria-expanded','true');
+    markers.push({el:el,marker:new maplibregl.Marker({element:el}).setLngLat([place.lon,place.lat]).addTo(map)});
+  });
+  // A filter change can hide the neighborhood whose overlay is open; leaving it
+  // up would show posts with no pin behind them.
+  if(openPlace&&!stillOpen)closeOverlay();
+}
+function start(){
+  if(ready||starting)return;
+  starting=true;
+  load().then(function(){
+    if(typeof maplibregl==='undefined')throw new Error('MapLibre unavailable');
+    var opts={container:mapEl,style:STYLES[isDark()?'dark':'light'],scrollZoom:true,attributionControl:false};
+    if(BOUNDS){opts.bounds=[[BOUNDS[0],BOUNDS[1]],[BOUNDS[2],BOUNDS[3]]];opts.fitBoundsOptions={padding:48,maxZoom:13};}
+    else{opts.center=[PLACES[0].lon,PLACES[0].lat];opts.zoom=12;}
+    map=new maplibregl.Map(opts);
+    map.addControl(new maplibregl.NavigationControl({showCompass:false}),'top-left');
+    map.addControl(new maplibregl.AttributionControl({compact:true}),'bottom-right');
+    // compact:true only makes the control collapsible; MapLibre still renders it
+    // open on a wide enough canvas, so it has to be folded shut explicitly — and
+    // again after 'load', which re-expands it. Same fix as the /now/ map.
+    collapseAttribution();
+    map.on('load',collapseAttribution);
+    map.once('idle',collapseAttribution);
+    map.on('styledata',function(){if(isDark())recolorDarkBasemap(map);});
+    map.on('click',closeOverlay);
+    // Markers are DOM elements the map merely positions, so they can go on the
+    // moment the Map exists — waiting for 'load' (style parsed + first frame)
+    // would leave the pins missing on any browser that throttles rendering in a
+    // background tab, where that event can be arbitrarily late or never come.
+    ready=true;
+    starting=false;
+    drawMarkers();
+    map.on('load',function(){map.resize();});
+    map.on('error',function(e){if(e&&e.error)console.error('Thinking map',e.error);});
+  }).catch(function(){
+    starting=false;
+    mapEl.classList.add('thinking-map--error');
+    mapEl.textContent='Map could not be loaded.';
+  });
+}
+new MutationObserver(function(){
+  if(wrap.getAttribute('data-view')==='map'){
+    start();
+    if(map&&ready)setTimeout(function(){map.resize();drawMarkers();},50);
+  }
+}).observe(wrap,{attributes:true,attributeFilter:['data-view']});
+// The type filters are shown in map view too, so the pins have to follow them.
+// Watching aria-pressed rather than listening for clicks keeps this a reaction
+// to the toggle script's committed state instead of a race against it.
+var filterObs=new MutationObserver(function(){drawMarkers();});
+document.querySelectorAll('.thinking-filter-btn').forEach(function(b){
+  filterObs.observe(b,{attributes:true,attributeFilter:['aria-pressed']});
+});
+// A theme swap drops every custom layer; HTML markers survive setStyle, so only
+// the basemap needs re-pointing.
+new MutationObserver(function(){
+  if(map&&ready)map.setStyle(STYLES[isDark()?'dark':'light']);
+}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+if(wrap.getAttribute('data-view')==='map')start();
+}());</script>`;
+
+const thinkingArchiveFoot = `      <footer class="site-footer">
+        <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle"></a></span></p>
+        <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
+      </footer>
+    </article>
+    <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'dark');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
+${portraitPhotoToggleScript}
+${thinkingViewToggleScript}
+${thinkingMapScript}
+${thinkingLightboxScript}
+${thinkingDeleteLinkScript}
+  </body>
+</html>
+`;
+
 const thinkingGridHtml = thinkingGridGroupsHtml(microblogItems, spotifyThumbnailCache, videoPosterCache);
 const microblogEntriesHtml = microblogListHtml(microblogItems, spotifyThumbnailCache);
 
 const THINKING_VIEW_ICONS = {
   list: `<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="3" width="16" height="3" rx="1" fill="currentColor"/><rect x="2" y="8.5" width="16" height="3" rx="1" fill="currentColor"/><rect x="2" y="14" width="16" height="3" rx="1" fill="currentColor"/></svg>`,
   grid: `<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="2" width="7" height="7" rx="1" fill="currentColor"/><rect x="11" y="2" width="7" height="7" rx="1" fill="currentColor"/><rect x="2" y="11" width="7" height="7" rx="1" fill="currentColor"/><rect x="11" y="11" width="7" height="7" rx="1" fill="currentColor"/></svg>`,
+  map: `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 1.75c-3 0-5.25 2.3-5.25 5.15 0 3.7 4.4 10.05 4.6 10.3a.8.8 0 0 0 1.3 0c.2-.25 4.6-6.6 4.6-10.3 0-2.85-2.25-5.15-5.25-5.15z" fill="currentColor"/><circle cx="10" cy="6.85" r="1.9" fill="var(--bg)"/></svg>`,
 };
 
 const THINKING_FILTER_LABELS = {
@@ -2185,6 +2505,7 @@ ${thinkingGridFiltersHtml}
         <div class="thinking-view-toggle" role="group" aria-label="Switch view">
         <button type="button" class="thinking-view-btn" data-view-btn="list" aria-pressed="true" aria-label="List view">${THINKING_VIEW_ICONS.list}</button>
         <button type="button" class="thinking-view-btn" data-view-btn="grid" aria-pressed="false" aria-label="Grid view">${THINKING_VIEW_ICONS.grid}</button>
+        <button type="button" class="thinking-view-btn" data-view-btn="map" aria-pressed="false" aria-label="Map view">${THINKING_VIEW_ICONS.map}</button>
         </div>
       </div>`;
 
@@ -2340,6 +2661,7 @@ ${microblogEntriesHtml}
       <div class="thinking-grid-wrap">
 ${thinkingGridHtml}
       </div>
+${thinkingMapViewHtml}
     </div>
 ${thinkingArchiveFoot}`;
 
