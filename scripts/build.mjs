@@ -4,8 +4,16 @@
  * Run from project root: node scripts/build.mjs
  */
 import { execSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { d1Configured, d1Query, loadBlogDataFromD1 } from "./d1-client.mjs";
 import { escHtml, escXml } from "./lib/html.mjs";
@@ -42,6 +50,7 @@ import {
 } from "./lib/geocode-neighborhood.mjs";
 import { referencePointsFromRows, LABEL_REFERENCE_SQL } from "./lib/label-references.mjs";
 import { jsonForScript } from "./lib/script-json.mjs";
+import { findBrokenImages, formatBrokenImages } from "./lib/validate-images.mjs";
 import { DARK_MAP_RECOLOR_JS } from "./lib/map-dark.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -2862,3 +2871,29 @@ for (const entry of STATIC_ENTRIES) {
 }
 
 console.log(`Wrote ${outDir}/ (generated pages + static assets)`);
+
+// ── Every image reference must resolve ─────────────────────────────────────
+//
+// Run over the finished output rather than over the sources, so it checks what
+// actually ships — including pages assembled from several places. The Veri post
+// carried `src="veri-ad.png"` for months: Pages answers an unknown path with
+// its HTML fallback and a 200, so a browser gets text/html where it expects an
+// image and renders a broken one. Nothing 404s and nothing is logged, which is
+// why this fails the build instead of warning. See lib/validate-images.mjs.
+const builtPages = [];
+for (const file of readdirSync(outDir, { recursive: true, withFileTypes: true })) {
+  if (!file.isFile() || !file.name.endsWith(".html")) continue;
+  const abs = join(file.parentPath ?? file.path, file.name);
+  const rel = relative(outDir, abs);
+  const urlPath = `/${rel.replace(/index\.html$/, "").replace(/\\/g, "/")}`;
+  builtPages.push({ urlPath, html: readFileSync(abs, "utf8") });
+}
+
+const brokenImages = findBrokenImages(builtPages, (target) =>
+  existsSync(join(outDir, target))
+);
+if (brokenImages.length > 0) {
+  console.error(`\n${formatBrokenImages(brokenImages)}\n`);
+  process.exit(1);
+}
+console.log(`Checked ${builtPages.length} pages — every image reference resolves.`);
