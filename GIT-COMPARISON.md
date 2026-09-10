@@ -61,11 +61,14 @@ Weights reflect what would actually hurt if it broke:
 
 ### Totals
 
-| | Weighted | Of 290 | Unweighted mean |
+| | Weighted | Of 270 | Unweighted mean |
 |---|---|---|---|
-| **GitHub** | **253** | **87.2%** | 8.6 |
-| **Codeberg** | **181** | **62.4%** | 6.4 |
-| **Origin** | **112** | **38.6%** | 3.9 |
+| **GitHub** | **235** | **87.0%** | 8.5 |
+| **Codeberg** | **165** | **61.1%** | 6.3 |
+| **Origin** | **110** | **40.7%** | 4.1 |
+
+Recomputed 2026-09-07 from the matrix above; no score or weight changed. The
+thirteen scored weights sum to 27, so the maximum is 270, not 290.
 
 Codeberg is the credible challenger and is not close yet. Origin is not competitive for this stack and the gap is structural, not a matter of maturity: no CI and no public visibility are product decisions, not missing features.
 
@@ -98,7 +101,7 @@ The condition under which each row's verdict changes. The weekly sweep checks th
 | T5 | Secret scanning | A second GitHub-caught-nothing incident, or Forgejo ships native scanning. Note the local `gitleaks` hook already levels this row — it is forge-independent |
 | T6 | Deploy path | Cloudflare Pages adds a third git provider, or Workers Builds does. Unlikely; would collapse rows 2 and 3 at once |
 | T7 | Independence | A GitHub policy change you object to — training data, licensing terms, account requirements |
-| T8 | Durability | Codeberg's storage soft caps (750 MiB git, 1.5 GiB LFS/packages) come within reach. Repo is **~1.8 MB** today — re-measured 2026-08-31; GitHub reports 1,791 KB and a full clone packs to 1.37 MiB — so this is decades away at the current rate |
+| T8 | Durability | Codeberg's storage soft caps (750 MiB git, 1.5 GiB LFS/packages) come within reach. Repo is **~2 MB** today — re-measured 2026-09-07: GitHub reports 2,096 KB, and a full clone of every branch packs to 1.38 MiB — so this is decades away at the current rate |
 | T9 | Cost | GitHub bills for anything this repo uses, or the Cursor subscription lapses (Origin only) |
 | T10 | Licensing | Repo content stops being MIT-compatible. Codeberg requires free/open licensing and does not sell exceptions — the source qualifies, though note the README already reserves prose and photos from the MIT grant |
 

@@ -101,7 +101,7 @@ The binary lands at `~/.local/bin/origin`; add it to `PATH` if your shell cannot
 
 ### Housekeeping
 
-**Done — no longer applicable.** This step used to say that `data/spotify-thumbnails.json` was modified in the working tree and had to be committed or discarded before switching remotes. Build caches moved out of committed `data/*.json` files into the D1 `build_cache` table in `2e81055`, and the file no longer exists in the repo. Nothing in `data/` is a build artifact any more — only `posts.json` and `reading-favorites.json` remain, and both are seed data. See [section 4.6](#46-builderservermjs).
+**Done — nothing left to do here.** This step used to say that `data/spotify-thumbnails.json` sat modified in the working tree as a build-cache artifact and had to be committed or discarded before switching remotes. `2e81055` moved every build cache out of committed `data/*.json` files and into the D1 `build_cache` table, and the file no longer exists in the repo. What remains in `data/` — `posts.json` and `reading-favorites.json` — is seed data, not build output, and is not touched by a build.
 
 ---
 
@@ -124,7 +124,7 @@ git remote -v
 
 ```bash
 git fetch origin
-git branch -r          # expect main + the 19 cursor/* branches
+git branch -r          # expect main + the 20 cursor/* branches
 git log --oneline -5   # history intact, HEAD at 6414e2c or later
 ```
 
@@ -666,7 +666,7 @@ git remote -v   # expect two (push) lines
 
 The first `set-url --add --push` replaces the implicit default, so **both** lines are required — listing only Codeberg would silently stop pushing to Origin.
 
-Then repoint the two colophon links from [section 6](#6-phase-4--public-facing-links-and-docs) at Codeberg instead of unlinking them, and restore the changelog commit links in `scripts/build.mjs` line 1674 against the Codeberg commit URL.
+Then repoint the two colophon links from [section 6](#6-phase-4--public-facing-links-and-docs) at Codeberg instead of unlinking them, and restore the changelog commit links in `scripts/build.mjs` line 1957 against the Codeberg commit URL.
 
 **Sequencing matters here.** Run the history scan in [section 8.6](#86-secret-scanning) *before* the mirror is public. A public mirror of a repo with a secret in its history is worse than no mirror.
 
@@ -679,15 +679,15 @@ brew install gitleaks
 gitleaks detect --source . --log-opts="--all"
 ```
 
-**The full-history scan has since been run, and it did not come back clean.** On 2026-08-28, before the Codeberg mirror was populated, it found a live Giphy API key committed in `40dbb02` and reverted the same day in `641350e` — still present in history and still authenticating five weeks later, in a repo that was already public. It was revoked; history was deliberately left unrewritten. `FORGEJO-MIGRATION.md` [section 3](FORGEJO-MIGRATION.md) records the incident and the two lessons it left. Re-run the scan anyway before any *new* mirror — this one is a gate per mirror, not once for all time.
+**The full-history scan has since been run, and it did not come back clean.** On 2026-08-28, before the Codeberg mirror was populated, it found a live Giphy API key committed in `40dbb02` and reverted the same day in `641350e` — still present in history and still authenticating five weeks later, in a repo that was already public. It was revoked; history was deliberately left unrewritten. `FORGEJO-MIGRATION.md` [section 3](FORGEJO-MIGRATION.md) records the incident and the two lessons it left. Re-run the scan before any *new* mirror regardless — it is a gate per mirror, not once for all time.
 
-**The hook step below is done.** `.githooks/pre-commit` was added in `e11549f` and is versioned in the repo, so nothing here needs building — only enabling:
+**Done — the hook exists.** `e11549f` added `.githooks/pre-commit`, versioned in the repo rather than left in the untracked `.git/hooks`, so only the enabling step remains in a fresh clone:
 
 ```bash
 git config core.hooksPath .githooks
 ```
 
-The shipped hook runs `gitleaks git --staged --redact --no-banner .` rather than the `gitleaks protect --staged --redact` this plan originally proposed (`protect` is deprecated), and it exits 0 with a warning when `gitleaks` is not installed, so a fresh clone is not bricked. `core.hooksPath` is local config and does not survive a clone; `README.md` carries the enable step under **Secret scanning** for future checkouts.
+The shipped hook runs `gitleaks git --staged --redact --no-banner .` rather than the `gitleaks protect --staged --redact` proposed here (`protect` is deprecated), and it exits 0 with a warning when `gitleaks` is absent so a fresh clone is not bricked. `core.hooksPath` is local config and does not survive a clone; `README.md` carries the enable step under **Secret scanning**.
 
 ### 8.7 Issues and dependency updates
 
