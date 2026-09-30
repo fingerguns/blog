@@ -708,11 +708,14 @@ async function parseRequest(request) {
       .filter(
         (f) => f && typeof f === "object" && "arrayBuffer" in f && f.size > 0
       );
+    // Positional: entry i is the Bluesky copy of photo i. The admin sends an
+    // empty file for a photo that needs no compression, so keep that slot as
+    // null rather than dropping it, or later copies shift onto the wrong photo.
     const blueskyEntries = fd
       .getAll("photo_bluesky")
       .concat(fd.getAll("photo_bluesky[]"))
-      .filter(
-        (f) => f && typeof f === "object" && "arrayBuffer" in f && f.size > 0
+      .map((f) =>
+        f && typeof f === "object" && "arrayBuffer" in f && f.size > 0 ? f : null
       );
     const audio = fd.get("audio");
     const video = fd.get("video");
@@ -812,7 +815,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
       ? [payload.photo]
       : [];
   const photoBlueskyList = Array.isArray(payload.photo_bluesky_list)
-    ? payload.photo_bluesky_list.filter(Boolean).slice(0, MAX_THINKING_PHOTOS)
+    ? payload.photo_bluesky_list.slice(0, MAX_THINKING_PHOTOS)
     : payload.photo_bluesky
       ? [payload.photo_bluesky]
       : [];

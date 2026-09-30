@@ -4,7 +4,17 @@ const CACHE_CONTROL =
   "public, max-age=31536000, immutable, stale-while-revalidate=86400";
 
 function parseRange(rangeHeader, size) {
-  const m = /^bytes=(\d+)-(\d*)$/i.exec(String(rangeHeader || "").trim());
+  const header = String(rangeHeader || "").trim();
+  // Suffix range ("last N bytes"): players use it to read a moov atom that
+  // sits at the end of the file, as it does in iPhone-recorded .mov.
+  const suffix = /^bytes=-(\d+)$/i.exec(header);
+  if (suffix) {
+    const n = Number(suffix[1]);
+    if (!Number.isFinite(n) || n === 0 || size === 0) return null;
+    const length = Math.min(n, size);
+    return { offset: size - length, length };
+  }
+  const m = /^bytes=(\d+)-(\d*)$/i.exec(header);
   if (!m) return null;
   const start = Number(m[1]);
   const end = m[2] !== "" ? Number(m[2]) : size - 1;
