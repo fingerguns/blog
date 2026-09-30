@@ -1298,20 +1298,42 @@ ${linklogTagOptions
       </div>`
     : "";
 
+// Tag filter and infinite scroll in one script: the scroll pages through the
+// items that match the filter, so loading a batch never reveals other tags.
+// The page opts out of archiveFoot's generic scroll, which knows no filter.
 const linklogFilterScript = `    <script>(function(){
-var sel=document.querySelector('.linklog-tag-select');
-if(!sel)return;
 var list=document.querySelector('.post-list');
 if(!list)return;
-var items=list.querySelectorAll('li');
-sel.addEventListener('change',function(){
-  var v=sel.value;
-  items.forEach(function(li){
-    if(!v){li.hidden=false;return;}
-    var tags=(li.getAttribute('data-tags')||'').split(/\\s+/).filter(Boolean);
-    li.hidden=tags.indexOf(v)===-1;
-  });
-});
+var sel=document.querySelector('.linklog-tag-select');
+var items=[].slice.call(list.querySelectorAll('li'));
+var BATCH=10;var matches=[];var shown=0;
+var sentinel=document.createElement('div');
+list.parentNode.insertBefore(sentinel,list.nextSibling);
+function matchesTag(li,v){
+  if(!v)return true;
+  var tags=(li.getAttribute('data-tags')||'').split(/\\s+/).filter(Boolean);
+  return tags.indexOf(v)!==-1;
+}
+function reveal(){
+  var next=Math.min(shown+BATCH,matches.length);
+  for(var i=shown;i<next;i++)matches[i].hidden=false;
+  shown=next;
+}
+var obs=new IntersectionObserver(function(e){
+  if(!e[0].isIntersecting||shown>=matches.length)return;
+  reveal();
+  // Re-observe so a sentinel still on screen after a short batch fires again.
+  obs.unobserve(sentinel);obs.observe(sentinel);
+},{rootMargin:'0px'});
+function apply(){
+  var v=sel?sel.value:'';
+  matches=items.filter(function(li){return matchesTag(li,v);});
+  items.forEach(function(li){li.hidden=true;});
+  shown=0;reveal();
+  obs.unobserve(sentinel);obs.observe(sentinel);
+}
+if(sel)sel.addEventListener('change',apply);
+apply();
 }());</script>`;
 
 const sectionHeading = (label, tag, id) => {
@@ -1607,7 +1629,7 @@ ${extraHead}
       <a class="post-back" href="/">←</a>
       ${headingHtml ?? `<h1>${escHtml(title)}</h1>`}`;
 
-const archiveFoot = (extraScripts = "") => `      <footer class="site-footer">
+const archiveFoot = (extraScripts = "", { infiniteScroll = true } = {}) => `      <footer class="site-footer">
         <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle"></a></span></p>
         <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
@@ -1615,7 +1637,7 @@ const archiveFoot = (extraScripts = "") => `      <footer class="site-footer">
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'dark');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
 ${portraitPhotoToggleScript}
 ${thinkingLightboxScript}
-    <script>(function(){var BATCH=10;var list=document.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++)items[i].hidden=true;var shown=BATCH;var sentinel=document.createElement('div');document.body.appendChild(sentinel);var obs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++)items[i].hidden=false;shown=next;if(shown>=items.length)obs.disconnect();},{rootMargin:'0px'});obs.observe(sentinel);}());</script>
+${infiniteScroll ? `    <script>(function(){var BATCH=10;var list=document.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++)items[i].hidden=true;var shown=BATCH;var sentinel=document.createElement('div');document.body.appendChild(sentinel);var obs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++)items[i].hidden=false;shown=next;if(shown>=items.length)obs.disconnect();},{rootMargin:'0px'});obs.observe(sentinel);}());</script>` : ""}
 ${extraScripts}
   </body>
 </html>
@@ -1763,7 +1785,7 @@ ${linklogTagFilterHtml}
       <ol class="post-list linklog-archive-list" reversed>
 ${linklogAllHtml}
       </ol>
-${archiveFoot(linklogFilterScript)}`;
+${archiveFoot(linklogFilterScript, { infiniteScroll: false })}`;
 
 // /now page
 const nowMonthYear = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "America/New_York" });
