@@ -1411,9 +1411,14 @@ a.post-admin-delete:hover {
   width: calc((100% - 0.5rem) / 2);
 }
 
+/* One photo: a square crop at two-thirds of the column, like the grid tiles;
+   the lightbox still opens the full, uncropped photo. */
 .thinking-photo-tile--single {
   display: block;
-  width: 100%;
+  width: calc(200% / 3);
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 4px;
   margin: 0.5rem 0 0;
   padding: 0;
   border: 0;
@@ -1441,11 +1446,12 @@ a.post-admin-delete:hover {
 .post .body .thinking-photo-tile--single img {
   display: block;
   width: 100%;
-  max-width: 100%;
-  height: auto;
+  height: 100%;
+  max-width: none;
   margin: 0;
-  border-radius: 4px;
-  object-fit: unset;
+  border-radius: 0;
+  object-fit: cover;
+  object-position: center;
 }
 
 html.thinking-lightbox-open {
