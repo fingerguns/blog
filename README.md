@@ -86,7 +86,7 @@ Cross-posting still lets Bluesky and Micro.blog unfurl URLs in your notes on the
 
 ## Requirements
 
-- [Node.js](https://nodejs.org/) 18+ (build scripts only)
+- [Node.js](https://nodejs.org/) 20.6+ (build scripts only) — every build script runs as `node --env-file=.env`, and that flag landed in 20.6
 - [gitleaks](https://github.com/gitleaks/gitleaks) for the secret-scanning pre-commit hook (`brew install gitleaks`)
 - Cloudflare account with **D1**, **R2**, **Workers**, and **Pages**
 - [Wrangler](https://developers.cloudflare.com/workers/wrangler/) for the Worker
