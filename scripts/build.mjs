@@ -190,14 +190,16 @@ const thinkingLightboxScript = `    <script>(function(){
     overlay.setAttribute("role","dialog");
     overlay.setAttribute("aria-modal","true");
     overlay.setAttribute("aria-label","Photo gallery");
-    overlay.innerHTML='<button type="button" class="thinking-lightbox-close" aria-label="Close">&times;</button><button type="button" class="thinking-lightbox-prev" aria-label="Previous photo">‹</button><figure class="thinking-lightbox-figure"><img alt="" draggable="false" /><figcaption class="thinking-lightbox-counter"></figcaption></figure><button type="button" class="thinking-lightbox-next" aria-label="Next photo">›</button>';
+    overlay.innerHTML='<button type="button" class="thinking-lightbox-prev" aria-label="Previous photo">‹</button><figure class="thinking-lightbox-figure"><img alt="" draggable="false" /><figcaption class="thinking-lightbox-counter"></figcaption></figure><button type="button" class="thinking-lightbox-next" aria-label="Next photo">›</button>';
     document.body.appendChild(overlay);
     imgEl=overlay.querySelector("img");
     counterEl=overlay.querySelector(".thinking-lightbox-counter");
-    overlay.querySelector(".thinking-lightbox-close").addEventListener("click",close);
     overlay.querySelector(".thinking-lightbox-prev").addEventListener("click",function(e){e.stopPropagation();show(index-1);});
     overlay.querySelector(".thinking-lightbox-next").addEventListener("click",function(e){e.stopPropagation();show(index+1);});
-    overlay.addEventListener("click",function(e){if(e.target===overlay)close();});
+    // No close button: a click or tap anywhere but the photo or the arrows closes.
+    // On phones the figure spans the screen, so a tap beside the photo lands on
+    // it, not the overlay; treat it as background too.
+    overlay.addEventListener("click",function(e){if(!e.target.closest("img, button"))close();});
     imgEl.addEventListener("click",function(e){
       e.stopPropagation();
       if(window.matchMedia("(hover: hover) and (pointer: fine)").matches)toggleZoom(e);
