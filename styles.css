@@ -316,6 +316,14 @@ h2 {
   color: var(--muted);
 }
 
+/* Thinking: the same cards, one per link, stacked beneath the note. */
+.thinking-unfurls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
 @media (max-width: 30rem) {
   .linklog-card-thumb {
     flex-basis: 64px;

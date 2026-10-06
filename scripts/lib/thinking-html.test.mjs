@@ -10,6 +10,8 @@ import {
   stripEmbeddableUrls,
   inferMediaType,
   renderThinkingContentHtml,
+  unfurlableUrls,
+  MAX_UNFURLS_PER_NOTE,
 } from "./thinking-html.mjs";
 
 const SITE = "https://rommy.blog";
@@ -148,4 +150,31 @@ test("a note that is only an embeddable link renders the embed and no empty para
   const out = renderThinkingContentHtml(YT, "", "", "", SITE);
   assert.ok(out.includes("thinking-youtube"));
   assert.ok(!out.includes("<p>"), "no blank paragraph left behind");
+});
+
+// ── unfurlableUrls ───────────────────────────────────────────────────────────
+
+test("every ordinary link gets a card, in order, without trailing punctuation", () => {
+  assert.deepEqual(
+    unfurlableUrls("see https://a.example/x, and (https://b.example/y)."),
+    ["https://a.example/x", "https://b.example/y"]
+  );
+});
+
+test("YouTube and Spotify links get no card — they are already players", () => {
+  assert.deepEqual(unfurlableUrls(`${YT} ${SP} https://a.example/`), ["https://a.example/"]);
+});
+
+test("a link repeated in one note gets one card", () => {
+  assert.deepEqual(unfurlableUrls("https://a.example/ https://a.example/."), ["https://a.example/"]);
+});
+
+test("a note shows at most MAX_UNFURLS_PER_NOTE cards", () => {
+  const text = Array.from({ length: 6 }, (_, i) => `https://e${i}.example/`).join(" ");
+  assert.equal(unfurlableUrls(text).length, MAX_UNFURLS_PER_NOTE);
+});
+
+test("no text, no cards", () => {
+  assert.deepEqual(unfurlableUrls(""), []);
+  assert.deepEqual(unfurlableUrls(undefined), []);
 });

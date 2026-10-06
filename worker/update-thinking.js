@@ -954,13 +954,17 @@ async function handleThinking(payload, db, cors, env, ctx) {
         let blueskyLinkCard = null;
         if (isLinkOnlyThinkingMedia(mediaType)) {
           blueskyLinkCard = thinkingBlueskyLinkCard(postUrl, text, mediaType);
-        } else if (!blueskyImages && [...text].length > 300) {
+        } else if (!blueskyImages) {
+          // The Bluesky app builds a link card in its composer; posting through the API
+          // gets none unless we attach one. Any text-only post with a URL carries that
+          // URL's card, not just the long ones that get truncated.
           const urlMatch = text.match(/https?:\/\/[^\s]+/);
           if (urlMatch) {
             const extractedUrl = urlMatch[0].replace(/[.,;:!?)"']+$/, "");
-            blueskyLinkCard = await fetchLinkCard(extractedUrl);
+            const card = await fetchLinkCard(extractedUrl);
+            if (card && (card.title || card.description || card.thumb)) blueskyLinkCard = card;
           }
-          if (!blueskyLinkCard) {
+          if (!blueskyLinkCard && [...text].length > 300) {
             blueskyLinkCard = {
               uri: postUrl,
               title: text.slice(0, 100).trim(),
@@ -1825,6 +1829,9 @@ async function blueskyPollVideoJob(jobId, deadlineMs = 25000) {
 async function fetchLinkCard(url) {
   try {
     const res = await fetch(url, {
+      // Runs inline while a Thinking note is being posted, so a page that never
+      // answers must not hold the post up.
+      signal: AbortSignal.timeout(8000),
       headers: {
         "User-Agent":
           "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",

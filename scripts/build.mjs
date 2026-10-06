@@ -23,7 +23,7 @@ import { thinkingGridThumbUrl, upgradeSpotifyImageUrl, videoPosterKeyFromVideoUr
 import { fetchLinkUnfurl } from "./lib/link-unfurl.mjs";
 import { LINKLOG_TAG_LABELS } from "./lib/linklog-tags.mjs";
 import { mapWithConcurrency } from "./lib/concurrency.mjs";
-import { renderThinkingContentHtml } from "./lib/thinking-html.mjs";
+import { renderThinkingContentHtml, unfurlableUrls } from "./lib/thinking-html.mjs";
 import { bookshopAffiliateUrl, bookshopAffiliateIdFromEnv, isbnFromBookshopUrl } from "./lib/bookshop-affiliate.mjs";
 import {
   buildLatestCoverLookup,
@@ -831,7 +831,7 @@ function renderThinkingHtml(thinking) {
     { mediaUrls: thinking?.media_urls || [] }
   );
   if (!inner) return "";
-  return `<div class="microblog-body">${inner}</div>`;
+  return `<div class="microblog-body">${inner}</div>${thinkingUnfurlsHtml(thinking?.text)}`;
 }
 
 function hasThinking(thinking) {
@@ -974,12 +974,63 @@ const MAX_PER_SECTION = 5;
 // Thinking posts from D1 (populated by the admin Worker on every post/delete)
 const microblogItems = thinkingPosts.map((p) => ({
   _slug: p.slug,
+  _text: p.text || "",
   content_html: thinkingContentHtmlFromRow(p),
   date_published: p.datetime,
   url: p.microblog_url || "",
   media_type: p.media_type || "",
   location_label: p.location_label || "",
 }));
+
+// Thinking link cards: every link in a note (YouTube and Spotify aside, which
+// already render as players) gets an Open Graph preview card beneath the note,
+// on the homepage, the archive, and the permalink. The note's text is rendered
+// fresh from D1 on every build, so this covers old notes and new ones alike:
+// any URL not yet in the cache is fetched here, and a new note's links are
+// fetched on the rebuild the Worker triggers after posting. A miss is cached
+// as `false` and not retried, as on Sharing — a site that blocks scrapers
+// would otherwise cost a timeout on every build. The cards are kept out of
+// content_html on purpose: the grid, search, og:image and og:description all
+// read that string, and a linked page's image or blurb must not become the
+// note's own.
+const thinkingUnfurlCache = await loadBuildCache(CACHE_NAMESPACES.THINKING_UNFURLS);
+{
+  const urls = new Set();
+  for (const p of thinkingPosts) for (const u of unfurlableUrls(p.text)) urls.add(u);
+  for (const u of unfurlableUrls(thinking?.text)) urls.add(u);
+  const missing = cacheKeysToLookUp(thinkingUnfurlCache, urls);
+  if (missing.length > 0) {
+    console.log(`Fetching ${missing.length} link preview(s) for Thinking…`);
+    await mapWithConcurrency(missing, 6, async (url) => {
+      thinkingUnfurlCache[url] = (await fetchLinkUnfurl(url)) || false;
+    });
+  }
+}
+await saveBuildCache(CACHE_NAMESPACES.THINKING_UNFURLS, thinkingUnfurlCache);
+
+function thinkingUnfurlCardHtml(url) {
+  const unfurl = thinkingUnfurlCache[url];
+  if (!unfurl) return "";
+  const domain = linkDomain(url);
+  const title = unfurl.title || domain || url;
+  const sourceLabel = unfurl.siteName || domain;
+  // Hotlinked like the Sharing cards: an image that fails hides its slot.
+  const imageHtml = unfurl.image
+    ? `<span class="linklog-card-thumb"><img src="${escHtml(unfurl.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.parentElement.hidden=true" /></span>`
+    : "";
+  const descHtml = unfurl.description
+    ? `<span class="linklog-card-desc">${escHtml(unfurl.description)}</span>`
+    : "";
+  const metaHtml =
+    sourceLabel && sourceLabel !== title ? `<span class="linklog-card-meta">${escHtml(sourceLabel)}</span>` : "";
+  return `<a class="linklog-card" href="${escHtml(url)}" target="_blank" rel="noopener noreferrer">${imageHtml}<span class="linklog-card-body"><span class="linklog-card-title">${escHtml(title)}</span>${descHtml}${metaHtml}</span></a>`;
+}
+
+/** Preview cards for the links in a note's text; "" when there are none. */
+function thinkingUnfurlsHtml(text) {
+  const cards = unfurlableUrls(text).map(thinkingUnfurlCardHtml).filter(Boolean);
+  return cards.length ? `<div class="thinking-unfurls">${cards.join("")}</div>` : "";
+}
 
 // Microblog dates/times shown in ET
 const etDateFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" });
@@ -2048,7 +2099,7 @@ const microblogListHtml = (items, spotifyThumbnails = {}) =>
           const slug = thinkingSlug(item);
           const kind = thinkingGridKind(item, spotifyThumbnails);
           return `        <div class="microblog-entry" data-slug="${escHtml(slug)}" data-kind="${escHtml(kind)}" data-microblog-url="${escHtml(item.url || "")}">
-          <div class="microblog-body">${item.content_html}</div>
+          <div class="microblog-body">${item.content_html}</div>${thinkingUnfurlsHtml(item._text)}
           ${thinkingPostMetaHtml(item, slug)}
         </div>`;
         })
@@ -2862,7 +2913,7 @@ for (const item of microblogItems) {
     ? thinkingContentHtmlFromRow(row, { videoPreload: "auto" })
     : item.content_html;
   const postHtml = `${thinkingPostHead(item.date_published, item, slug)}
-      <div class="microblog-body">${detailContent}</div>
+      <div class="microblog-body">${detailContent}</div>${thinkingUnfurlsHtml(item._text)}
       ${thinkingPostMetaHtml(item, slug)}
 ${thinkingDeletePanelHtml}
 ${thinkingPostFoot}`;
