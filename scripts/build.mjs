@@ -883,8 +883,7 @@ ${ogMetaTags({
 })}
     <link rel="icon" href="../../favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="../../favicon.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" href="/media/fonts/abc-areal/v1/ABCArealVariable.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="../../styles.css?v=${cssV}" />
     <link
       rel="alternate"
@@ -1547,8 +1546,7 @@ const indexHtml = `<!DOCTYPE html>
 ${descriptionText ? `    <meta property="og:description" content="${escHtml(descriptionText)}" />\n` : ""}${descriptionMeta}
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" href="/media/fonts/abc-areal/v1/ABCArealVariable.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="styles.css?v=${cssV}" />
     <link
       rel="alternate"
@@ -1664,8 +1662,7 @@ const archiveHead = (title, headingHtml, extraHead = "") => `<!DOCTYPE html>
     <meta property="og:image" content="${escHtml(site.url)}/favicon.png" />
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" href="/media/fonts/abc-areal/v1/ABCArealVariable.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/styles.css?v=${cssV}" />
     <script>(function(){var t=localStorage.getItem('theme');document.documentElement.setAttribute('data-theme',t||'dark');}());</script>
     <link
