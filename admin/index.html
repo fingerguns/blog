@@ -2488,7 +2488,9 @@
       }
 
       var MAX_PHOTO_SITE = 5 * 1024 * 1024;
-      var MAX_PHOTO_BLUESKY = 2 * 1024 * 1024;
+      // Bluesky's blob limit is 2,000,000 bytes, not 2 MiB; must match
+      // MAX_BLUESKY_IMAGE_BYTES in the Worker, which cannot compress itself.
+      var MAX_PHOTO_BLUESKY = 2000000;
       var MAX_PHOTO_INPUT = 25 * 1024 * 1024;
       var MAX_VIDEO_INPUT = 100 * 1024 * 1024;
 
@@ -2833,8 +2835,10 @@
           return callThinkingVideoAPI(text, videoFile, videoPoster, onProgress);
         }
         var photos = Array.isArray(photoFiles) ? photoFiles.filter(Boolean) : photoFiles ? [photoFiles] : [];
+        // Positional, one per photo: null means "no Bluesky copy needed" and is
+        // sent as an empty file so the Worker pairs each copy with its photo.
         var blueskyPhotos = Array.isArray(blueskyPhotoFiles)
-          ? blueskyPhotoFiles.filter(Boolean)
+          ? blueskyPhotoFiles
           : blueskyPhotoFiles
             ? [blueskyPhotoFiles]
             : [];
@@ -2844,7 +2848,11 @@
           fd.append("action", "thinking");
           fd.append("text", text);
           for (var i = 0; i < photos.length; i++) fd.append("photo", photos[i]);
-          for (var j = 0; j < blueskyPhotos.length; j++) fd.append("photo_bluesky", blueskyPhotos[j]);
+          if (blueskyPhotos.some(Boolean)) {
+            for (var j = 0; j < blueskyPhotos.length; j++) {
+              fd.append("photo_bluesky", blueskyPhotos[j] || new Blob([]), "bluesky.jpg");
+            }
+          }
           if (audioFile) fd.append("audio", audioFile);
           if (onProgress) return postThinkingMultipart(fd, onProgress);
           var res = await fetch(API_URL, { method: "POST", body: fd });

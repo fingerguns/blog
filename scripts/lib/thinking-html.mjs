@@ -12,6 +12,26 @@ function isEmbeddableUrl(rawUrl) {
   return Boolean(parseYouTubeUrl(clean) || parseSpotifyUrl(clean));
 }
 
+/** Most link cards a single note will show; past this the cards outweigh the note. */
+export const MAX_UNFURLS_PER_NOTE = 3;
+
+/**
+ * The links in a note that get an unfurl card: every http(s) URL in the text,
+ * in order, de-duplicated, minus YouTube/Spotify links (those already render
+ * as native players). Trailing punctuation is trimmed exactly as linkifyUrls
+ * trims it, so the card and the inline link point at the same address.
+ */
+export function unfurlableUrls(text) {
+  const seen = new Set();
+  for (const raw of String(text || "").match(URL_RE) || []) {
+    const clean = raw.replace(/[.,;:!?)"']+$/, "");
+    if (isEmbeddableUrl(clean) || seen.has(clean)) continue;
+    seen.add(clean);
+    if (seen.size === MAX_UNFURLS_PER_NOTE) break;
+  }
+  return [...seen];
+}
+
 /** Remove URLs that render as native YouTube/Spotify embeds from plain post text. */
 export function stripEmbeddableUrls(text) {
   if (!text) return "";

@@ -23,7 +23,7 @@ import { thinkingGridThumbUrl, upgradeSpotifyImageUrl, videoPosterKeyFromVideoUr
 import { fetchLinkUnfurl } from "./lib/link-unfurl.mjs";
 import { LINKLOG_TAG_LABELS } from "./lib/linklog-tags.mjs";
 import { mapWithConcurrency } from "./lib/concurrency.mjs";
-import { renderThinkingContentHtml } from "./lib/thinking-html.mjs";
+import { renderThinkingContentHtml, unfurlableUrls } from "./lib/thinking-html.mjs";
 import { bookshopAffiliateUrl, bookshopAffiliateIdFromEnv, isbnFromBookshopUrl } from "./lib/bookshop-affiliate.mjs";
 import {
   buildLatestCoverLookup,
@@ -190,14 +190,16 @@ const thinkingLightboxScript = `    <script>(function(){
     overlay.setAttribute("role","dialog");
     overlay.setAttribute("aria-modal","true");
     overlay.setAttribute("aria-label","Photo gallery");
-    overlay.innerHTML='<button type="button" class="thinking-lightbox-close" aria-label="Close">&times;</button><button type="button" class="thinking-lightbox-prev" aria-label="Previous photo">‹</button><figure class="thinking-lightbox-figure"><img alt="" draggable="false" /><figcaption class="thinking-lightbox-counter"></figcaption></figure><button type="button" class="thinking-lightbox-next" aria-label="Next photo">›</button>';
+    overlay.innerHTML='<button type="button" class="thinking-lightbox-prev" aria-label="Previous photo">‹</button><figure class="thinking-lightbox-figure"><img alt="" draggable="false" /><figcaption class="thinking-lightbox-counter"></figcaption></figure><button type="button" class="thinking-lightbox-next" aria-label="Next photo">›</button>';
     document.body.appendChild(overlay);
     imgEl=overlay.querySelector("img");
     counterEl=overlay.querySelector(".thinking-lightbox-counter");
-    overlay.querySelector(".thinking-lightbox-close").addEventListener("click",close);
     overlay.querySelector(".thinking-lightbox-prev").addEventListener("click",function(e){e.stopPropagation();show(index-1);});
     overlay.querySelector(".thinking-lightbox-next").addEventListener("click",function(e){e.stopPropagation();show(index+1);});
-    overlay.addEventListener("click",function(e){if(e.target===overlay)close();});
+    // No close button: a click or tap anywhere but the photo or the arrows closes.
+    // On phones the figure spans the screen, so a tap beside the photo lands on
+    // it, not the overlay; treat it as background too.
+    overlay.addEventListener("click",function(e){if(!e.target.closest("img, button"))close();});
     imgEl.addEventListener("click",function(e){
       e.stopPropagation();
       if(window.matchMedia("(hover: hover) and (pointer: fine)").matches)toggleZoom(e);
@@ -829,7 +831,7 @@ function renderThinkingHtml(thinking) {
     { mediaUrls: thinking?.media_urls || [] }
   );
   if (!inner) return "";
-  return `<div class="microblog-body">${inner}</div>`;
+  return `<div class="microblog-body">${inner}</div>${thinkingUnfurlsHtml(thinking?.text)}`;
 }
 
 function hasThinking(thinking) {
@@ -881,8 +883,7 @@ ${ogMetaTags({
 })}
     <link rel="icon" href="../../favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="../../favicon.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" href="/media/fonts/abc-areal/v1/ABCArealVariable.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="../../styles.css?v=${cssV}" />
     <link
       rel="alternate"
@@ -972,12 +973,63 @@ const MAX_PER_SECTION = 5;
 // Thinking posts from D1 (populated by the admin Worker on every post/delete)
 const microblogItems = thinkingPosts.map((p) => ({
   _slug: p.slug,
+  _text: p.text || "",
   content_html: thinkingContentHtmlFromRow(p),
   date_published: p.datetime,
   url: p.microblog_url || "",
   media_type: p.media_type || "",
   location_label: p.location_label || "",
 }));
+
+// Thinking link cards: every link in a note (YouTube and Spotify aside, which
+// already render as players) gets an Open Graph preview card beneath the note,
+// on the homepage, the archive, and the permalink. The note's text is rendered
+// fresh from D1 on every build, so this covers old notes and new ones alike:
+// any URL not yet in the cache is fetched here, and a new note's links are
+// fetched on the rebuild the Worker triggers after posting. A miss is cached
+// as `false` and not retried, as on Sharing — a site that blocks scrapers
+// would otherwise cost a timeout on every build. The cards are kept out of
+// content_html on purpose: the grid, search, og:image and og:description all
+// read that string, and a linked page's image or blurb must not become the
+// note's own.
+const thinkingUnfurlCache = await loadBuildCache(CACHE_NAMESPACES.THINKING_UNFURLS);
+{
+  const urls = new Set();
+  for (const p of thinkingPosts) for (const u of unfurlableUrls(p.text)) urls.add(u);
+  for (const u of unfurlableUrls(thinking?.text)) urls.add(u);
+  const missing = cacheKeysToLookUp(thinkingUnfurlCache, urls);
+  if (missing.length > 0) {
+    console.log(`Fetching ${missing.length} link preview(s) for Thinking…`);
+    await mapWithConcurrency(missing, 6, async (url) => {
+      thinkingUnfurlCache[url] = (await fetchLinkUnfurl(url)) || false;
+    });
+  }
+}
+await saveBuildCache(CACHE_NAMESPACES.THINKING_UNFURLS, thinkingUnfurlCache);
+
+function thinkingUnfurlCardHtml(url) {
+  const unfurl = thinkingUnfurlCache[url];
+  if (!unfurl) return "";
+  const domain = linkDomain(url);
+  const title = unfurl.title || domain || url;
+  const sourceLabel = unfurl.siteName || domain;
+  // Hotlinked like the Sharing cards: an image that fails hides its slot.
+  const imageHtml = unfurl.image
+    ? `<span class="linklog-card-thumb"><img src="${escHtml(unfurl.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.parentElement.hidden=true" /></span>`
+    : "";
+  const descHtml = unfurl.description
+    ? `<span class="linklog-card-desc">${escHtml(unfurl.description)}</span>`
+    : "";
+  const metaHtml =
+    sourceLabel && sourceLabel !== title ? `<span class="linklog-card-meta">${escHtml(sourceLabel)}</span>` : "";
+  return `<a class="linklog-card" href="${escHtml(url)}" target="_blank" rel="noopener noreferrer">${imageHtml}<span class="linklog-card-body"><span class="linklog-card-title">${escHtml(title)}</span>${descHtml}${metaHtml}</span></a>`;
+}
+
+/** Preview cards for the links in a note's text; "" when there are none. */
+function thinkingUnfurlsHtml(text) {
+  const cards = unfurlableUrls(text).map(thinkingUnfurlCardHtml).filter(Boolean);
+  return cards.length ? `<div class="thinking-unfurls">${cards.join("")}</div>` : "";
+}
 
 // Microblog dates/times shown in ET
 const etDateFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" });
@@ -1298,20 +1350,42 @@ ${linklogTagOptions
       </div>`
     : "";
 
+// Tag filter and infinite scroll in one script: the scroll pages through the
+// items that match the filter, so loading a batch never reveals other tags.
+// The page opts out of archiveFoot's generic scroll, which knows no filter.
 const linklogFilterScript = `    <script>(function(){
-var sel=document.querySelector('.linklog-tag-select');
-if(!sel)return;
 var list=document.querySelector('.post-list');
 if(!list)return;
-var items=list.querySelectorAll('li');
-sel.addEventListener('change',function(){
-  var v=sel.value;
-  items.forEach(function(li){
-    if(!v){li.hidden=false;return;}
-    var tags=(li.getAttribute('data-tags')||'').split(/\\s+/).filter(Boolean);
-    li.hidden=tags.indexOf(v)===-1;
-  });
-});
+var sel=document.querySelector('.linklog-tag-select');
+var items=[].slice.call(list.querySelectorAll('li'));
+var BATCH=10;var matches=[];var shown=0;
+var sentinel=document.createElement('div');
+list.parentNode.insertBefore(sentinel,list.nextSibling);
+function matchesTag(li,v){
+  if(!v)return true;
+  var tags=(li.getAttribute('data-tags')||'').split(/\\s+/).filter(Boolean);
+  return tags.indexOf(v)!==-1;
+}
+function reveal(){
+  var next=Math.min(shown+BATCH,matches.length);
+  for(var i=shown;i<next;i++)matches[i].hidden=false;
+  shown=next;
+}
+var obs=new IntersectionObserver(function(e){
+  if(!e[0].isIntersecting||shown>=matches.length)return;
+  reveal();
+  // Re-observe so a sentinel still on screen after a short batch fires again.
+  obs.unobserve(sentinel);obs.observe(sentinel);
+},{rootMargin:'0px'});
+function apply(){
+  var v=sel?sel.value:'';
+  matches=items.filter(function(li){return matchesTag(li,v);});
+  items.forEach(function(li){li.hidden=true;});
+  shown=0;reveal();
+  obs.unobserve(sentinel);obs.observe(sentinel);
+}
+if(sel)sel.addEventListener('change',apply);
+apply();
 }());</script>`;
 
 const sectionHeading = (label, tag, id) => {
@@ -1472,8 +1546,7 @@ const indexHtml = `<!DOCTYPE html>
 ${descriptionText ? `    <meta property="og:description" content="${escHtml(descriptionText)}" />\n` : ""}${descriptionMeta}
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" href="/media/fonts/abc-areal/v1/ABCArealVariable.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="styles.css?v=${cssV}" />
     <link
       rel="alternate"
@@ -1589,8 +1662,7 @@ const archiveHead = (title, headingHtml, extraHead = "") => `<!DOCTYPE html>
     <meta property="og:image" content="${escHtml(site.url)}/favicon.png" />
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" href="/media/fonts/abc-areal/v1/ABCArealVariable.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/styles.css?v=${cssV}" />
     <script>(function(){var t=localStorage.getItem('theme');document.documentElement.setAttribute('data-theme',t||'dark');}());</script>
     <link
@@ -1607,7 +1679,7 @@ ${extraHead}
       <a class="post-back" href="/">←</a>
       ${headingHtml ?? `<h1>${escHtml(title)}</h1>`}`;
 
-const archiveFoot = (extraScripts = "") => `      <footer class="site-footer">
+const archiveFoot = (extraScripts = "", { infiniteScroll = true } = {}) => `      <footer class="site-footer">
         <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle"></a></span></p>
         <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
@@ -1615,7 +1687,7 @@ const archiveFoot = (extraScripts = "") => `      <footer class="site-footer">
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);b.textContent=t==='dark'?'Light mode':'Dark mode';localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'dark');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
 ${portraitPhotoToggleScript}
 ${thinkingLightboxScript}
-    <script>(function(){var BATCH=10;var list=document.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++)items[i].hidden=true;var shown=BATCH;var sentinel=document.createElement('div');document.body.appendChild(sentinel);var obs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++)items[i].hidden=false;shown=next;if(shown>=items.length)obs.disconnect();},{rootMargin:'0px'});obs.observe(sentinel);}());</script>
+${infiniteScroll ? `    <script>(function(){var BATCH=10;var list=document.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++)items[i].hidden=true;var shown=BATCH;var sentinel=document.createElement('div');document.body.appendChild(sentinel);var obs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++)items[i].hidden=false;shown=next;if(shown>=items.length)obs.disconnect();},{rootMargin:'0px'});obs.observe(sentinel);}());</script>` : ""}
 ${extraScripts}
   </body>
 </html>
@@ -1763,7 +1835,7 @@ ${linklogTagFilterHtml}
       <ol class="post-list linklog-archive-list" reversed>
 ${linklogAllHtml}
       </ol>
-${archiveFoot(linklogFilterScript)}`;
+${archiveFoot(linklogFilterScript, { infiniteScroll: false })}`;
 
 // /now page
 const nowMonthYear = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "America/New_York" });
@@ -2024,7 +2096,7 @@ const microblogListHtml = (items, spotifyThumbnails = {}) =>
           const slug = thinkingSlug(item);
           const kind = thinkingGridKind(item, spotifyThumbnails);
           return `        <div class="microblog-entry" data-slug="${escHtml(slug)}" data-kind="${escHtml(kind)}" data-microblog-url="${escHtml(item.url || "")}">
-          <div class="microblog-body">${item.content_html}</div>
+          <div class="microblog-body">${item.content_html}</div>${thinkingUnfurlsHtml(item._text)}
           ${thinkingPostMetaHtml(item, slug)}
         </div>`;
         })
@@ -2838,7 +2910,7 @@ for (const item of microblogItems) {
     ? thinkingContentHtmlFromRow(row, { videoPreload: "auto" })
     : item.content_html;
   const postHtml = `${thinkingPostHead(item.date_published, item, slug)}
-      <div class="microblog-body">${detailContent}</div>
+      <div class="microblog-body">${detailContent}</div>${thinkingUnfurlsHtml(item._text)}
       ${thinkingPostMetaHtml(item, slug)}
 ${thinkingDeletePanelHtml}
 ${thinkingPostFoot}`;
