@@ -43,12 +43,22 @@
 :root {
   --bg: #f5f0e8;
   --text: #1a1a1a;
-  --muted: #767676;
+  --muted: #666666;
   --rule: #d5cfc4;
   --link: #1a1a1a;
   --link-hover: #444444;
   --max: 40rem;
   --space: 1.5rem;
+  /* Type scale: every fixed font-size in this file is one of these steps
+     (relative em sizes and the grid-badge clamp are the only exceptions). */
+  --fs-xs: 0.7rem;
+  --fs-sm: 0.85rem;
+  --fs-md: 0.92rem;
+  --fs-base: 1rem;
+  --fs-lg: 1.1rem;
+  --fs-xl: 1.5rem;
+  --fs-2xl: 1.65rem;
+  --fs-3xl: 2rem;
   --thinking-delete-bg: #ebe6de;
 }
 
@@ -108,8 +118,17 @@ a:hover {
   text-decoration-color: currentColor;
 }
 
+/* One visible keyboard focus ring for every link, button and field, in both
+   themes. Mouse clicks don't trigger :focus-visible, so it stays out of the
+   way of pointer users. */
+:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 .site-title {
-  font-size: 1.5rem;
+  font-size: var(--fs-xl);
   font-weight: 600;
   letter-spacing: -0.02em;
   margin: 0 0 0.25rem;
@@ -125,7 +144,7 @@ a:hover {
 .lead {
   margin: 0;
   color: var(--muted);
-  font-size: 0.98rem;
+  font-size: var(--fs-base);
 }
 
 section {
@@ -137,7 +156,7 @@ section:first-of-type {
 }
 
 h2 {
-  font-size: 0.7rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -145,8 +164,27 @@ h2 {
   margin: 0 0 0.85rem;
 }
 
-.section-hint {
+/* Heading + its tooltip. The tooltip is a sibling of the heading (not inside
+   it) so it never becomes part of the heading text; the wrapper takes the
+   heading's bottom margin so the tooltip can hang just below the label. */
+.section-head {
   position: relative;
+  margin: 0 0 0.85rem;
+}
+
+.section-head > h1 {
+  margin-bottom: 0;
+}
+
+.section-head > h2 {
+  margin-bottom: 0;
+}
+
+.post .section-head {
+  margin-bottom: 0.5rem;
+}
+
+.section-hint {
   display: inline;
 }
 
@@ -160,7 +198,7 @@ h2 {
   background: var(--bg);
   border: 1px solid color-mix(in srgb, var(--muted) 35%, transparent);
   border-radius: 4px;
-  font-size: 0.82rem;
+  font-size: var(--fs-sm);
   font-weight: 400;
   letter-spacing: 0;
   text-transform: none;
@@ -173,9 +211,8 @@ h2 {
   pointer-events: none;
 }
 
-.section-hint:hover .section-hint-tip,
-.section-hint:focus .section-hint-tip,
-.section-hint:focus-within .section-hint-tip {
+.section-head:has(.section-hint:hover) .section-hint-tip,
+.section-head:has(.section-hint:focus) .section-hint-tip {
   visibility: visible;
   opacity: 1;
 }
@@ -256,7 +293,7 @@ h2 {
 .meta {
   font-variant-numeric: tabular-nums;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   white-space: nowrap;
 }
 
@@ -279,7 +316,7 @@ h2 {
   display: block;
   text-align: right;
   margin-top: 0.5rem;
-  font-size: 1.1rem;
+  font-size: var(--fs-lg);
   line-height: 1;
   color: var(--muted);
   font-weight: 500;
@@ -341,7 +378,7 @@ h2 {
 }
 
 .linklog-card-desc {
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -350,7 +387,7 @@ h2 {
 }
 
 .linklog-card-meta {
-  font-size: 0.8rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
 }
 
@@ -377,7 +414,7 @@ h2 {
 }
 
 .about-text h1 {
-  font-size: 1.65rem;
+  font-size: var(--fs-2xl);
   font-weight: 600;
   letter-spacing: -0.02em;
   margin: 0 0 0.75rem;
@@ -403,7 +440,7 @@ h2 {
   }
 
   .post h1 {
-    font-size: 1.35rem;
+    font-size: var(--fs-xl);
   }
 
   .post-date,
@@ -422,7 +459,7 @@ h2 {
 
 /* Reading time */
 .reading-time {
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
 }
 
@@ -450,7 +487,7 @@ a.post-admin-delete:hover {
 /* Back to top */
 .back-to-top {
   display: block;
-  font-size: 0.78rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
   text-decoration: none;
   margin-top: 2.5rem;
@@ -468,7 +505,7 @@ a.post-admin-delete:hover {
 }
 
 .webmentions h2 {
-  font-size: 0.7rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -493,7 +530,7 @@ a.post-admin-delete:hover {
   overflow: hidden;
   background: var(--rule);
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   text-decoration: none;
   transition: opacity 0.15s;
@@ -515,7 +552,7 @@ a.post-admin-delete:hover {
 }
 
 .wm-comment-meta {
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
   margin-bottom: 0.2rem;
 }
@@ -526,7 +563,7 @@ a.post-admin-delete:hover {
 }
 
 .wm-comment-text {
-  font-size: 0.9rem;
+  font-size: var(--fs-md);
   line-height: 1.55;
   color: var(--text);
   margin: 0;
@@ -546,14 +583,14 @@ a.post-admin-delete:hover {
   margin: 1.5rem 0 0;
 }
 .post-edit-link {
-  font-size: 0.78rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
   text-decoration: none;
 }
 .post-edit-link:hover { color: var(--link); }
 .post-delete-link {
   font: inherit;
-  font-size: 0.78rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
   background: none;
   border: none;
@@ -570,7 +607,7 @@ a.post-admin-delete:hover {
 .contact-form label {
   display: block;
   margin-bottom: 0.35rem;
-  font-size: 0.8rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -584,13 +621,13 @@ a.post-admin-delete:hover {
   background: var(--bg);
   color: var(--text);
   font-family: inherit;
-  font-size: 1rem;
+  font-size: var(--fs-base);
   border-radius: 3px;
   transition: border-color 0.15s;
 }
 .contact-form textarea { resize: vertical; min-height: 140px; line-height: 1.55; }
 .contact-form input:focus,
-.contact-form textarea:focus { outline: none; border-color: var(--link); }
+.contact-form textarea:focus { border-color: var(--link); }
 .contact-form button {
   padding: 0.55rem 1.4rem;
   background: var(--text);
@@ -598,12 +635,12 @@ a.post-admin-delete:hover {
   border: none;
   border-radius: 3px;
   font-family: inherit;
-  font-size: 0.95rem;
+  font-size: var(--fs-md);
   cursor: pointer;
   transition: opacity 0.15s;
 }
 .contact-form button:disabled { opacity: 0.5; cursor: not-allowed; }
-.form-status { margin-top: 0.9rem; font-size: 0.9rem; }
+.form-status { margin-top: 0.9rem; font-size: var(--fs-md); }
 .form-success { color: var(--link); }
 .form-error { color: #c0392b; }
 
@@ -735,7 +772,7 @@ a.post-admin-delete:hover {
    stores a label and nothing finer, so the pin sits at the neighborhood centre
    and says how many posts share it. See scripts/lib/thinking-map.mjs. */
 .thinking-map-note {
-  font-size: 0.8rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
   margin: 0 0 0.6rem;
 }
@@ -755,7 +792,7 @@ a.post-admin-delete:hover {
   filter: invert(1) hue-rotate(180deg);
 }
 .thinking-map .maplibregl-ctrl-attrib {
-  font-size: 0.62rem;
+  font-size: var(--fs-xs);
 }
 .thinking-map .maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show) .maplibregl-ctrl-attrib-inner {
   display: none;
@@ -765,7 +802,7 @@ a.post-admin-delete:hover {
   align-items: center;
   justify-content: center;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
 }
 
 .thinking-map-pin {
@@ -796,7 +833,7 @@ a.post-admin-delete:hover {
 .thinking-map-pin--count {
   background: var(--text);
   color: var(--bg);
-  font-size: 0.8rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -829,7 +866,7 @@ a.post-admin-delete:hover {
   margin-bottom: 0.4rem;
 }
 .thinking-map-overlay-title {
-  font-size: 0.75rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -840,7 +877,7 @@ a.post-admin-delete:hover {
   border: none;
   background: none;
   padding: 0 0.2rem;
-  font-size: 1.1rem;
+  font-size: var(--fs-lg);
   line-height: 1;
   color: var(--muted);
   cursor: pointer;
@@ -860,11 +897,11 @@ a.post-admin-delete:hover {
 }
 .thinking-map-overlay-text {
   margin: 0 0 0.25rem;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   line-height: 1.4;
 }
 .thinking-map-overlay-link {
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -879,7 +916,7 @@ a.post-admin-delete:hover {
   contain-intrinsic-size: auto 200px;
 }
 .thinking-grid-month-label {
-  font-size: 0.8rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -965,7 +1002,7 @@ a.post-admin-delete:hover {
   overflow: hidden;
   width: 100%;
   overflow-wrap: break-word;
-  font-size: 0.62rem;
+  font-size: var(--fs-xs);
   line-height: 1.25;
   color: var(--text);
 }
@@ -1044,7 +1081,7 @@ a.post-admin-delete:hover {
   background: none;
   color: var(--muted);
   font: inherit;
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
   font-weight: 500;
   line-height: 1.3;
   padding: 0.35rem 0.65rem;
@@ -1073,7 +1110,7 @@ a.post-admin-delete:hover {
 .reading-tab-intro {
   margin: 0 0 1.25rem;
   color: var(--muted);
-  font-size: 0.98rem;
+  font-size: var(--fs-base);
   line-height: 1.65;
 }
 .reading-genre-filter {
@@ -1084,7 +1121,7 @@ a.post-admin-delete:hover {
   display: block;
   width: 100%;
   font: inherit;
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
   color: var(--text);
   background: var(--bg);
   border: 1px solid var(--rule);
@@ -1104,7 +1141,7 @@ a.post-admin-delete:hover {
   display: block;
   width: 100%;
   font: inherit;
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
   color: var(--text);
   background: var(--bg);
   border: 1px solid var(--rule);
@@ -1145,7 +1182,7 @@ a.post-admin-delete:hover {
     height: 0.95rem;
   }
   .reading-tab {
-    font-size: 0.88rem;
+    font-size: var(--fs-sm);
     padding: 0.35rem 0.5rem;
   }
 }
@@ -1185,7 +1222,7 @@ a.post-admin-delete:hover {
   margin: 0 0 2rem;
 }
 .reading-grid-month-label {
-  font-size: 0.8rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -1225,12 +1262,12 @@ a.post-admin-delete:hover {
   height: 100%;
   padding: 1rem;
   text-align: center;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   line-height: 1.4;
   color: var(--muted);
 }
 .reading-grid-title {
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
   line-height: 1.4;
 }
 .reading-grid-item:hover .reading-grid-title {
@@ -1242,10 +1279,10 @@ a.post-admin-delete:hover {
     gap: 1.25rem 0.85rem;
   }
   .reading-grid-title {
-    font-size: 0.82rem;
+    font-size: var(--fs-sm);
   }
   .reading-grid-cover-fallback {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     padding: 0.75rem;
   }
 }
@@ -1268,7 +1305,7 @@ a.post-admin-delete:hover {
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.35rem 0.5rem;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
   margin: 0.75rem 0 0.5rem;
   font-variant-numeric: tabular-nums;
@@ -1283,7 +1320,7 @@ a.post-admin-delete:hover {
 }
 .microblog-entry .post-date {
   display: block;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
   margin-bottom: 0.5rem;
   font-variant-numeric: tabular-nums;
@@ -1326,7 +1363,7 @@ a.post-admin-delete:hover {
 .thinking-delete-lead, .post-delete-lead {
   margin: 0;
   line-height: 1.65;
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
   color: var(--muted);
   font-family: "ABC Areal", system-ui, -apple-system, sans-serif;
   font-style: italic;
@@ -1339,7 +1376,7 @@ a.post-admin-delete:hover {
 .thinking-delete-signin, .post-delete-signin {
   margin: 0;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: var(--fs-md);
   font-family: "ABC Areal", system-ui, -apple-system, sans-serif;
   font-style: italic;
   font-weight: 400;
@@ -1351,7 +1388,7 @@ a.post-admin-delete:hover {
 }
 .thinking-delete-actions, .post-delete-actions {
   margin: 0.65rem 0 0;
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
   line-height: 1.5;
 }
 .thinking-delete-actions a, .post-delete-actions a {
@@ -1384,7 +1421,7 @@ a.post-admin-delete:hover {
 }
 .thinking-delete-status, .post-delete-status {
   margin: 0.75rem 0 0;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
   font-family: "ABC Areal", system-ui, -apple-system, sans-serif;
   font-style: italic;
@@ -1556,7 +1593,7 @@ html.thinking-lightbox-open {
 
 .thinking-lightbox-counter {
   color: #ddd;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums;
   min-height: 1.2em;
 }
@@ -1568,7 +1605,7 @@ html.thinking-lightbox-open {
   background: transparent;
   color: #fff;
   cursor: pointer;
-  font-size: 2rem;
+  font-size: var(--fs-3xl);
   line-height: 1;
   padding: 0.35rem 0.5rem;
   opacity: 0.85;
@@ -1721,7 +1758,7 @@ article.post {
 
 .post-back {
   display: inline-block;
-  font-size: 0.9rem;
+  font-size: var(--fs-md);
   color: var(--muted);
   margin-bottom: 1.5rem;
   text-decoration: none;
@@ -1737,7 +1774,7 @@ article.post {
 }
 
 .colophon-style-toggle a {
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
   text-decoration: underline;
   text-decoration-color: var(--rule);
@@ -1767,7 +1804,7 @@ html[data-colophon="whitman"] #colophon-whitman {
 
 .colophon-whitman-title {
   font-style: italic;
-  font-size: 1.05rem;
+  font-size: var(--fs-base);
   margin-bottom: 1.1rem;
 }
 
@@ -1784,7 +1821,7 @@ html[data-colophon="whitman"] #colophon-whitman {
 
 .thinking-crumb .site-title {
   margin: 0 0 0.5rem;
-  font-size: 1.5rem;
+  font-size: var(--fs-xl);
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.3;
@@ -1827,7 +1864,7 @@ html[data-colophon="whitman"] #colophon-whitman {
 
 .thinking-crumb-meta {
   white-space: nowrap;
-  font-size: 0.7rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   letter-spacing: normal;
   color: var(--muted);
@@ -1852,7 +1889,7 @@ html[data-colophon="whitman"] #colophon-whitman {
 }
 
 .post h1 {
-  font-size: 1.65rem;
+  font-size: var(--fs-2xl);
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.25;
@@ -1863,7 +1900,7 @@ html[data-colophon="whitman"] #colophon-whitman {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  font-size: 0.9rem;
+  font-size: var(--fs-md);
   color: var(--muted);
   margin-bottom: 1.75rem;
 }
@@ -1972,11 +2009,11 @@ html[data-colophon="whitman"] #colophon-whitman {
   align-items: center;
   justify-content: center;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
 }
 
 .now-location-map .maplibregl-ctrl-attrib {
-  font-size: 0.62rem;
+  font-size: var(--fs-xs);
 }
 
 .now-location-map .maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show) .maplibregl-ctrl-attrib-inner {
@@ -1984,7 +2021,7 @@ html[data-colophon="whitman"] #colophon-whitman {
 }
 
 .post .body h2 {
-  font-size: 1.1rem;
+  font-size: var(--fs-lg);
   letter-spacing: 0;
   text-transform: none;
   color: var(--text);
@@ -2005,7 +2042,7 @@ footer.site-footer {
   margin-top: 3.5rem;
   padding-top: 1.5rem;
   border-top: 1px solid var(--rule);
-  font-size: 0.65rem;
+  font-size: var(--fs-xs);
   color: var(--muted);
   display: flex;
   flex-direction: column;
@@ -2043,7 +2080,7 @@ footer.site-footer code {
 
 .colophon p {
   margin: 0.25rem 0;
-  font-size: 0.9rem;
+  font-size: var(--fs-md);
 }
 
 .visually-hidden {
@@ -2068,7 +2105,7 @@ footer.site-footer code {
   width: 100%;
   padding: 0.6rem 0.7rem;
   font: inherit;
-  font-size: 1rem;
+  font-size: var(--fs-base);
   color: var(--text);
   background: var(--bg);
   border: 1px solid var(--rule);
@@ -2078,13 +2115,12 @@ footer.site-footer code {
 }
 
 #search-input:focus {
-  outline: none;
   border-color: var(--link);
 }
 
 .search-status {
   margin: 0 0 1.5rem;
-  font-size: 0.8rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
 }
 
@@ -2103,7 +2139,7 @@ footer.site-footer code {
 
 .search-result-title {
   display: block;
-  font-size: 0.98rem;
+  font-size: var(--fs-base);
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
@@ -2113,7 +2149,7 @@ footer.site-footer code {
   gap: 0.5rem;
   align-items: baseline;
   margin-top: 0.2rem;
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   color: var(--muted);
 }
 
@@ -2124,7 +2160,7 @@ footer.site-footer code {
 
 .search-result-snippet {
   margin: 0.45rem 0 0;
-  font-size: 0.82rem;
+  font-size: var(--fs-sm);
   line-height: 1.6;
   color: var(--muted);
   overflow-wrap: anywhere;
@@ -2139,4 +2175,46 @@ footer.site-footer code {
 
 [data-theme="dark"] .search-results mark {
   background: rgba(255, 214, 0, 0.22);
+}
+
+/* Writing post: older/newer links above "↑ Top" */
+.post-pager {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-top: 3rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--rule);
+}
+
+.post-pager a {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.post-pager-newer {
+  text-align: right;
+  grid-column: 2;
+}
+
+.post-pager-label {
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+
+.post-pager-title {
+  font-weight: 500;
+  overflow-wrap: break-word;
+}
+
+.post-pager a:hover .post-pager-title {
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+}
+
+.post-pager + .back-to-top {
+  margin-top: 1.5rem;
 }

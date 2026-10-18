@@ -859,7 +859,22 @@ function readingMins(bodyHtml) {
   return Math.max(1, Math.round(words / 200));
 }
 
-function renderPostPage(p) {
+// Previous/next links at the foot of a Writing post, so a reader who finishes
+// one essay has somewhere to go besides back to the top. "Older" sits on the
+// left and "Newer" on the right, matching reading order through the archive.
+function postPagerHtml(newer, older) {
+  if (!newer && !older) return "";
+  const link = (q, rel, dir) =>
+    q
+      ? `<a class="post-pager-${dir}" href="/posts/${safeSlug(q.slug)}/" rel="${rel}"><span class="post-pager-label">${dir === "older" ? "← Older" : "Newer →"}</span><span class="post-pager-title">${escHtml(q.title)}</span></a>`
+      : `<span class="post-pager-${dir}"></span>`;
+  return `      <nav class="post-pager" aria-label="More writing">
+        ${link(older, "prev", "older")}
+        ${link(newer, "next", "newer")}
+      </nav>`;
+}
+
+function renderPostPage(p, newer = null, older = null) {
   const slug = safeSlug(p.slug);
   const displayDate = toETDate(p);
   const readMins = readingMins(p.body_html);
@@ -896,7 +911,7 @@ ${gaSnippet}
   </head>
   <body>
     <article class="post" data-slug="${escHtml(slug)}">
-      <a class="post-back" href="../../index.html">←</a>
+      <a class="post-back" href="../../index.html" aria-label="Home">←</a>
       <h1>${escHtml(p.title)}</h1>
       <time datetime="${escHtml(displayDate)}"><span>${escHtml(displayDate)}</span><span class="reading-time">${readMins} min read</span></time>
       <div class="body">
@@ -947,9 +962,10 @@ ${postAdminActionPanelHtml}
             s.removeAttribute('hidden');
           }).catch(function(){});
       }());</script>
+${postPagerHtml(newer, older)}
       <a class="back-to-top" href="#">↑ Top</a>
       <footer class="site-footer">
-        <p class="footer-row">&copy; 2026 ${escHtml(site.author)}<span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle"></a></span></p>
+        <p class="footer-row">&copy; 2026 ${escHtml(site.author)}<span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle" role="button"></a></span></p>
         <p class="footer-row"><span><a href="../../feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
     </article>
@@ -1388,10 +1404,14 @@ if(sel)sel.addEventListener('change',apply);
 apply();
 }());</script>`;
 
+// The tooltip sits beside the heading, not inside it, so the heading's text
+// (and the accessible name of any section labelled by it) stays just the
+// label; the hint is attached as a description instead.
 const sectionHeading = (label, tag, id) => {
   const hint = SECTION_HINTS[label];
   const idAttr = id ? ` id="${id}"` : "";
-  return `<${tag}${idAttr}><span class="section-hint" tabindex="0" aria-label="About ${escHtml(label)}">${escHtml(label)}<span class="section-hint-tip" role="tooltip">${escHtml(hint)}</span></span></${tag}>`;
+  const tipId = `hint-${String(label).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  return `<div class="section-head"><${tag}${idAttr}><span class="section-hint" tabindex="0" aria-describedby="${tipId}">${escHtml(label)}</span></${tag}><div class="section-hint-tip" id="${tipId}" role="tooltip">${escHtml(hint)}</div></div>`;
 };
 
 // Homepage lists (capped at MAX_PER_SECTION)
@@ -1517,7 +1537,7 @@ const thinkingSection = hasThinking(thinking)
             </div>
           </li>
         </ol>
-        <a class="see-more" href="/thinking/">→</a>
+        <a class="see-more" href="/thinking/" aria-label="All thinking">→</a>
       </section>
 `
   : "";
@@ -1570,7 +1590,7 @@ ${thinkingSection}
         <ol class="post-list" reversed>
 ${postListHtml}
         </ol>
-        ${hasMorePosts ? '<a class="see-more" href="/writing/">→</a>' : ""}
+        ${hasMorePosts ? '<a class="see-more" href="/writing/" aria-label="All writing">→</a>' : ""}
       </section>
 
       <section aria-labelledby="reading-heading">
@@ -1578,7 +1598,7 @@ ${postListHtml}
         <ol class="post-list" reversed>
 ${readingHtml}
         </ol>
-        ${hasMoreReading ? '<a class="see-more" href="/reading/latest/">→</a>' : ""}
+        ${hasMoreReading ? '<a class="see-more" href="/reading/latest/" aria-label="All reading">→</a>' : ""}
       </section>
 
       <section aria-labelledby="linklog-heading">
@@ -1586,7 +1606,7 @@ ${readingHtml}
         <ol class="post-list" reversed>
 ${linklogHtml}
         </ol>
-        ${hasMoreLinklog ? '<a class="see-more" href="/sharing/">→</a>' : ""}
+        ${hasMoreLinklog ? '<a class="see-more" href="/sharing/" aria-label="All sharing">→</a>' : ""}
       </section>
 
       <section aria-labelledby="links-heading">
@@ -1598,7 +1618,7 @@ ${socialsHtml}
       </section>
 
       <footer class="site-footer">
-        <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle"></a></span></p>
+        <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle" role="button"></a></span></p>
         <p class="footer-row"><span>Subscribe via <a href="feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a>.</span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
 
@@ -1676,11 +1696,11 @@ ${extraHead}
   </head>
   <body>
     <article class="post">
-      <a class="post-back" href="/">←</a>
+      <a class="post-back" href="/" aria-label="Home">←</a>
       ${headingHtml ?? `<h1>${escHtml(title)}</h1>`}`;
 
 const archiveFoot = (extraScripts = "", { infiniteScroll = true } = {}) => `      <footer class="site-footer">
-        <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle"></a></span></p>
+        <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle" role="button"></a></span></p>
         <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
     </article>
@@ -2077,7 +2097,7 @@ ${thinkingPostCrumb(iso)}`;
 };
 
 const thinkingPostFoot = `      <footer class="site-footer">
-        <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle"></a></span></p>
+        <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle" role="button"></a></span></p>
         <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
     </article>
@@ -2542,7 +2562,7 @@ if(wrap.getAttribute('data-view')==='map')start();
 }());</script>`;
 
 const thinkingArchiveFoot = `      <footer class="site-footer">
-        <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle"></a></span></p>
+        <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle" role="button"></a></span></p>
         <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
     </article>
@@ -2702,7 +2722,7 @@ const READING_GENRE_SLUGS = readingGenres.map((g) => g.slug);
 const readingArchiveScript = `    <script>(function(){var wrap=document.querySelector('.reading-views');if(!wrap)return;var tabBtns=wrap.querySelectorAll('[data-tab-btn]');var viewBtns=wrap.querySelectorAll('.reading-view-btn');var scrollObs=null;var scrollSentinel=null;var favoritesPanel=wrap.querySelector('[data-tab-panel="favorites"]');var genreFilterSelect=favoritesPanel?favoritesPanel.querySelector('.reading-genre-select'):null;var genreSlugs=${JSON.stringify(READING_GENRE_SLUGS)};var activeGenre=null;var genreFilterActive=false;var TAB_PATH={latest:'/reading/latest/',favorites:'/reading/must-reads/'};var HASH_TAB={latest:'latest','must-reads':'favorites'};function normPath(){return location.pathname.replace(/\\/+$/,'')||'/';}function genreFromPath(){var p=normPath();if(p.indexOf('/reading/must-reads/')!==0)return null;var seg=p.slice('/reading/must-reads/'.length).replace(/\\/+$/,'');if(!seg)return null;return genreSlugs.indexOf(seg)>=0?seg:null;}function pathForGenre(){return activeGenre?'/reading/must-reads/'+activeGenre+'/':'/reading/must-reads/';}function tabFromPath(){var p=normPath();if(p==='/reading/latest')return'latest';if(p==='/reading/must-reads')return'favorites';if(p.indexOf('/reading/must-reads/')===0)return'favorites';return null;}function tabFromHash(){var h=location.hash.replace(/^#/,'');return HASH_TAB[h]||null;}function pathForTab(t){return TAB_PATH[t]||'/reading/latest/';}function activePanel(){return wrap.querySelector('[data-tab-panel="'+wrap.getAttribute('data-tab')+'"]');}function genreItemMatches(el){if(!genreFilterActive||!activeGenre)return true;var tags=(el.getAttribute('data-genres')||'').split(/\\s+/).filter(Boolean);return tags.indexOf(activeGenre)>=0;}function applyGenreFilters(){if(!favoritesPanel)return;var on=genreFilterActive&&activeGenre;if(genreFilterSelect)genreFilterSelect.value=on?activeGenre:'';favoritesPanel.querySelectorAll('.post-list li').forEach(function(el){el.hidden=on&&!genreItemMatches(el);});favoritesPanel.querySelectorAll('.reading-grid-item').forEach(function(el){el.hidden=on&&!genreItemMatches(el);});}function syncGenrePath(skipPath){if(skipPath||wrap.getAttribute('data-tab')!=='favorites')return;var want=pathForGenre();if(location.pathname!==want)history.replaceState(null,'',want);}function setGenreFromPath(){activeGenre=genreFromPath();genreFilterActive=Boolean(activeGenre);}function setTab(t,skipPath){wrap.setAttribute('data-tab',t);tabBtns.forEach(function(b){b.setAttribute('aria-selected',b.getAttribute('data-tab-btn')===t?'true':'false');});if(!skipPath){var want=pathForTab(t);if(location.pathname!==want||location.hash)history.replaceState(null,'',want);if(t!=='favorites'){activeGenre=null;genreFilterActive=false;}}applyGenreFilters();setupInfiniteScroll();}function setView(v){wrap.setAttribute('data-view',v);viewBtns.forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-view-btn')===v?'true':'false');});localStorage.setItem('readingView',v);}function setupInfiniteScroll(){if(scrollObs){scrollObs.disconnect();scrollObs=null;}if(scrollSentinel){scrollSentinel.remove();scrollSentinel=null;}if(wrap.getAttribute('data-tab')==='favorites'&&genreFilterActive&&activeGenre){return;}var panel=activePanel();if(!panel)return;var list=panel.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');items.forEach(function(li){if(!genreFilterActive||!activeGenre)li.hidden=false;});var BATCH=10;if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++){if(!genreFilterActive||!activeGenre)items[i].hidden=true;}var shown=BATCH;scrollSentinel=document.createElement('div');scrollSentinel.className='reading-scroll-sentinel';panel.appendChild(scrollSentinel);scrollObs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++){if(!genreFilterActive||!activeGenre)items[i].hidden=false;}shown=next;if(shown>=items.length){scrollObs.disconnect();scrollObs=null;}},{rootMargin:'0px'});scrollObs.observe(scrollSentinel);}var fromHash=tabFromHash();if(fromHash)history.replaceState(null,'',pathForTab(fromHash));setGenreFromPath();var initialTab=tabFromPath()||'latest';setTab(initialTab,true);setView(localStorage.getItem('readingView')||'list');tabBtns.forEach(function(b){b.addEventListener('click',function(){if(b.getAttribute('data-tab-btn')==='favorites'){activeGenre=null;genreFilterActive=false;}setTab(b.getAttribute('data-tab-btn'));});});viewBtns.forEach(function(b){b.addEventListener('click',function(){setView(b.getAttribute('data-view-btn'));});});if(genreFilterSelect){genreFilterSelect.addEventListener('change',function(){var slug=genreFilterSelect.value;if(!slug){activeGenre=null;genreFilterActive=false;}else{activeGenre=slug;genreFilterActive=true;}applyGenreFilters();setupInfiniteScroll();syncGenrePath();});}window.addEventListener('popstate',function(){setGenreFromPath();setTab(tabFromPath()||'latest',true);});}());</script>`;
 
 const readingArchiveFoot = `      <footer class="site-footer">
-        <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle"></a></span></p>
+        <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle" role="button"></a></span></p>
         <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
     </article>
@@ -2928,11 +2948,12 @@ cpSync(join(root, "scripts/lib/search.mjs"), join(outDir, "search-core.js"));
 cpSync(join(root, "scripts/lib/search-page.mjs"), join(outDir, "search.js"));
 
 // Writing post pages
-for (const p of ordered) {
+// `ordered` is newest-first, so the newer neighbour is i - 1.
+ordered.forEach((p, i) => {
   const slug = safeSlug(p.slug);
   mkdirSync(join(outDir, "posts", slug), { recursive: true });
-  writeFileSync(join(outDir, "posts", slug, "index.html"), renderPostPage(p), "utf8");
-}
+  writeFileSync(join(outDir, "posts", slug, "index.html"), renderPostPage(p, ordered[i - 1] || null, ordered[i + 1] || null), "utf8");
+});
 
 const STATIC_ENTRIES = ["styles.css", "favicon.png", "about", "admin", "colophon", "contact", "_headers", "_redirects"];
 for (const entry of STATIC_ENTRIES) {
