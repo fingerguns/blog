@@ -88,7 +88,7 @@ Cross-posting is unchanged by the on-site cards: Micro.blog and Mastodon unfurl 
 
 ## Requirements
 
-- [Node.js](https://nodejs.org/) 18+ (build scripts only)
+- [Node.js](https://nodejs.org/) 20.6+ (build scripts only) — `npm run build` and every `backfill-*`/`refresh-*` script pass `--env-file`, which Node added in 20.6
 - [gitleaks](https://github.com/gitleaks/gitleaks) for the secret-scanning pre-commit hook (`brew install gitleaks`)
 - Cloudflare account with **D1**, **R2**, **Workers**, and **Pages**
 - [Wrangler](https://developers.cloudflare.com/workers/wrangler/) for the Worker
