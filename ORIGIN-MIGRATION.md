@@ -124,7 +124,7 @@ git remote -v
 
 ```bash
 git fetch origin
-git branch -r          # expect main + the 20 cursor/* branches
+git branch -r          # expect main + the 22 cursor/* branches
 git log --oneline -5   # history intact, HEAD at 6414e2c or later
 ```
 
