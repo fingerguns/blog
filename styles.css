@@ -1537,6 +1537,19 @@ a.post-admin-delete:hover {
   object-position: center;
 }
 
+/* One landscape photo: the full column width at the photo's own aspect ratio,
+   uncropped. The <img> carries width/height attributes from the build, so the
+   browser reserves the right box before the file loads. */
+.thinking-photo-tile--single.thinking-photo-tile--landscape {
+  width: 100%;
+  aspect-ratio: auto;
+}
+.thinking-photo-tile--landscape img.thinking-photo,
+.microblog-body .thinking-photo-tile--landscape img,
+.post .body .thinking-photo-tile--landscape img {
+  height: auto;
+}
+
 html.thinking-lightbox-open {
   overflow: hidden;
 }

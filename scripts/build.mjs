@@ -23,7 +23,7 @@ import { thinkingGridThumbUrl, upgradeSpotifyImageUrl, videoPosterKeyFromVideoUr
 import { fetchLinkUnfurl } from "./lib/link-unfurl.mjs";
 import { LINKLOG_TAG_LABELS } from "./lib/linklog-tags.mjs";
 import { mapWithConcurrency } from "./lib/concurrency.mjs";
-import { renderThinkingContentHtml, unfurlableUrls } from "./lib/thinking-html.mjs";
+import { renderThinkingContentHtml, unfurlableUrls, singlePhotoUrl } from "./lib/thinking-html.mjs";
 import { bookshopAffiliateUrl, bookshopAffiliateIdFromEnv, isbnFromBookshopUrl } from "./lib/bookshop-affiliate.mjs";
 import {
   buildLatestCoverLookup,
@@ -51,6 +51,7 @@ import {
 import { referencePointsFromRows, LABEL_REFERENCE_SQL } from "./lib/label-references.mjs";
 import { jsonForScript } from "./lib/script-json.mjs";
 import { findBrokenImages, formatBrokenImages } from "./lib/validate-images.mjs";
+import { fetchImageSize } from "./lib/image-size.mjs";
 import { DARK_MAP_RECOLOR_JS } from "./lib/map-dark.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -815,7 +816,7 @@ function thinkingContentHtmlFromRow(p, options = {}) {
     p.media_alt,
     p.media_type,
     base,
-    { ...options, mediaUrls: p.media_urls || [] }
+    { ...options, mediaUrls: p.media_urls || [], photoSize: thinkingPhotoSize }
   );
   if (fromSource) return fromSource;
   return p.content_html || "";
@@ -828,7 +829,7 @@ function renderThinkingHtml(thinking) {
     thinking?.media_alt,
     thinking?.media_type,
     base,
-    { mediaUrls: thinking?.media_urls || [] }
+    { mediaUrls: thinking?.media_urls || [], photoSize: thinkingPhotoSize }
   );
   if (!inner) return "";
   return `<div class="microblog-body">${inner}</div>${thinkingUnfurlsHtml(thinking?.text)}`;
@@ -985,6 +986,34 @@ const feedUpdated = latest ? toIsoZ(latest) : new Date("2020-01-01T12:00:00.000Z
 const safeSlug = (s) => String(s).replace(/[^a-zA-Z0-9-_]/g, "");
 
 const MAX_PER_SECTION = 5;
+
+// Single-photo Thinking notes: a landscape photo renders at the column's full
+// width in its own aspect ratio, while portrait and square ones keep the square
+// crop. D1 doesn't store dimensions, so the build reads them from each photo's
+// header (a ranged GET of the first 64 KB) once and keeps them in build_cache.
+// A miss is cached as `false` and the photo simply stays square; a photo's
+// size never changes, so nothing is retried.
+const thinkingPhotoSizeCache = await loadBuildCache(CACHE_NAMESPACES.THINKING_PHOTO_SIZES);
+{
+  const urls = new Set();
+  for (const p of [...thinkingPosts, thinking]) {
+    if (!p) continue;
+    const url = singlePhotoUrl(p.media_url, p.media_type, base, p.media_urls || []);
+    if (url) urls.add(url);
+  }
+  const missing = cacheKeysToLookUp(thinkingPhotoSizeCache, urls);
+  if (missing.length > 0) {
+    console.log(`Measuring ${missing.length} Thinking photo(s)…`);
+    await mapWithConcurrency(missing, 6, async (url) => {
+      thinkingPhotoSizeCache[url] = (await fetchImageSize(url)) || false;
+    });
+  }
+}
+await saveBuildCache(CACHE_NAMESPACES.THINKING_PHOTO_SIZES, thinkingPhotoSizeCache);
+
+function thinkingPhotoSize(url) {
+  return thinkingPhotoSizeCache[url] || null;
+}
 
 // Thinking posts from D1 (populated by the admin Worker on every post/delete)
 const microblogItems = thinkingPosts.map((p) => ({

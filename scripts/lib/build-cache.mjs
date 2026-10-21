@@ -22,6 +22,7 @@ export const CACHE_NAMESPACES = {
   LINKLOG_UNFURLS: "linklog-unfurls",
   THINKING_UNFURLS: "thinking-unfurls",
   NEIGHBORHOOD_PLACES: "neighborhood-places",
+  THINKING_PHOTO_SIZES: "thinking-photo-sizes",
 };
 
 /**

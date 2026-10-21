@@ -12,6 +12,7 @@ import {
   renderThinkingContentHtml,
   unfurlableUrls,
   MAX_UNFURLS_PER_NOTE,
+  singlePhotoUrl,
 } from "./thinking-html.mjs";
 
 const SITE = "https://rommy.blog";
@@ -177,4 +178,42 @@ test("a note shows at most MAX_UNFURLS_PER_NOTE cards", () => {
 test("no text, no cards", () => {
   assert.deepEqual(unfurlableUrls(""), []);
   assert.deepEqual(unfurlableUrls(undefined), []);
+});
+
+test("a single landscape photo renders at its own aspect ratio", () => {
+  const url = `${SITE}/media/thinking/photo/wide.jpg`;
+  const sizes = { [url]: { width: 4032, height: 3024 } };
+  const out = renderThinkingContentHtml("", url, "", "image", SITE, {
+    photoSize: (u) => sizes[u] || null,
+  });
+  assert.ok(out.includes("thinking-photo-tile--single"));
+  assert.ok(out.includes("thinking-photo-tile--landscape"));
+  assert.ok(out.includes('width="4032" height="3024"'));
+});
+
+test("portrait, square, and unmeasured single photos stay square", () => {
+  const url = `${SITE}/media/thinking/photo/a.jpg`;
+  for (const size of [{ width: 3024, height: 4032 }, { width: 2000, height: 2000 }, null]) {
+    const out = renderThinkingContentHtml("", url, "", "image", SITE, { photoSize: () => size });
+    assert.ok(out.includes("thinking-photo-tile--single"));
+    assert.ok(!out.includes("thinking-photo-tile--landscape"));
+    assert.ok(!out.includes("width="));
+  }
+});
+
+test("landscape photos in a multi-photo grid stay square tiles", () => {
+  const urls = [1, 2].map((i) => `${SITE}/media/thinking/photo/${i}.jpg`);
+  const out = renderThinkingContentHtml("", "", "", "image", SITE, {
+    mediaUrls: urls,
+    photoSize: () => ({ width: 4000, height: 3000 }),
+  });
+  assert.ok(out.includes("thinking-photo-grid"));
+  assert.ok(!out.includes("thinking-photo-tile--landscape"));
+});
+
+test("singlePhotoUrl resolves only when a note has exactly one photo", () => {
+  const url = `${SITE}/media/thinking/photo/a.jpg`;
+  assert.equal(singlePhotoUrl(url, "image", SITE), url);
+  assert.equal(singlePhotoUrl(url, "image", SITE, [url, `${SITE}/media/thinking/photo/b.jpg`]), "");
+  assert.equal(singlePhotoUrl(`${SITE}/media/thinking/video/a.mov`, "video", SITE), "");
 });
