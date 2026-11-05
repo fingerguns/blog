@@ -2411,6 +2411,21 @@ footer.site-footer p {
   align-items: baseline;
 }
 
+/* The first row: copyright left, theme toggle centred, Search right. */
+.footer-row-toggle {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  column-gap: 1rem;
+}
+
+.footer-row-toggle > .theme-toggle {
+  align-self: center;
+}
+
+.footer-row-toggle > :last-child {
+  justify-self: end;
+}
+
 footer.site-footer a {
   color: var(--text);
   font-weight: 500;
