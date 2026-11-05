@@ -49,7 +49,6 @@ import {
 import {
   formatMbDate,
   linkDomain,
-  readingMins,
   safeSlug,
   stripHtml,
   toETDate,
@@ -64,6 +63,12 @@ import {
   renderReadingFavoriteItem as renderReadingFavoriteItemShared,
   renderReadingItem as renderReadingItemShared,
 } from "./lib/render/lists.mjs";
+import {
+  LIVE_TEMPLATE_PATHS,
+  LIVE_TOKENS,
+  postPermalinkParts,
+  thinkingPermalinkParts,
+} from "./lib/render/pages.mjs";
 import { bookshopAffiliateUrl, bookshopAffiliateIdFromEnv, isbnFromBookshopUrl } from "./lib/bookshop-affiliate.mjs";
 import {
   buildLatestCoverLookup,
@@ -92,11 +97,38 @@ import { jsonForScript } from "./lib/script-json.mjs";
 import { findBrokenImages, formatBrokenImages } from "./lib/validate-images.mjs";
 import { fetchImageSize } from "./lib/image-size.mjs";
 import { DARK_MAP_RECOLOR_JS } from "./lib/map-dark.mjs";
+import {
+  CONTENT_KIND,
+  datedItemSort,
+  datetimeSort,
+  liveKey,
+  liveListAttrs,
+  monthKeyET,
+  readingSort,
+  watermarkMetaHtml,
+  withLiveAttrs,
+} from "./lib/live-changes.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
 const outDir = join(root, process.env.BUILD_OUT_DIR || "dist");
 const cssV = `${new Date().toISOString().slice(0, 10)}-${Date.now().toString(36)}`;
+
+// Live publishing watermark: the newest content_changes id this build has
+// seen, stamped on every generated page. Read *before* any content, so a
+// change that lands mid-build is either in the page or above the watermark
+// — never neither. The overlay in the Worker applies everything above it;
+// see scripts/lib/live-changes.mjs and worker/live-overlay.mjs.
+let liveWatermark = 0;
+if (d1Configured()) {
+  try {
+    const rows = await d1Query("SELECT COALESCE(MAX(id), 0) AS id FROM content_changes");
+    liveWatermark = Number(rows[0]?.id) || 0;
+  } catch (err) {
+    console.warn(`Live watermark: could not read content_changes — ${err.message}`);
+  }
+}
+const liveWatermarkMeta = `    ${watermarkMetaHtml(liveWatermark)}`;
 
 let data;
 if (d1Configured()) {
@@ -149,6 +181,7 @@ const renderCtx = {
   videoPosters: {},
   photoSize: (url) => thinkingPhotoSize(url),
 };
+const pageCtx = { base, siteTitle: site.title };
 const toSortableMs = (p) => {
   // Prefer full datetime for same-day ordering; fall back to date at noon UTC.
   const dt = p.datetime ? new Date(p.datetime) : new Date(`${p.date}T12:00:00.000Z`);
@@ -671,33 +704,6 @@ const thinkingDeletePanelHtml = `      <div id="thinking-delete-panel" class="th
         </div>
       </div>`;
 
-function defaultOgImage() {
-  return `${base}/favicon.png`;
-}
-
-function ogMetaTags({ type = "website", title, description = "", url, image }) {
-  const img = image || defaultOgImage();
-  const large = img !== defaultOgImage();
-  const lines = [
-    `    <meta property="og:type" content="${type}" />`,
-    `    <meta property="og:title" content="${escHtml(title)}" />`,
-    `    <meta property="og:url" content="${escHtml(url)}" />`,
-    `    <meta property="og:site_name" content="${escHtml(site.title)}" />`,
-    `    <meta property="og:image" content="${escHtml(img)}" />`,
-    `    <meta name="twitter:card" content="${large ? "summary_large_image" : "summary"}" />`,
-    `    <meta name="twitter:title" content="${escHtml(title)}" />`,
-  ];
-  if (description) {
-    lines.push(`    <meta property="og:description" content="${escHtml(description)}" />`);
-    lines.push(`    <meta name="description" content="${escHtml(description)}" />`);
-    lines.push(`    <meta name="twitter:description" content="${escHtml(description)}" />`);
-  }
-  if (large) {
-    lines.push(`    <meta name="twitter:image" content="${escHtml(img)}" />`);
-  }
-  return lines.join("\n");
-}
-
 async function fetchSpotifyThumbnail(type, id) {
   try {
     const pageUrl = `https://open.spotify.com/${type}/${id}`;
@@ -730,12 +736,6 @@ const THINKING_PATH_FILTER = Object.fromEntries(
   Object.entries(THINKING_FILTER_PATH).map(([kind, segment]) => [segment, kind])
 );
 
-function thinkingOgFromItem(item) {
-  const description = thinkingSnippet(stripHtml(item.content_html));
-  const image = firstImageFromHtml(item.content_html) || defaultOgImage();
-  return { description, image };
-}
-
 function thinkingContentHtmlFromRow(p, options = {}) {
   return thinkingContentHtmlFromRowShared(p, renderCtx, options);
 }
@@ -749,43 +749,19 @@ function toIsoZ(p) {
   return d.toISOString();
 }
 
-// Previous/next links at the foot of a Writing post, so a reader who finishes
-// one essay has somewhere to go besides back to the top. "Older" sits on the
-// left and "Newer" on the right, matching reading order through the archive.
-function postPagerHtml(newer, older) {
-  if (!newer && !older) return "";
-  const link = (q, rel, dir) =>
-    q
-      ? `<a class="post-pager-${dir}" href="/posts/${safeSlug(q.slug)}/" rel="${rel}"><span class="post-pager-label">${dir === "older" ? "← Older" : "Newer →"}</span><span class="post-pager-title">${escHtml(q.title)}</span></a>`
-      : `<span class="post-pager-${dir}"></span>`;
-  return `      <nav class="post-pager" aria-label="More writing">
-        ${link(older, "prev", "older")}
-        ${link(newer, "next", "newer")}
-      </nav>`;
-}
-
-function renderPostPage(p, newer = null, older = null) {
-  const slug = safeSlug(p.slug);
-  const displayDate = toETDate(p);
-  const readMins = readingMins(p.body_html);
-  const bodyHtml = p.body_html || "";
-  const postUrl = `${base}/posts/${slug}/`;
-  const ogImage = firstImageFromHtml(bodyHtml) || defaultOgImage();
-  const ogTitle = `${p.title} — ${site.title}`;
+// A Writing post page, its varying slots filled from postPermalinkParts().
+// The build also writes it once with LIVE_TOKENS in every slot, as the
+// template the live overlay fills (see scripts/lib/render/pages.mjs).
+function postPageHtml(v) {
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${escHtml(ogTitle)}</title>
+${liveWatermarkMeta}
+    <title>${v.title}</title>
     <script>(function(){var t=localStorage.getItem('theme');document.documentElement.setAttribute('data-theme',t||'dark');}());</script>
-${ogMetaTags({
-  type: "article",
-  title: ogTitle,
-  description: p.summary || "",
-  url: postUrl,
-  image: ogImage,
-})}
+${v.og}
     <link rel="icon" href="../../favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="../../favicon.png" />
     <link rel="preload" href="/media/fonts/abc-areal/v1/ABCArealVariable.woff2" as="font" type="font/woff2" crossorigin />
@@ -800,17 +776,17 @@ ${ogMetaTags({
 ${gaSnippet}
   </head>
   <body>
-    <article class="post" data-slug="${escHtml(slug)}">
+    <article class="post" data-slug="${v.slug}">
       <a class="post-back" href="../../index.html" aria-label="Home">←</a>
-      <h1>${escHtml(p.title)}</h1>
-      <time datetime="${escHtml(displayDate)}"><span>${escHtml(displayDate)}</span><span class="reading-time">${readMins} min read</span></time>
+      <h1>${v.heading}</h1>
+      <time datetime="${v.displayDate}"><span>${v.displayDate}</span><span class="reading-time">${v.readMins} min read</span></time>
       <div class="body">
-        ${bodyHtml}
+        ${v.body}
       </div>
 ${postAdminActionPanelHtml}
       <section class="webmentions" id="webmentions" hidden aria-labelledby="wm-heading"></section>
       <script>(function(){
-        var url=${JSON.stringify(postUrl)};
+        var url=${v.postUrlJson};
         // webmention.io relays attacker-controlled h-card fields (author.url,
         // m.url) — only ever assign them as href if they're http(s), so a
         // crafted javascript: URI in a webmention can't run when clicked.
@@ -852,7 +828,7 @@ ${postAdminActionPanelHtml}
             s.removeAttribute('hidden');
           }).catch(function(){});
       }());</script>
-${postPagerHtml(newer, older)}
+${v.pager}
       <a class="back-to-top" href="#">↑ Top</a>
       <footer class="site-footer">
         <p class="footer-row">&copy; 2026 ${escHtml(site.author)}<span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle" role="button"></a></span></p>
@@ -1258,12 +1234,16 @@ const sectionHeading = (label, tag, id) => {
 // Homepage lists (capped at MAX_PER_SECTION)
 const postListHtml = ordered.slice(0, MAX_PER_SECTION).map((p) => renderPostItem(p)).join("\n");
 const hasMorePosts = ordered.length > MAX_PER_SECTION;
-const postListAllHtml = ordered.map((p) => renderPostItem(p, true)).join("\n");
+const postListAllHtml = ordered
+  .map((p) => withLiveAttrs(renderPostItem(p, true), liveKey(CONTENT_KIND.POST, p.slug), datedItemSort(p)))
+  .join("\n");
 
 const readingHtml = orderedReading.slice(0, MAX_PER_SECTION).map(renderReadingItem).join("\n");
 const hasMoreReading = orderedReading.length > MAX_PER_SECTION;
 const hasReadingArchive = orderedReading.length > 0 || orderedReadingFavorites.length > 0;
-const readingAllHtml = orderedReading.map(renderReadingItem).join("\n");
+const readingAllHtml = orderedReading
+  .map((r) => withLiveAttrs(renderReadingItem(r), liveKey(CONTENT_KIND.READING, r.id), readingSort(r)))
+  .join("\n");
 
 // Sharing archive unfurls: fetch each shared link's Open Graph image/
 // description once and cache locally, so /sharing/ can show rich preview
@@ -1286,7 +1266,9 @@ const renderLinklogArchiveItem = (l) => renderLinklogArchiveItemShared(l, linklo
 
 const linklogHtml = orderedLinklog.slice(0, MAX_PER_SECTION).map(renderLinklogItem).join("\n");
 const hasMoreLinklog = orderedLinklog.length > MAX_PER_SECTION;
-const linklogAllHtml = orderedLinklog.map(renderLinklogArchiveItem).join("\n");
+const linklogAllHtml = orderedLinklog
+  .map((l) => withLiveAttrs(renderLinklogArchiveItem(l), liveKey(CONTENT_KIND.LINKLOG, l.id), datedItemSort(l)))
+  .join("\n");
 
 const linksHtml = (links || [])
   .map(
@@ -1332,7 +1314,7 @@ const latestThinkingItem = microblogItems[0];
 const thinkingSection = hasThinking(thinking)
   ? `      <section aria-labelledby="now-heading">
         ${sectionHeading("Thinking", "h2", "now-heading")}
-        <ol class="post-list">
+        <ol class="post-list"${liveListAttrs("home-thinking")}>
           <li>
             <div class="microblog-entry">
               ${renderThinkingHtml(thinking)}
@@ -1359,6 +1341,7 @@ const indexHtml = `<!DOCTYPE html>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+${liveWatermarkMeta}
     <title>${escHtml(site.title)}</title>
     <script>(function(){var t=localStorage.getItem('theme');document.documentElement.setAttribute('data-theme',t||'dark');}());</script>
     <meta property="og:type" content="website" />
@@ -1390,7 +1373,7 @@ ${thinkingSection}
 
       <section aria-labelledby="posts-heading">
         ${sectionHeading("Writing", "h2", "posts-heading")}
-        <ol class="post-list" reversed>
+        <ol class="post-list" reversed${liveListAttrs("home-writing")}>
 ${postListHtml}
         </ol>
         ${hasMorePosts ? '<a class="see-more" href="/writing/" aria-label="All writing">→</a>' : ""}
@@ -1398,7 +1381,7 @@ ${postListHtml}
 
       <section aria-labelledby="reading-heading">
         ${sectionHeading("Reading", "h2", "reading-heading")}
-        <ol class="post-list" reversed>
+        <ol class="post-list" reversed${liveListAttrs("home-reading")}>
 ${readingHtml}
         </ol>
         ${hasMoreReading ? '<a class="see-more" href="/reading/latest/" aria-label="All reading">→</a>' : ""}
@@ -1406,7 +1389,7 @@ ${readingHtml}
 
       <section aria-labelledby="linklog-heading">
         ${sectionHeading("Sharing", "h2", "linklog-heading")}
-        <ol class="post-list" reversed>
+        <ol class="post-list" reversed${liveListAttrs("home-linklog")}>
 ${linklogHtml}
         </ol>
         ${hasMoreLinklog ? '<a class="see-more" href="/sharing/" aria-label="All sharing">→</a>' : ""}
@@ -1467,6 +1450,7 @@ ${descriptionText ? `  <subtitle type="text">${escXml(descriptionText)}</subtitl
 const robotsTxt = `User-agent: *
 Allow: /
 Disallow: /admin/
+Disallow: /_live/
 
 Sitemap: ${base}/sitemap.xml
 `;
@@ -1477,6 +1461,7 @@ const archiveHead = (title, headingHtml, extraHead = "") => `<!DOCTYPE html>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+${liveWatermarkMeta}
     <title>${escHtml(title)} — ${escHtml(site.title)}</title>
     <meta property="og:type" content="website" />
     <meta property="og:title" content="${escHtml(title)} — ${escHtml(site.title)}" />
@@ -1648,14 +1633,14 @@ if(filterBtns.length){
 
 
 const writingPageHtml = `${archiveHead("Writing", sectionHeading("Writing", "h1"))}
-      <ol class="post-list" reversed>
+      <ol class="post-list" reversed${liveListAttrs("writing")}>
 ${postListAllHtml}
       </ol>
 ${archiveFoot()}`;
 
 const sharingPageHtml = `${archiveHead("Sharing", sectionHeading("Sharing", "h1"))}
 ${linklogTagFilterHtml}
-      <ol class="post-list linklog-archive-list" reversed>
+      <ol class="post-list linklog-archive-list" reversed${liveListAttrs("linklog")}>
 ${linklogAllHtml}
       </ol>
 ${archiveFoot(linklogFilterScript, { infiniteScroll: false })}`;
@@ -1862,42 +1847,30 @@ ${changelogListHtml}
       </ol>
 ${archiveFoot()}`;
 
-function thinkingPostCrumb(iso) {
-  const dateLabel = formatMbDate(iso);
-  return `      <nav class="thinking-crumb" aria-label="Breadcrumb">
-        <h1 class="site-title"><a href="/">${escHtml(site.title)}</a></h1>
-        <div class="thinking-crumb-trail">
-          <h2 class="thinking-crumb-heading"><a href="/thinking/">Thinking</a></h2><span class="thinking-crumb-meta"><span class="thinking-crumb-sep" aria-hidden="true"> // </span><time class="thinking-crumb-date" datetime="${escHtml(iso)}" aria-current="page">${escHtml(dateLabel)}</time></span>
-        </div>
-      </nav>`;
-}
-
-const thinkingPostHead = (iso, item, slug) => {
-  const pageTitle = `${formatMbDate(iso)} — ${site.title}`;
-  const pageUrl = `${base}/thinking/${slug}/`;
-  const og = thinkingOgFromItem(item);
-  return `<!DOCTYPE html>
+// A Thinking note's page, its varying slots filled from
+// thinkingPermalinkParts(); written once more with LIVE_TOKENS as the
+// template the live overlay fills (see scripts/lib/render/pages.mjs).
+const thinkingPostHead = (v) => `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${escHtml(pageTitle)}</title>
+${liveWatermarkMeta}
+    <title>${v.title}</title>
     <script>(function(){var t=localStorage.getItem('theme');document.documentElement.setAttribute('data-theme',t||'dark');}());</script>
-${ogMetaTags({
-  type: "article",
-  title: pageTitle,
-  description: og.description,
-  url: pageUrl,
-  image: og.image,
-})}
+${v.og}
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="stylesheet" href="/styles.css?v=${cssV}" />
 ${gaSnippet}
   </head>
   <body>
-    <article class="post microblog-entry" data-slug="${escHtml(slug)}" data-microblog-url="${escHtml(item.url || "")}">
-${thinkingPostCrumb(iso)}`;
-};
+    <article class="post microblog-entry" data-slug="${v.slug}" data-microblog-url="${v.microblogUrl}">
+      <nav class="thinking-crumb" aria-label="Breadcrumb">
+        <h1 class="site-title"><a href="/">${escHtml(site.title)}</a></h1>
+        <div class="thinking-crumb-trail">
+          <h2 class="thinking-crumb-heading"><a href="/thinking/">Thinking</a></h2><span class="thinking-crumb-meta"><span class="thinking-crumb-sep" aria-hidden="true"> // </span><time class="thinking-crumb-date" datetime="${v.crumbIso}" aria-current="page">${v.crumbDate}</time></span>
+        </div>
+      </nav>`;
 
 const thinkingPostFoot = `      <footer class="site-footer">
         <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle" role="button"></a></span></p>
@@ -1914,7 +1887,15 @@ ${thinkingDeleteConfirmScript}
 
 const microblogListHtml = (items) =>
   items.length > 0
-    ? items.map((item) => thinkingListEntryHtml(item, renderCtx)).join("\n")
+    ? items
+        .map((item) =>
+          withLiveAttrs(
+            thinkingListEntryHtml(item, renderCtx),
+            liveKey(CONTENT_KIND.THINKING, thinkingSlug(item)),
+            datetimeSort(item.date_published)
+          )
+        )
+        .join("\n")
     : `        <p style="color:var(--muted)">No posts yet.</p>`;
 
 function thinkingGridGroupsHtml(items) {
@@ -1933,7 +1914,19 @@ function thinkingGridGroupsHtml(items) {
   }
   return groups
     .map((g) =>
-      thinkingGridMonthHtml(g.label, g.items.map((item) => thinkingGridItemHtmlShared(item, renderCtx)).join("\n"))
+      thinkingGridMonthHtml(
+        g.label,
+        g.items
+          .map((item) =>
+            withLiveAttrs(
+              thinkingGridItemHtmlShared(item, renderCtx),
+              liveKey(CONTENT_KIND.THINKING, thinkingSlug(item)),
+              datetimeSort(item.date_published)
+            )
+          )
+          .join("\n"),
+        monthKeyET(g.items[0].date_published)
+      )
     )
     .join("\n");
 }
@@ -2366,7 +2359,15 @@ function readingGridGroupsHtml(items) {
     }
   }
   return groups
-    .map((g) => readingGridMonthHtml(g.label, g.items.map((r) => readingGridItemHtml(r)).join("\n")))
+    .map((g) =>
+      readingGridMonthHtml(
+        g.label,
+        g.items
+          .map((r) => withLiveAttrs(readingGridItemHtml(r), liveKey(CONTENT_KIND.READING, r.id), readingSort(r)))
+          .join("\n"),
+        g.items[0].ym
+      )
+    )
     .join("\n");
 }
 
@@ -2374,13 +2375,19 @@ const readingGridHtml = readingGridGroupsHtml(orderedReading);
 
 const renderReadingFavoriteItem = (r) => renderReadingFavoriteItemShared(r, readingFavoriteLinkUrl(r));
 
-const readingFavoritesAllHtml = orderedReadingFavorites.map(renderReadingFavoriteItem).join("\n");
+const readingFavoritesAllHtml = orderedReadingFavorites
+  .map((r) => withLiveAttrs(renderReadingFavoriteItem(r), liveKey(CONTENT_KIND.FAVORITE, r.id), r.title))
+  .join("\n");
 
 const readingFavoritesGridHtml =
   orderedReadingFavorites.length === 0
     ? ""
-    : `        <div class="reading-grid">
-${orderedReadingFavorites.map((r) => readingGridItemHtml(r, readingFavoriteLinkUrl, r.genres)).join("\n")}
+    : `        <div class="reading-grid"${liveListAttrs("favorites-grid", { order: "title" })}>
+${orderedReadingFavorites
+  .map((r) =>
+    withLiveAttrs(readingGridItemHtml(r, readingFavoriteLinkUrl, r.genres), liveKey(CONTENT_KIND.FAVORITE, r.id), r.title)
+  )
+  .join("\n")}
         </div>`;
 
 const readingGenreFiltersHtml =
@@ -2402,7 +2409,7 @@ const readingFavoritesPanelHtml =
   orderedReadingFavorites.length === 0
     ? `      <p class="reading-favorites-empty">No books here yet — check back soon.</p>`
     : `${readingGenreFiltersHtml}
-      <ol class="post-list reading-list">
+      <ol class="post-list reading-list"${liveListAttrs("favorites", { order: "title" })}>
 ${readingFavoritesAllHtml}
       </ol>
       <div class="reading-grid-wrap">
@@ -2442,10 +2449,10 @@ const readingPageHtml = (activeTab = "latest") => `${archiveHead("Reading", sect
 ${readingArchiveToolbarHtml(activeTab)}
       <div class="reading-tab-panel" data-tab-panel="latest">
         <p class="reading-tab-intro">${READING_TAB_INTROS.latest}</p>
-        <ol class="post-list reading-list">
+        <ol class="post-list reading-list"${liveListAttrs("reading")}>
 ${readingAllHtml}
         </ol>
-        <div class="reading-grid-wrap">
+        <div class="reading-grid-wrap" data-live-groups="reading-grid">
 ${readingGridHtml}
         </div>
       </div>
@@ -2459,10 +2466,10 @@ ${readingArchiveFoot}`;
 const microblogPageHtml = `${archiveHead("Thinking", sectionHeading("Thinking", "h1"))}
     <div class="thinking-views" data-view="list">
 ${thinkingArchiveToolbarHtml}
-      <div class="microblog-feed">
+      <div class="microblog-feed"${liveListAttrs("thinking")}>
 ${microblogEntriesHtml}
       </div>
-      <div class="thinking-grid-wrap">
+      <div class="thinking-grid-wrap" data-live-groups="thinking-grid">
 ${thinkingGridHtml}
       </div>
 ${thinkingMapViewHtml}
@@ -2625,6 +2632,13 @@ for (const segment of Object.values(THINKING_FILTER_PATH)) {
   writeFileSync(join(outDir, "thinking", segment, "index.html"), microblogPageHtml, "utf8");
 }
 
+function thinkingPermalinkPageHtml(v) {
+  return `${thinkingPostHead(v)}
+      ${v.body}
+${thinkingDeletePanelHtml}
+${thinkingPostFoot}`;
+}
+
 // Individual thinking post pages — preload video on detail pages for faster playback start
 for (const item of microblogItems) {
   const slug = thinkingSlug(item);
@@ -2632,13 +2646,22 @@ for (const item of microblogItems) {
   const detailContent = row
     ? thinkingContentHtmlFromRow(row, { videoPreload: "auto" })
     : item.content_html;
-  const postHtml = `${thinkingPostHead(item.date_published, item, slug)}
-      <div class="microblog-body">${detailContent}</div>${thinkingUnfurlsHtml(item._text)}
-      ${thinkingPostMetaHtml(item, slug)}
-${thinkingDeletePanelHtml}
-${thinkingPostFoot}`;
+  const parts = thinkingPermalinkParts(item, slug, detailContent, pageCtx, renderCtx);
+  const postHtml = thinkingPermalinkPageHtml(parts);
   mkdirSync(join(outDir, "thinking", slug), { recursive: true });
   writeFileSync(join(outDir, "thinking", slug, "index.html"), postHtml, "utf8");
+}
+
+// Templates for the live overlay: each permalink page with a LIVE_TOKENS
+// marker in every slot that varies. The Worker fills them for a note or post
+// the rebuild has not written yet (scripts/lib/render/pages.mjs).
+for (const [kind, html] of [
+  ["thinking", thinkingPermalinkPageHtml(LIVE_TOKENS)],
+  ["post", postPageHtml(LIVE_TOKENS)],
+]) {
+  const dir = join(outDir, LIVE_TEMPLATE_PATHS[kind]);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "index.html"), html, "utf8");
 }
 
 mkdirSync(join(outDir, "search"), { recursive: true });
@@ -2655,7 +2678,8 @@ cpSync(join(root, "scripts/lib/search-page.mjs"), join(outDir, "search.js"));
 ordered.forEach((p, i) => {
   const slug = safeSlug(p.slug);
   mkdirSync(join(outDir, "posts", slug), { recursive: true });
-  writeFileSync(join(outDir, "posts", slug, "index.html"), renderPostPage(p, ordered[i - 1] || null, ordered[i + 1] || null), "utf8");
+  const parts = postPermalinkParts(p, ordered[i - 1] || null, ordered[i + 1] || null, pageCtx);
+  writeFileSync(join(outDir, "posts", slug, "index.html"), postPageHtml(parts), "utf8");
 });
 
 const STATIC_ENTRIES = ["styles.css", "favicon.png", "about", "admin", "colophon", "contact", "_headers", "_redirects"];

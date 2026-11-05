@@ -292,10 +292,18 @@ export function thinkingGridItemHtml(item, ctx) {
 }
 
 /** One month of the grid view: its heading and the tiles under it. */
-export function thinkingGridMonthHtml(label, tilesHtml) {
-  return `      <section class="thinking-grid-month">
+/**
+ * `groupSort`, when given, marks the month for the live overlay: the section
+ * carries its place among months and the grid inside is a live list.
+ */
+export function thinkingGridMonthHtml(label, tilesHtml, groupSort = null) {
+  const sectionAttrs =
+    groupSort == null ? "" : ` data-live-group="${escHtml(label)}" data-live-group-sort="${escHtml(groupSort)}"`;
+  const gridAttrs =
+    groupSort == null ? "" : ` data-live-list="thinking-grid" data-live-group="${escHtml(label)}"`;
+  return `      <section class="thinking-grid-month"${sectionAttrs}>
         <h2 class="thinking-grid-month-label">${escHtml(label)}</h2>
-        <div class="thinking-grid">
+        <div class="thinking-grid"${gridAttrs}>
 ${tilesHtml}
         </div>
       </section>`;
