@@ -1294,6 +1294,78 @@ const descriptionMeta = descriptionText
   : "";
 const subtitleHtml = descriptionText ? `      <p class="lead">${escHtml(descriptionText)}</p>\n\n` : "";
 
+// The fold-down Thinking composer: hidden from everyone but a browser with an
+// admin session, and the composer itself (/thinking-composer.js, shared with
+// the admin's Thinking tab) is only fetched on the first open. Posting
+// reloads the page, and the live overlay shows the new note at once.
+const CARET_DOWN = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const CARET_UP = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 10l5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const homeComposerHtml = `      <div class="home-composer" id="home-composer" hidden>
+        <button type="button" class="home-composer-toggle home-composer-open" aria-expanded="false" aria-controls="home-composer-fold" aria-label="Write a Thinking note">${CARET_DOWN}</button>
+        <div class="home-composer-fold" id="home-composer-fold">
+          <div class="home-composer-panel" inert>
+            <div id="home-composer-mount"></div>
+            <button type="button" class="home-composer-toggle home-composer-close" aria-controls="home-composer-fold" aria-label="Hide the composer">${CARET_UP}</button>
+          </div>
+        </div>
+      </div>
+`;
+const homeComposerScript = `    <script>(function(){
+      var SESSION_KEY="admin_session";
+      var SESSION_TTL=${30 * 24 * 60 * 60 * 1000};
+      var API_URL=(function(){var h=location.hostname;if(h==="localhost"||h==="127.0.0.1")return"https://rommy-blog-admin.fingerguns.workers.dev";return"/api/admin";})();
+      function loadPw(){
+        try{
+          var raw=localStorage.getItem(SESSION_KEY);
+          if(raw){var s=JSON.parse(raw);if(s&&s.pw&&s.ts&&Date.now()-s.ts<SESSION_TTL)return s.pw;}
+          raw=sessionStorage.getItem(SESSION_KEY);
+          if(raw){var tab=JSON.parse(raw);if(tab&&tab.pw)return tab.pw;}
+        }catch(e){}
+        return null;
+      }
+      var wrap=document.getElementById("home-composer");
+      if(!wrap||!loadPw())return;
+      wrap.hidden=false;
+      var openBtn=wrap.querySelector(".home-composer-open");
+      var closeBtn=wrap.querySelector(".home-composer-close");
+      var panel=wrap.querySelector(".home-composer-panel");
+      var mountEl=document.getElementById("home-composer-mount");
+      var composer=null,loading=null;
+      function load(){
+        if(loading)return loading;
+        loading=new Promise(function(resolve,reject){
+          if(window.ThinkingComposer){resolve();return;}
+          var s=document.createElement("script");
+          s.src="/thinking-composer.js?v=${cssV}";
+          s.onload=function(){resolve();};
+          s.onerror=function(){loading=null;reject(new Error("Could not load the composer."));};
+          document.head.appendChild(s);
+        });
+        return loading;
+      }
+      function setOpen(open){
+        wrap.classList.toggle("is-open",open);
+        openBtn.setAttribute("aria-expanded",open?"true":"false");
+        panel.inert=!open;
+        if(open){if(composer)setTimeout(composer.focus,50);}else openBtn.focus();
+      }
+      openBtn.addEventListener("click",function(){
+        load().then(function(){
+          if(!composer){
+            composer=window.ThinkingComposer.mount(mountEl,{
+              apiUrl:API_URL,
+              getPassword:loadPw,
+              idPrefix:"home-t",
+              signedOutMessage:"Sign in at rommy.blog/admin/ on this device, then try again.",
+              onSaved:function(){setTimeout(function(){location.reload();},1200);}
+            });
+          }
+          setOpen(true);
+        },function(err){openBtn.title=err.message;});
+      });
+      closeBtn.addEventListener("click",function(){setOpen(false);});
+    }());</script>`;
+
 const latestThinkingItem = microblogItems[0];
 const thinkingSection = hasThinking(thinking)
   ? `      <section aria-labelledby="now-heading">
@@ -1352,7 +1424,7 @@ ${gaSnippet}
       <h1 class="site-title">${escHtml(site.title)}</h1>
       <hr class="hr" />
 ${subtitleHtml}
-
+${homeComposerHtml}
 ${thinkingSection}
 
       <section aria-labelledby="posts-heading">
@@ -1397,6 +1469,7 @@ ${colophonSection}    </main>
 ${socialsToggleScript}
 ${portraitPhotoToggleScript}
 ${thinkingLightboxScript}
+${homeComposerScript}
   </body>
 </html>
 `;
@@ -2666,7 +2739,7 @@ ordered.forEach((p, i) => {
   writeFileSync(join(outDir, "posts", slug, "index.html"), postPageHtml(parts), "utf8");
 });
 
-const STATIC_ENTRIES = ["styles.css", "favicon.png", "about", "admin", "colophon", "contact", "_headers", "_redirects"];
+const STATIC_ENTRIES = ["styles.css", "thinking-composer.js", "favicon.png", "about", "admin", "colophon", "contact", "_headers", "_redirects"];
 for (const entry of STATIC_ENTRIES) {
   const src = join(root, entry);
   if (existsSync(src)) {

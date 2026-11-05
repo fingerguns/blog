@@ -147,6 +147,345 @@ a:hover {
   font-size: var(--fs-base);
 }
 
+/* Homepage fold-down Thinking composer. Only shown to a browser holding an
+   admin session (the Worker still checks the password on every post): a
+   small caret under the rule opens it, swinging down from a hinge at its
+   top edge; a caret under the composer closes it. The composer itself is
+   /thinking-composer.js, the same one the admin's Thinking tab mounts. */
+.home-composer {
+  margin: -1rem 0 1.25rem;
+}
+
+.home-composer-toggle {
+  display: block;
+  margin: 0 auto;
+  padding: 0.25rem 0.75rem;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  line-height: 0;
+}
+
+.home-composer-toggle:hover {
+  color: var(--text);
+}
+
+.home-composer-toggle svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+/* Rows animate 0fr -> 1fr for the height; the panel inside rotates about
+   its top edge for the swing. */
+.home-composer-fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.35s ease;
+  perspective: 900px;
+}
+
+.home-composer-fold > .home-composer-panel {
+  min-height: 0;
+  overflow: hidden;
+  transform-origin: top center;
+  transform: rotateX(-80deg);
+  opacity: 0;
+  transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.25, 1), opacity 0.3s ease;
+}
+
+.home-composer.is-open .home-composer-fold {
+  grid-template-rows: 1fr;
+}
+
+.home-composer.is-open .home-composer-fold > .home-composer-panel {
+  transform: none;
+  opacity: 1;
+}
+
+.home-composer:not(.is-open) .home-composer-panel {
+  visibility: hidden;
+  transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.25, 1), opacity 0.3s ease, visibility 0s 0.4s;
+}
+
+.home-composer.is-open > .home-composer-open {
+  display: none;
+}
+
+.home-composer-close {
+  margin-top: 0.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-composer-fold,
+  .home-composer-fold > .home-composer-panel {
+    transition: none;
+  }
+}
+
+/* The Thinking composer (/thinking-composer.js), on the homepage and in the
+   admin's Thinking tab. */
+.thinking-composer [hidden] {
+  display: none !important;
+}
+
+.thinking-composer-form {
+  margin-top: 0.5rem;
+}
+
+.thinking-composer label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 0.5rem;
+}
+
+.thinking-composer textarea {
+  width: 100%;
+  min-height: 7rem;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.55;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 0.25rem;
+  padding: 0.65rem 0.75rem;
+  margin: 0 0 0.35rem;
+}
+
+.thinking-composer-submit {
+  font: inherit;
+  font-weight: 600;
+  color: var(--bg);
+  background: var(--text);
+  border: 0;
+  border-radius: 0.25rem;
+  padding: 0.55rem 1.1rem;
+  cursor: pointer;
+}
+
+.thinking-composer-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.thinking-composer-secondary {
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 0.25rem;
+  padding: 0.4rem 0.75rem;
+  margin: -0.5rem 0 1.25rem;
+  cursor: pointer;
+}
+
+.thinking-composer-secondary:hover {
+  border-color: var(--text);
+}
+
+.thinking-composer-status {
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  white-space: pre-line;
+  line-height: 1.55;
+}
+
+.thinking-composer-status.ok,
+.thinking-composer-status.warn {
+  color: var(--text);
+}
+
+.thinking-composer-status.err,
+.thinking-photo-warn {
+  color: #b44;
+}
+
+[data-theme="dark"] .thinking-composer-status.err,
+[data-theme="dark"] .thinking-photo-warn {
+  color: #e88;
+}
+
+.thinking-photo-warn {
+  font-size: 0.75rem;
+  margin: -0.75rem 0 1rem;
+  line-height: 1.5;
+}
+
+.thinking-char-count {
+  margin: 0;
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.thinking-char-count.over-limit {
+  color: #b44;
+  font-weight: 600;
+}
+
+[data-theme="dark"] .thinking-char-count.over-limit {
+  color: #e88;
+}
+
+.thinking-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 1.25rem;
+  flex-wrap: wrap;
+}
+
+.thinking-media-pickers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.thinking-photo-upload {
+  position: relative;
+  margin: 0;
+  min-width: 0;
+  flex: 1;
+}
+
+.thinking-photo-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.thinking-photo-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 1rem;
+}
+
+.thinking-composer .thinking-photo-upload label.thinking-photo-icon-btn {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  padding: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.thinking-composer .thinking-photo-upload label.thinking-photo-icon-btn:hover {
+  color: var(--link-hover);
+  opacity: 0.85;
+}
+
+.thinking-photo-icon-btn svg {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+}
+
+.thinking-photo-name {
+  display: flex;
+  align-items: center;
+  min-height: 1rem;
+  margin: 0;
+  padding: 0;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thinking-photo-previews {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin: 0 0 1.25rem;
+  max-width: 28rem;
+}
+
+.thinking-photo-previews img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 4px;
+}
+
+.thinking-audio-preview {
+  display: block;
+  width: 100%;
+  max-width: 28rem;
+  margin: 0 0 1.25rem;
+}
+
+.thinking-video-preview {
+  display: block;
+  width: 100%;
+  max-width: 28rem;
+  margin: 0 0 1.25rem;
+  border-radius: 4px;
+  background: var(--bg);
+}
+
+.thinking-upload-progress {
+  margin: 1rem 0 0;
+}
+
+.thinking-upload-progress progress {
+  display: block;
+  width: 100%;
+  max-width: 28rem;
+  height: 0.45rem;
+  border: none;
+  border-radius: 2px;
+  overflow: hidden;
+  accent-color: var(--text);
+}
+
+.thinking-upload-progress-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin: 0.4rem 0 0;
+  line-height: 1.45;
+}
+
+/* iOS zooms into any field under 16px when it is focused. */
+@media (max-width: 480px) {
+  .thinking-composer textarea {
+    font-size: 16px;
+  }
+}
+
 section {
   margin-top: 2.25rem;
 }
