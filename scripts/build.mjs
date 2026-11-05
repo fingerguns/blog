@@ -23,7 +23,47 @@ import { thinkingGridThumbUrl, upgradeSpotifyImageUrl, videoPosterKeyFromVideoUr
 import { fetchLinkUnfurl } from "./lib/link-unfurl.mjs";
 import { LINKLOG_TAG_LABELS } from "./lib/linklog-tags.mjs";
 import { mapWithConcurrency } from "./lib/concurrency.mjs";
-import { renderThinkingContentHtml, unfurlableUrls, singlePhotoUrl } from "./lib/thinking-html.mjs";
+import { unfurlableUrls, singlePhotoUrl } from "./lib/thinking-html.mjs";
+import {
+  firstImageFromHtml,
+  hasThinking,
+  imageSrcAltFromHtml,
+  monthLabelET,
+  renderThinkingHtml as renderThinkingHtmlShared,
+  spotifyEmbedFromHtml,
+  stripMediaMarkup,
+  THINKING_GRID_KINDS,
+  THINKING_MEDIA_ICONS,
+  thinkingContentHtmlFromRow as thinkingContentHtmlFromRowShared,
+  thinkingGridItemHtml as thinkingGridItemHtmlShared,
+  thinkingGridKind,
+  thinkingGridMonthHtml,
+  thinkingItemFromRow,
+  thinkingListEntryHtml,
+  thinkingPostMetaHtml,
+  thinkingSlug,
+  thinkingSnippet,
+  thinkingUnfurlsHtml as thinkingUnfurlsHtmlShared,
+  videoSrcFromHtml,
+} from "./lib/render/thinking.mjs";
+import {
+  formatMbDate,
+  linkDomain,
+  readingMins,
+  safeSlug,
+  stripHtml,
+  toETDate,
+} from "./lib/render/format.mjs";
+import {
+  readingGridItemHtml as readingGridItemHtmlShared,
+  readingGridMonthHtml,
+  readingMonthLabel,
+  renderLinklogArchiveItem as renderLinklogArchiveItemShared,
+  renderLinklogItem,
+  renderPostItem,
+  renderReadingFavoriteItem as renderReadingFavoriteItemShared,
+  renderReadingItem as renderReadingItemShared,
+} from "./lib/render/lists.mjs";
 import { bookshopAffiliateUrl, bookshopAffiliateIdFromEnv, isbnFromBookshopUrl } from "./lib/bookshop-affiliate.mjs";
 import {
   buildLatestCoverLookup,
@@ -33,7 +73,6 @@ import {
   applyReadingFavoritesOverrides,
   loadReadingFavoritesOverrides,
 } from "./lib/reading-favorites-overrides.mjs";
-import { thinkingSlugFromIso } from "./lib/thinking-slug.mjs";
 import { distanceTextFromSteps } from "./lib/steps-distance.mjs";
 import {
   CACHE_NAMESPACES,
@@ -99,6 +138,17 @@ const SECTION_HINTS = mergeSectionHints(sectionHints);
 const READING_TAB_INTROS = mergeReadingTabIntros(readingTabIntros);
 
 const base = site.url.replace(/\/$/, "");
+
+// What the shared renderers in scripts/lib/render/ read instead of this
+// file's scope. Each cache is filled in below as the build loads it; the live
+// overlay in the Worker builds the same object from D1.
+const renderCtx = {
+  base,
+  thinkingUnfurls: {},
+  spotifyThumbnails: {},
+  videoPosters: {},
+  photoSize: (url) => thinkingPhotoSize(url),
+};
 const toSortableMs = (p) => {
   // Prefer full datetime for same-day ordering; fall back to date at noon UTC.
   const dt = p.datetime ? new Date(p.datetime) : new Date(`${p.date}T12:00:00.000Z`);
@@ -648,53 +698,6 @@ function ogMetaTags({ type = "website", title, description = "", url, image }) {
   return lines.join("\n");
 }
 
-function stripHtml(html) {
-  return String(html || "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function firstImageFromHtml(html) {
-  const m = String(html || "").match(/<img[^>]+src=["']([^"']+)["']/i);
-  return m ? m[1] : "";
-}
-
-function thinkingSnippet(text, max = 160) {
-  const plain = String(text || "").replace(/\s+/g, " ").trim();
-  if (!plain) return "";
-  if (plain.length <= max) return plain;
-  return `${plain.slice(0, max - 1)}…`;
-}
-
-// Grid thumbnails: extract the post's photo (src + alt) from its rendered content_html
-function imageSrcAltFromHtml(html) {
-  const str = String(html || "");
-  const srcM = str.match(/<img[^>]+src=["']([^"']+)["']/i);
-  const altM = str.match(/<img[^>]+alt=["']([^"']*)["']/i);
-  return { src: srcM ? srcM[1] : "", alt: altM ? altM[1] : "" };
-}
-
-// Native video posts render as <video class="thinking-video"> — pull the src so
-// the grid can show the first frame as a thumbnail instead of a text card.
-function videoSrcFromHtml(html) {
-  const str = String(html || "");
-  const m =
-    str.match(/<video[^>]+class=["'][^"']*thinking-video[^"']*["'][^>]+src=["']([^"']+)["']/i) ||
-    str.match(/<video[^>]+src=["']([^"']+)["'][^>]+class=["'][^"']*thinking-video[^"']*["']/i);
-  if (!m) return "";
-  return m[1].replace(/#t=0\.001$/, "");
-}
-
-function spotifyEmbedFromHtml(html) {
-  const str = String(html || "");
-  const m = str.match(
-    /open\.spotify\.com\/embed\/(track|album|playlist|episode|show|artist)\/([A-Za-z0-9]+)/i
-  );
-  if (!m) return null;
-  return { type: m[1].toLowerCase(), id: m[2] };
-}
-
 async function fetchSpotifyThumbnail(type, id) {
   try {
     const pageUrl = `https://open.spotify.com/${type}/${id}`;
@@ -715,62 +718,6 @@ async function fetchSpotifyThumbnail(type, id) {
   }
 }
 
-function youtubeIdFromHtml(html) {
-  const str = String(html || "");
-  const m =
-    str.match(/youtube-nocookie\.com\/embed\/([\w-]{11})/i) ||
-    str.match(/youtube\.com\/embed\/([\w-]{11})/i);
-  return m ? m[1] : null;
-}
-
-function youtubeThumbnailUrl(id) {
-  return thinkingGridThumbUrl(`https://i.ytimg.com/vi/${id}/mqdefault.jpg`, base);
-}
-
-// "July 2026" in ET, used to group Thinking grid items by month
-function monthLabelET(iso) {
-  const d = new Date(iso);
-  return new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    year: "numeric",
-    timeZone: "America/New_York",
-  }).format(d);
-}
-
-// Grid thumbnails: which non-photo media (if any) a post's rendered
-// content_html contains, so the text card can show a small icon badge.
-function thinkingMediaKind(html) {
-  const str = String(html || "");
-  if (/class="thinking-video"/.test(str)) return "video";
-  if (/class="thinking-audio"/.test(str)) return "audio";
-  if (/class="thinking-youtube"/.test(str)) return "youtube";
-  if (/class="thinking-spotify/.test(str)) return "spotify";
-  return "";
-}
-
-// Strip media elements (video/audio/embeds) out of content_html before
-// computing a text snippet, so their fallback inner text (e.g. "Video")
-// never leaks into the grid card when there's no caption.
-function stripMediaMarkup(html) {
-  return String(html || "")
-    .replace(/<audio[^>]*>[\s\S]*?<\/audio>/gi, "")
-    .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, "")
-    .replace(/<div class="thinking-youtube">[\s\S]*?<\/div>/gi, "")
-    .replace(/<div class="thinking-spotify[^"]*">[\s\S]*?<\/div>/gi, "");
-}
-
-// Small icon badges for the grid's text-preview cards, indicating the kind
-// of media attached (generic play/mic glyphs; brand marks for YouTube/Spotify).
-const THINKING_MEDIA_ICONS = {
-  photo: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" style="fill:var(--text)"/><path d="M6.25 10a1.25 1.25 0 0 1 1.25-1.25h9a1.25 1.25 0 0 1 1.25 1.25v5.25a1.25 1.25 0 0 1-1.25 1.25h-9A1.25 1.25 0 0 1 6.25 15.25V10z" style="fill:var(--bg)"/><path d="M9.25 10V8.35h3.45l.95 1.65H9.25z" style="fill:var(--bg)"/><circle cx="12" cy="13.25" r="3.35" style="fill:var(--text)"/><circle cx="12" cy="13.25" r="1.45" style="fill:var(--bg)"/></svg>`,
-  video: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" style="fill:var(--text)"/><rect x="6" y="8.5" width="9" height="7" rx="1.3" style="fill:var(--bg)"/><path d="M15 10 L19.5 8 L19.5 16 L15 14 Z" style="fill:var(--bg)"/></svg>`,
-  audio: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" style="fill:var(--text)"/><path d="M12 6.5a2.25 2.25 0 0 1 2.25 2.25v3a2.25 2.25 0 0 1-4.5 0v-3A2.25 2.25 0 0 1 12 6.5z" style="fill:var(--bg)"/><path d="M8.25 11.75a3.75 3.75 0 0 0 7.5 0M12 15.5v2M10 17.5h4" style="fill:none;stroke:var(--bg);stroke-width:1.1;stroke-linecap:round"/></svg>`,
-  youtube: `<svg viewBox="0 0 28 20" aria-hidden="true"><rect width="28" height="20" rx="5" fill="#FF0000"/><path d="M11 6.2 19 10l-8 3.8V6.2z" fill="#fff"/></svg>`,
-  spotify: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#1DB954"/><path d="M6.5 9.7c3.4-1 7.2-.8 10.1.9M7.3 12.6c2.8-.8 6-.6 8.4.7M8.1 15.4c2.3-.6 4.9-.5 6.8.6" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>`,
-  text: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" style="fill:var(--text)"/><text x="12" y="16" text-anchor="middle" font-size="11" font-weight="700" font-family="Georgia,'Times New Roman',serif" style="fill:var(--bg)">Tt</text></svg>`,
-};
-
-const THINKING_GRID_KINDS = ["photo", "video", "youtube", "spotify", "audio", "text"];
 const THINKING_FILTER_PATH = {
   photo: "images",
   video: "videos",
@@ -783,26 +730,6 @@ const THINKING_PATH_FILTER = Object.fromEntries(
   Object.entries(THINKING_FILTER_PATH).map(([kind, segment]) => [segment, kind])
 );
 
-function thinkingGridKind(item, spotifyThumbnails = {}) {
-  if (imageSrcAltFromHtml(item.content_html).src) return "photo";
-  if (videoSrcFromHtml(item.content_html)) return "video";
-  const spotifyEmbed = spotifyEmbedFromHtml(item.content_html);
-  if (spotifyEmbed) {
-    const key = `${spotifyEmbed.type}:${spotifyEmbed.id}`;
-    if (spotifyThumbnails[key]) return "spotify";
-  }
-  if (youtubeIdFromHtml(item.content_html)) return "youtube";
-  const mediaKind = thinkingMediaKind(item.content_html);
-  if (mediaKind) return mediaKind;
-  return "text";
-}
-
-function thinkingGridBadgeHtml(kind) {
-  const icon = THINKING_MEDIA_ICONS[kind];
-  if (!icon) return "";
-  return `<span class="thinking-grid-icon thinking-grid-icon--${kind}" aria-hidden="true">${icon}</span>`;
-}
-
 function thinkingOgFromItem(item) {
   const description = thinkingSnippet(stripHtml(item.content_html));
   const image = firstImageFromHtml(item.content_html) || defaultOgImage();
@@ -810,54 +737,16 @@ function thinkingOgFromItem(item) {
 }
 
 function thinkingContentHtmlFromRow(p, options = {}) {
-  const fromSource = renderThinkingContentHtml(
-    p.text,
-    p.media_url,
-    p.media_alt,
-    p.media_type,
-    base,
-    { ...options, mediaUrls: p.media_urls || [], photoSize: thinkingPhotoSize }
-  );
-  if (fromSource) return fromSource;
-  return p.content_html || "";
+  return thinkingContentHtmlFromRowShared(p, renderCtx, options);
 }
 
 function renderThinkingHtml(thinking) {
-  const inner = renderThinkingContentHtml(
-    thinking?.text,
-    thinking?.media_url,
-    thinking?.media_alt,
-    thinking?.media_type,
-    base,
-    { mediaUrls: thinking?.media_urls || [], photoSize: thinkingPhotoSize }
-  );
-  if (!inner) return "";
-  return `<div class="microblog-body">${inner}</div>${thinkingUnfurlsHtml(thinking?.text)}`;
-}
-
-function hasThinking(thinking) {
-  return !!(
-    thinking &&
-    ((thinking.text || "").trim() ||
-      thinking.media_url ||
-      (Array.isArray(thinking.media_urls) && thinking.media_urls.length))
-  );
+  return renderThinkingHtmlShared(thinking, renderCtx);
 }
 
 function toIsoZ(p) {
   const d = p.datetime ? new Date(p.datetime) : new Date(`${p.date}T12:00:00.000Z`);
   return d.toISOString();
-}
-
-// YYYY-MM-DD in ET, derived from p.datetime when available
-function toETDate(p) {
-  const d = p.datetime ? new Date(p.datetime) : new Date(`${p.date}T12:00:00.000Z`);
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(d);
-}
-
-function readingMins(bodyHtml) {
-  const words = String(bodyHtml || "").replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
-  return Math.max(1, Math.round(words / 200));
 }
 
 // Previous/next links at the foot of a Writing post, so a reader who finishes
@@ -983,8 +872,6 @@ ${postAdminActionScript}
 const latest = ordered[0];
 const feedUpdated = latest ? toIsoZ(latest) : new Date("2020-01-01T12:00:00.000Z").toISOString();
 
-const safeSlug = (s) => String(s).replace(/[^a-zA-Z0-9-_]/g, "");
-
 const MAX_PER_SECTION = 5;
 
 // Single-photo Thinking notes: a landscape photo renders at the column's full
@@ -1016,15 +903,7 @@ function thinkingPhotoSize(url) {
 }
 
 // Thinking posts from D1 (populated by the admin Worker on every post/delete)
-const microblogItems = thinkingPosts.map((p) => ({
-  _slug: p.slug,
-  _text: p.text || "",
-  content_html: thinkingContentHtmlFromRow(p),
-  date_published: p.datetime,
-  url: p.microblog_url || "",
-  media_type: p.media_type || "",
-  location_label: p.location_label || "",
-}));
+const microblogItems = thinkingPosts.map((p) => thinkingItemFromRow(p, renderCtx));
 
 // Thinking link cards: every link in a note (YouTube and Spotify aside, which
 // already render as players) gets an Open Graph preview card beneath the note,
@@ -1052,57 +931,11 @@ const thinkingUnfurlCache = await loadBuildCache(CACHE_NAMESPACES.THINKING_UNFUR
 }
 await saveBuildCache(CACHE_NAMESPACES.THINKING_UNFURLS, thinkingUnfurlCache);
 
-function thinkingUnfurlCardHtml(url) {
-  const unfurl = thinkingUnfurlCache[url];
-  if (!unfurl) return "";
-  const domain = linkDomain(url);
-  const title = unfurl.title || domain || url;
-  const sourceLabel = unfurl.siteName || domain;
-  // Hotlinked like the Sharing cards: an image that fails hides its slot.
-  const imageHtml = unfurl.image
-    ? `<span class="linklog-card-thumb"><img src="${escHtml(unfurl.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.parentElement.hidden=true" /></span>`
-    : "";
-  const descHtml = unfurl.description
-    ? `<span class="linklog-card-desc">${escHtml(unfurl.description)}</span>`
-    : "";
-  const metaHtml =
-    sourceLabel && sourceLabel !== title ? `<span class="linklog-card-meta">${escHtml(sourceLabel)}</span>` : "";
-  return `<a class="linklog-card" href="${escHtml(url)}" target="_blank" rel="noopener noreferrer">${imageHtml}<span class="linklog-card-body"><span class="linklog-card-title">${escHtml(title)}</span>${descHtml}${metaHtml}</span></a>`;
-}
+renderCtx.thinkingUnfurls = thinkingUnfurlCache;
 
 /** Preview cards for the links in a note's text; "" when there are none. */
 function thinkingUnfurlsHtml(text) {
-  const cards = unfurlableUrls(text).map(thinkingUnfurlCardHtml).filter(Boolean);
-  return cards.length ? `<div class="thinking-unfurls">${cards.join("")}</div>` : "";
-}
-
-// Microblog dates/times shown in ET
-const etDateFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" });
-const etTimeFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
-const formatMbDate = (iso) => {
-  const d = new Date(iso);
-  return `${etDateFmt.format(d)} // ${etTimeFmt.format(d)}`;
-};
-const thinkingSlug = (item) => item._slug || thinkingSlugFromIso(item.date_published);
-
-function googleMapsNeighborhoodUrl(label) {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(label)}`;
-}
-
-function thinkingPostLocationHtml(item) {
-  const label = String(item.location_label || "").trim();
-  if (!label) return "";
-  const mapsUrl = googleMapsNeighborhoodUrl(label);
-  return `<span class="post-meta-sep" aria-hidden="true">·</span><a class="post-location" href="${escHtml(mapsUrl)}" target="_blank" rel="noopener">${escHtml(label)}</a>`;
-}
-
-function thinkingPostMetaHtml(item, slug) {
-  return `<p class="post-meta"><time class="post-date" datetime="${escHtml(item.date_published)}"><a href="/thinking/${escHtml(slug)}/">${escHtml(formatMbDate(item.date_published))}</a></time>${thinkingPostLocationHtml(item)}</p>`;
+  return thinkingUnfurlsHtmlShared(text, renderCtx);
 }
 
 // Changelog from git log
@@ -1124,12 +957,6 @@ try {
   changelogEntries = [];
 }
 
-const renderPostItem = (p, absolute = false) =>
-  `          <li>
-            <span class="post-date">${escHtml(toETDate(p))}</span>
-            <a href="${absolute ? `/posts/${escHtml(safeSlug(p.slug))}/` : `posts/${escHtml(safeSlug(p.slug))}/`}">${escHtml(p.title)}</a>
-          </li>`;
-
 function sortReadingByYmDesc(a, b) {
   const ay = String(a.ym || "");
   const by = String(b.ym || "");
@@ -1143,11 +970,7 @@ function sortReadingByYmDesc(a, b) {
 const orderedReading = [...(reading || [])].sort(sortReadingByYmDesc);
 const readingAffiliateUrlByCanonical = new Map();
 const readingLinkUrl = (r) => readingAffiliateUrlByCanonical.get(r.url) || bookshopAffiliateUrl(r.url);
-const renderReadingItem = (r) =>
-  `          <li>
-            <span class="post-date">${escHtml(r.ym)}</span>
-            <a href="${escHtml(readingLinkUrl(r))}" target="_blank" rel="noopener noreferrer">${escHtml(r.title)}</a>
-          </li>`;
+const renderReadingItem = (r) => renderReadingItemShared(r, readingLinkUrl(r));
 
 // Reading grid: book cover art isn't stored in D1 (reading rows only have
 // title/url/ym), so covers are looked up at build time via Open Library's
@@ -1361,18 +1184,7 @@ if (favoritesMissingCovers.length > 0) {
   await saveBuildCache(CACHE_NAMESPACES.READING_COVERS, readingCoverCache);
 }
 
-const stripHashtags = (s) => String(s).replace(/\s*#\S+/g, "").trim();
-
 const orderedLinklog = [...(linklog || [])].sort(sortDesc);
-const renderLinklogItem = (l) => {
-  const tagSlugs = Array.isArray(l.tags) ? l.tags.filter(Boolean) : [];
-  const tagAttr = tagSlugs.length ? ` data-tags="${escHtml(tagSlugs.join(" "))}"` : "";
-  return `          <li${tagAttr}>
-            <span class="post-date">${escHtml(toETDate(l))}</span>
-            <a href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer">${escHtml(stripHashtags(l.title))}</a>
-          </li>`;
-};
-
 const linklogTagCounts = new Map();
 for (const l of orderedLinklog) {
   for (const slug of Array.isArray(l.tags) ? l.tags : []) {
@@ -1470,45 +1282,7 @@ if (missingUnfurls.length > 0) {
 }
 await saveBuildCache(CACHE_NAMESPACES.LINKLOG_UNFURLS, linklogUnfurlCache);
 
-function linkDomain(url) {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return "";
-  }
-}
-
-const renderLinklogArchiveItem = (l) => {
-  const tagSlugs = Array.isArray(l.tags) ? l.tags.filter(Boolean) : [];
-  const tagAttr = tagSlugs.length ? ` data-tags="${escHtml(tagSlugs.join(" "))}"` : "";
-  const unfurl = linklogUnfurlCache[l.url] || null;
-  const title = stripHashtags(l.title);
-  const domain = linkDomain(l.url);
-  const sourceLabel = unfurl?.siteName || domain;
-  // Unlike Spotify/YouTube thumbnails (stable CDNs) or Thinking/Reading media
-  // (R2-native), these images are hotlinked straight from whatever site was
-  // shared — if one goes away or starts blocking hotlinking, fail quietly
-  // instead of showing a broken-image icon. A sturdier fix would download
-  // and cache them into R2 at build time like other site media, but that
-  // needs R2 write credentials the build environment doesn't have today
-  // (only D1 access does) — worth revisiting if breakage becomes common.
-  const imageHtml = unfurl?.image
-    ? `<span class="linklog-card-thumb"><img src="${escHtml(unfurl.image)}" alt="" loading="lazy" onerror="this.parentElement.hidden=true" /></span>`
-    : "";
-  const descHtml = unfurl?.description
-    ? `<span class="linklog-card-desc">${escHtml(unfurl.description)}</span>`
-    : "";
-  return `          <li${tagAttr}>
-            <a class="linklog-card" href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer">
-              ${imageHtml}
-              <span class="linklog-card-body">
-                <span class="linklog-card-title">${escHtml(title)}</span>
-                ${descHtml}
-                <span class="linklog-card-meta"><span class="post-date">${escHtml(toETDate(l))}</span>${sourceLabel ? ` · ${escHtml(sourceLabel)}` : ""}</span>
-              </span>
-            </a>
-          </li>`;
-};
+const renderLinklogArchiveItem = (l) => renderLinklogArchiveItemShared(l, linklogUnfurlCache[l.url] || null);
 
 const linklogHtml = orderedLinklog.slice(0, MAX_PER_SECTION).map(renderLinklogItem).join("\n");
 const hasMoreLinklog = orderedLinklog.length > MAX_PER_SECTION;
@@ -2138,75 +1912,12 @@ ${thinkingDeleteConfirmScript}
   </body>
 </html>`;
 
-const microblogListHtml = (items, spotifyThumbnails = {}) =>
+const microblogListHtml = (items) =>
   items.length > 0
-    ? items
-        .map((item) => {
-          const slug = thinkingSlug(item);
-          const kind = thinkingGridKind(item, spotifyThumbnails);
-          return `        <div class="microblog-entry" data-slug="${escHtml(slug)}" data-kind="${escHtml(kind)}" data-microblog-url="${escHtml(item.url || "")}">
-          <div class="microblog-body">${item.content_html}</div>${thinkingUnfurlsHtml(item._text)}
-          ${thinkingPostMetaHtml(item, slug)}
-        </div>`;
-        })
-        .join("\n")
+    ? items.map((item) => thinkingListEntryHtml(item, renderCtx)).join("\n")
     : `        <p style="color:var(--muted)">No posts yet.</p>`;
 
-// Grid view: same items, grouped by month, one square thumbnail per post
-// (photo or video frame when present, else a small text-preview card).
-function thinkingGridItemHtml(item, spotifyThumbnails = {}, videoPosterCache = {}) {
-  const slug = thinkingSlug(item);
-  const href = `/thinking/${escHtml(slug)}/`;
-  const label = escHtml(formatMbDate(item.date_published));
-  const kind = thinkingGridKind(item, spotifyThumbnails);
-  const { src, alt } = imageSrcAltFromHtml(item.content_html);
-  if (kind === "photo" && src) {
-    const thumb = thinkingGridThumbUrl(src, base);
-    return `          <a class="thinking-grid-item thinking-grid-photo" data-kind="photo" href="${href}" aria-label="${label}">
-            <img data-src="${escHtml(thumb)}" alt="${escHtml(alt || "Photo")}" width="126" height="126" decoding="async" />
-            ${thinkingGridBadgeHtml("photo")}
-          </a>`;
-  }
-  if (kind === "video") {
-    const videoSrc = videoSrcFromHtml(item.content_html);
-    const posterKey = videoPosterKeyFromVideoUrl(videoSrc, base);
-    if (posterKey && videoPosterCache[videoSrc]) {
-      const thumb = thinkingGridThumbUrl(`${base}/media/${posterKey}`, base);
-      return `          <a class="thinking-grid-item thinking-grid-video" data-kind="video" href="${href}" aria-label="${label}">
-            <img data-src="${escHtml(thumb)}" alt="" width="126" height="126" decoding="async" />
-            ${thinkingGridBadgeHtml("video")}
-          </a>`;
-    }
-    return `          <a class="thinking-grid-item thinking-grid-video thinking-grid-video--placeholder" data-kind="video" href="${href}" aria-label="${label}">
-            ${thinkingGridBadgeHtml("video")}
-          </a>`;
-  }
-  if (kind === "spotify") {
-    const spotifyEmbed = spotifyEmbedFromHtml(item.content_html);
-    const cover = spotifyThumbnails[`${spotifyEmbed.type}:${spotifyEmbed.id}`];
-    if (cover) {
-      const thumb = thinkingGridThumbUrl(cover, base);
-      return `          <a class="thinking-grid-item thinking-grid-spotify" data-kind="spotify" href="${href}" aria-label="${label}">
-            <img data-src="${escHtml(thumb)}" alt="" width="126" height="126" decoding="async" />
-            ${thinkingGridBadgeHtml("spotify")}
-          </a>`;
-    }
-  }
-  if (kind === "youtube") {
-    const youtubeId = youtubeIdFromHtml(item.content_html);
-    return `          <a class="thinking-grid-item thinking-grid-youtube" data-kind="youtube" href="${href}" aria-label="${label}">
-            <img data-src="${escHtml(youtubeThumbnailUrl(youtubeId))}" alt="" width="126" height="126" decoding="async" />
-            ${thinkingGridBadgeHtml("youtube")}
-      </a>`;
-  }
-  const snippet =
-    thinkingSnippet(stripHtml(stripMediaMarkup(item.content_html)), 280) || "(No text)";
-  return `          <a class="thinking-grid-item thinking-grid-text" data-kind="${escHtml(kind)}" href="${href}" aria-label="${label}">
-            <span class="thinking-grid-text-body">${escHtml(snippet)}</span>${thinkingGridBadgeHtml(kind)}
-          </a>`;
-}
-
-function thinkingGridGroupsHtml(items, spotifyThumbnails = {}, videoPosterCache = {}) {
+function thinkingGridGroupsHtml(items) {
   if (items.length === 0) {
     return `      <p style="color:var(--muted)">No posts yet.</p>`;
   }
@@ -2221,13 +1932,8 @@ function thinkingGridGroupsHtml(items, spotifyThumbnails = {}, videoPosterCache 
     }
   }
   return groups
-    .map(
-      (g) => `      <section class="thinking-grid-month">
-        <h2 class="thinking-grid-month-label">${escHtml(g.label)}</h2>
-        <div class="thinking-grid">
-${g.items.map((item) => thinkingGridItemHtml(item, spotifyThumbnails, videoPosterCache)).join("\n")}
-        </div>
-      </section>`
+    .map((g) =>
+      thinkingGridMonthHtml(g.label, g.items.map((item) => thinkingGridItemHtmlShared(item, renderCtx)).join("\n"))
     )
     .join("\n");
 }
@@ -2259,6 +1965,7 @@ if (missingSpotifyThumbnails.length > 0) {
   });
 }
 await saveBuildCache(CACHE_NAMESPACES.SPOTIFY_THUMBNAILS, spotifyThumbnailCache);
+renderCtx.spotifyThumbnails = spotifyThumbnailCache;
 
 const videoPosterCache = await loadBuildCache(CACHE_NAMESPACES.VIDEO_POSTERS);
 
@@ -2294,6 +2001,7 @@ await mapWithConcurrency(missingVideoPosters, 6, async (videoSrc) => {
   }
 });
 await saveBuildCache(CACHE_NAMESPACES.VIDEO_POSTERS, videoPosterCache);
+renderCtx.videoPosters = videoPosterCache;
 
 // ── Thinking map view ──────────────────────────────────────────────────────
 //
@@ -2605,8 +2313,8 @@ ${thinkingDeleteLinkScript}
 </html>
 `;
 
-const thinkingGridHtml = thinkingGridGroupsHtml(microblogItems, spotifyThumbnailCache, videoPosterCache);
-const microblogEntriesHtml = microblogListHtml(microblogItems, spotifyThumbnailCache);
+const thinkingGridHtml = thinkingGridGroupsHtml(microblogItems);
+const microblogEntriesHtml = microblogListHtml(microblogItems);
 
 const THINKING_VIEW_ICONS = {
   list: `<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="3" width="16" height="3" rx="1" fill="currentColor"/><rect x="2" y="8.5" width="16" height="3" rx="1" fill="currentColor"/><rect x="2" y="14" width="16" height="3" rx="1" fill="currentColor"/></svg>`,
@@ -2639,29 +2347,8 @@ ${thinkingGridFiltersHtml}
         </div>
       </div>`;
 
-// Reading grid: a storefront-style catalog — bigger cover art, two columns,
-// grouped by month like the Thinking grid, title underneath linking out to
-// the Bookshop.org page.
-function readingMonthLabel(ym) {
-  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || ""));
-  if (!m) return "";
-  const [, y, mo] = m;
-  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).format(
-    new Date(Date.UTC(Number(y), Number(mo) - 1, 1))
-  );
-}
-
 function readingGridItemHtml(r, linkUrlFn = readingLinkUrl, genres = []) {
-  const cover = coverForReadingEntry(r);
-  const coverInner = cover
-    ? `<img src="${escHtml(cover)}" alt="${escHtml(r.title)}" loading="lazy" decoding="async" />`
-    : `<span class="reading-grid-cover-fallback">${escHtml(r.title)}</span>`;
-  const genreSlugs = Array.isArray(genres) ? genres.filter(Boolean) : [];
-  const genreAttr = genreSlugs.length ? ` data-genres="${escHtml(genreSlugs.join(" "))}"` : "";
-  return `          <a class="reading-grid-item"${genreAttr} href="${escHtml(linkUrlFn(r))}" target="_blank" rel="noopener noreferrer">
-    <span class="reading-grid-cover">${coverInner}</span>
-    <span class="reading-grid-title">${escHtml(r.title)}</span>
-  </a>`;
+  return readingGridItemHtmlShared(r, coverForReadingEntry(r), linkUrlFn(r), genres);
 }
 
 function readingGridGroupsHtml(items) {
@@ -2679,26 +2366,13 @@ function readingGridGroupsHtml(items) {
     }
   }
   return groups
-    .map(
-      (g) => `      <section class="reading-grid-month">
-        <h2 class="reading-grid-month-label">${escHtml(g.label)}</h2>
-        <div class="reading-grid">
-${g.items.map((r) => readingGridItemHtml(r)).join("\n")}
-        </div>
-      </section>`
-    )
+    .map((g) => readingGridMonthHtml(g.label, g.items.map((r) => readingGridItemHtml(r)).join("\n")))
     .join("\n");
 }
 
 const readingGridHtml = readingGridGroupsHtml(orderedReading);
 
-const renderReadingFavoriteItem = (r) => {
-  const genreSlugs = Array.isArray(r.genres) ? r.genres.filter(Boolean) : [];
-  const genreAttr = genreSlugs.length ? ` data-genres="${escHtml(genreSlugs.join(" "))}"` : "";
-  return `          <li${genreAttr}>
-            <a href="${escHtml(readingFavoriteLinkUrl(r))}" target="_blank" rel="noopener noreferrer">${escHtml(r.title)}</a>
-          </li>`;
-};
+const renderReadingFavoriteItem = (r) => renderReadingFavoriteItemShared(r, readingFavoriteLinkUrl(r));
 
 const readingFavoritesAllHtml = orderedReadingFavorites.map(renderReadingFavoriteItem).join("\n");
 
