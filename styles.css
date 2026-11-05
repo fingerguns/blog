@@ -185,9 +185,13 @@ a:hover {
   perspective: 900px;
 }
 
+/* The side padding (cancelled by the margin) keeps focus rings at the
+   panel's edges from being clipped by its overflow. */
 .home-composer-fold > .home-composer-panel {
   min-height: 0;
   overflow: hidden;
+  padding: 0 4px;
+  margin: 0 -4px;
   transform-origin: top center;
   transform: rotateX(-80deg);
   opacity: 0;
@@ -255,6 +259,13 @@ a:hover {
   border-radius: 0.25rem;
   padding: 0.65rem 0.75rem;
   margin: 0 0 0.35rem;
+}
+
+/* A text field always matches :focus-visible, so it takes the quieter
+   border change rather than the site-wide ring. */
+.thinking-composer textarea:focus-visible {
+  outline: none;
+  border-color: var(--text);
 }
 
 .thinking-composer-submit {
