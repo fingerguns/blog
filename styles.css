@@ -60,6 +60,9 @@
   --fs-2xl: 1.65rem;
   --fs-3xl: 2rem;
   --thinking-delete-bg: #ebe6de;
+  /* Raised surfaces (link cards): a step off the page, either theme. */
+  --surface: #ece6db;
+  --surface-hover: #e4ddd0;
 }
 
 [data-theme="dark"] {
@@ -70,6 +73,8 @@
   --link: #ece7dc;
   --link-hover: #b3ab9e;
   --thinking-delete-bg: #1e1a14;
+  --surface: #221e18;
+  --surface-hover: #2b261f;
 }
 
 [data-theme="dark"] .post .body code,
@@ -698,14 +703,16 @@ h2 {
   display: flex;
   gap: 0.75rem;
   align-items: flex-start;
-  padding: 0.6rem;
-  border: 1px solid var(--rule);
+  padding: 0.75rem;
+  background: var(--surface);
+  border-radius: 6px;
   text-decoration: none;
   color: inherit;
+  transition: background-color 0.15s ease;
 }
 
 .linklog-card:hover {
-  border-color: var(--muted);
+  background: var(--surface-hover);
 }
 
 .linklog-card:hover .linklog-card-title {
@@ -718,6 +725,7 @@ h2 {
   width: 88px;
   height: 88px;
   overflow: hidden;
+  border-radius: 4px;
   background: var(--thinking-delete-bg);
 }
 
@@ -731,7 +739,7 @@ h2 {
 .linklog-card-body {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.25rem;
   min-width: 0;
 }
 
@@ -749,9 +757,16 @@ h2 {
   overflow: hidden;
 }
 
+/* The source, small and spaced like the section labels, above the title. */
 .linklog-card-meta {
-  font-size: var(--fs-sm);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--muted);
+}
+
+.linklog-card-meta .post-date {
+  font-size: inherit;
 }
 
 /* Thinking: the same cards, one per link, stacked beneath the note. */

@@ -179,7 +179,7 @@ export function thinkingUnfurlCardHtml(url, ctx) {
     : "";
   const metaHtml =
     sourceLabel && sourceLabel !== title ? `<span class="linklog-card-meta">${escHtml(sourceLabel)}</span>` : "";
-  return `<a class="linklog-card" href="${escHtml(url)}" target="_blank" rel="noopener noreferrer">${imageHtml}<span class="linklog-card-body"><span class="linklog-card-title">${escHtml(title)}</span>${descHtml}${metaHtml}</span></a>`;
+  return `<a class="linklog-card" href="${escHtml(url)}" target="_blank" rel="noopener noreferrer">${imageHtml}<span class="linklog-card-body">${metaHtml}<span class="linklog-card-title">${escHtml(title)}</span>${descHtml}</span></a>`;
 }
 
 /** Preview cards for the links in a note's text; "" when there are none. */

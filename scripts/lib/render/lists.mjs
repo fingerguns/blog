@@ -102,9 +102,9 @@ export const renderLinklogArchiveItem = (l, unfurl) => {
             <a class="linklog-card" href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer">
               ${imageHtml}
               <span class="linklog-card-body">
+                <span class="linklog-card-meta"><span class="post-date">${escHtml(toETDate(l))}</span>${sourceLabel ? ` · ${escHtml(sourceLabel)}` : ""}</span>
                 <span class="linklog-card-title">${escHtml(title)}</span>
                 ${descHtml}
-                <span class="linklog-card-meta"><span class="post-date">${escHtml(toETDate(l))}</span>${sourceLabel ? ` · ${escHtml(sourceLabel)}` : ""}</span>
               </span>
             </a>
           </li>`;
