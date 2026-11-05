@@ -92,6 +92,16 @@ export function isLiveRoute(request) {
   return /^\/($|thinking(\/|$)|posts\/|writing(\/|$)|reading(\/|$)|sharing(\/|$))/.test(url.pathname);
 }
 
+/**
+ * A rommy.blog request that the overlay routes catch but that is neither a
+ * page to overlay nor the API or media, such as /thinking-composer.js under
+ * the rommy.blog/thinking* route. It goes to Pages untouched.
+ */
+export function isSitePassthrough(request) {
+  const url = new URL(request.url);
+  return url.hostname === SITE_HOST && !/^\/(api|media)\//.test(url.pathname);
+}
+
 /** Serve a page from Pages with the changes since its build applied. */
 export async function serveLive(request, env, ctx) {
   let origin = await fetch(request);
