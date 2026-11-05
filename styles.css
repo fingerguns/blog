@@ -176,13 +176,13 @@ a:hover {
   height: 0.9rem;
 }
 
-/* Rows animate 0fr -> 1fr for the height; the panel inside rotates about
-   its top edge for the swing. */
+/* A drop-down: rows animate 0fr -> 1fr for the height while the panel
+   slides down from just above and fades in, on one shared curve so the two
+   move together. */
 .home-composer-fold {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 0.35s ease;
-  perspective: 900px;
+  transition: grid-template-rows 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* The side padding (cancelled by the margin) keeps focus rings at the
@@ -192,10 +192,9 @@ a:hover {
   overflow: hidden;
   padding: 0 4px;
   margin: 0 -4px;
-  transform-origin: top center;
-  transform: rotateX(-80deg);
+  transform: translateY(-0.75rem);
   opacity: 0;
-  transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.25, 1), opacity 0.3s ease;
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
 }
 
 .home-composer.is-open .home-composer-fold {
@@ -209,11 +208,24 @@ a:hover {
 
 .home-composer:not(.is-open) .home-composer-panel {
   visibility: hidden;
-  transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.25, 1), opacity 0.3s ease, visibility 0s 0.4s;
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, visibility 0s 0.5s;
+}
+
+/* The down caret collapses on the same curve as the fold opens, so the
+   page below does not jump when it goes. */
+.home-composer-open {
+  max-height: 2rem;
+  overflow: hidden;
+  transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1), padding 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, visibility 0s;
 }
 
 .home-composer.is-open > .home-composer-open {
-  display: none;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1), padding 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, visibility 0s 0.5s;
 }
 
 .home-composer-close {
@@ -221,6 +233,7 @@ a:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .home-composer-open,
   .home-composer-fold,
   .home-composer-fold > .home-composer-panel {
     transition: none;

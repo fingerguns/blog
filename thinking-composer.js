@@ -836,7 +836,7 @@
 
     return {
       focus: function () {
-        textInput.focus();
+        textInput.focus({ preventScroll: true });
       },
     };
   }

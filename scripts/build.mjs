@@ -1347,7 +1347,7 @@ const homeComposerScript = `    <script>(function(){
         wrap.classList.toggle("is-open",open);
         openBtn.setAttribute("aria-expanded",open?"true":"false");
         panel.inert=!open;
-        if(open){if(composer)setTimeout(composer.focus,50);}else openBtn.focus();
+        if(open){if(composer)setTimeout(composer.focus,500);}else openBtn.focus({preventScroll:true});
       }
       openBtn.addEventListener("click",function(){
         load().then(function(){
