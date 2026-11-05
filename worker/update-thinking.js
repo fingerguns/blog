@@ -149,7 +149,7 @@ export default {
     // its build applied (live-overlay.mjs). Only reached on the HTML routes in
     // wrangler.toml, and only for rommy.blog itself.
     if (isLiveRoute(request)) {
-      return serveLive(request, env);
+      return serveLive(request, env, ctx);
     }
 
     const url = new URL(request.url);

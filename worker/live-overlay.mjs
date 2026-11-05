@@ -93,7 +93,7 @@ export function isLiveRoute(request) {
 }
 
 /** Serve a page from Pages with the changes since its build applied. */
-export async function serveLive(request, env) {
+export async function serveLive(request, env, ctx) {
   let origin = await fetch(request);
   try {
     // A browser revalidating its copy gets a bodiless 304 from Pages, which
@@ -107,7 +107,7 @@ export async function serveLive(request, env) {
         origin = await fetch(new Request(request, { headers }));
       }
     }
-    return await overlay(request, origin, env);
+    return await overlay(request, origin, env, ctx);
   } catch (err) {
     console.error("live overlay failed; serving the static page", err);
     return tagged(origin, "error");
@@ -129,7 +129,63 @@ function isHtml(res) {
   return res.ok && (res.headers.get("content-type") || "").includes("text/html");
 }
 
-async function overlay(request, origin, env) {
+/**
+ * Which kinds of change can alter a page at this path. Kept tight on
+ * purpose: on the Workers Free plan (10 ms CPU) rewriting a large page is
+ * the expensive part, so a page no change can touch is never parsed.
+ */
+function kindsForPath(pathname) {
+  if (pathname === "/") {
+    return new Set([CONTENT_KIND.THINKING, CONTENT_KIND.POST, CONTENT_KIND.READING, CONTENT_KIND.LINKLOG]);
+  }
+  if (/^\/thinking(\/|$)/.test(pathname)) return new Set([CONTENT_KIND.THINKING]);
+  if (/^\/writing(\/|$)/.test(pathname)) return new Set([CONTENT_KIND.POST]);
+  if (/^\/reading(\/|$)/.test(pathname)) return new Set([CONTENT_KIND.READING, CONTENT_KIND.FAVORITE]);
+  if (/^\/sharing(\/|$)/.test(pathname)) return new Set([CONTENT_KIND.LINKLOG]);
+  return new Set();
+}
+
+// Overlaid pages are kept in the edge cache, keyed by the page, the build it
+// came from and the newest change, so only the first view per data centre
+// after a change pays to render it; a newer change is a new key, never a
+// stale hit. The lifetime only bounds how long an unused copy lingers.
+const OVERLAY_CACHE_TTL_SECONDS = 600;
+
+function overlayCacheKey(url, watermark, latest, source) {
+  const etag = source.headers.get("ETag") || "";
+  const key = new URL("https://rommy.blog/__live/page");
+  key.searchParams.set("p", url.pathname + url.search);
+  key.searchParams.set("w", String(watermark));
+  key.searchParams.set("c", String(latest));
+  key.searchParams.set("e", etag);
+  return key.toString();
+}
+
+/** Serve from, or fill, the overlay cache. `render` returns a Response or null. */
+async function viaOverlayCache(request, key, ctx, render) {
+  const cache = caches.default;
+  if (request.method === "GET") {
+    const hit = await cache.match(key);
+    if (hit) {
+      const out = new Response(hit.body, hit);
+      out.headers.delete("Cache-Control");
+      out.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
+      out.headers.set("X-Live-Cache", "HIT");
+      return out;
+    }
+  }
+  const res = await render();
+  if (!res || request.method !== "GET" || !ctx) return res;
+  const [forClient, forCache] = res.body ? res.body.tee() : [null, null];
+  const stored = new Response(forCache, res);
+  stored.headers.set("Cache-Control", `public, max-age=${OVERLAY_CACHE_TTL_SECONDS}`);
+  ctx.waitUntil(cache.put(key, stored).catch(() => {}));
+  const out = new Response(forClient, res);
+  out.headers.set("X-Live-Cache", "MISS");
+  return out;
+}
+
+async function overlay(request, origin, env, ctx) {
   if (!env.DB) return origin;
   const url = new URL(request.url);
   const target = permalinkTarget(url.pathname);
@@ -159,16 +215,26 @@ async function overlay(request, origin, env) {
 
   const changes = collapseChanges(await changesSince(env.DB, watermark));
   if (changes.size === 0) return unchanged();
+  const key = overlayCacheKey(url, watermark, latest, source);
 
+  // A permalink only ever changes with its own item.
   if (target) {
-    const permalink = await permalinkResponse(url, target, changes, env, template);
-    if (permalink) return permalink;
-    if (!page) return origin;
+    if (!changes.has(liveKey(target.kind, target.key))) return unchanged();
+    const permalink = await viaOverlayCache(request, key, ctx, () =>
+      permalinkResponse(url, target, changes, env, template)
+    );
+    return permalink || unchanged();
   }
 
-  const plan = await buildPlan(url, changes, env);
-  if (!plan) return tagged(origin, "none");
-  return tagged(applyPlan(origin, plan), "applied");
+  // A list page only changes with the kinds it lists.
+  const kinds = kindsForPath(url.pathname);
+  const relevant = new Map([...changes].filter(([, c]) => kinds.has(c.kind)));
+  if (relevant.size === 0) return unchanged();
+
+  return viaOverlayCache(request, key, ctx, async () => {
+    const plan = await buildPlan(url, relevant, env);
+    return plan ? tagged(applyPlan(origin, plan), "applied") : null;
+  }).then((res) => res || unchanged());
 }
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
