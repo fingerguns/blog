@@ -2084,6 +2084,19 @@ footer.site-footer a:hover {
   color: var(--link-hover);
 }
 
+/* The theme toggle is an icon (sun in dark mode, moon in light), named by
+   its aria-label — no underline, and sat on the text baseline. */
+footer.site-footer a.theme-toggle {
+  display: inline-block;
+  text-decoration: none;
+  vertical-align: -0.125em;
+  line-height: 1;
+}
+
+footer.site-footer a.theme-toggle svg {
+  display: block;
+}
+
 footer.site-footer code {
   font-size: inherit;
   color: inherit;
