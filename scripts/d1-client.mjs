@@ -3,6 +3,15 @@
  * Requires env: CF_ACCOUNT_ID, CF_API_TOKEN, CF_D1_DATABASE_ID
  */
 
+import {
+  CONTENT_COLUMNS,
+  shapeFavoriteRow,
+  shapeLinklogRow,
+  shapePostRow,
+  shapeReadingRow,
+  shapeThinkingRow,
+} from "./lib/content-rows.mjs";
+
 const ACCOUNT_ID = process.env.CF_ACCOUNT_ID;
 const API_TOKEN = process.env.CF_API_TOKEN;
 const DATABASE_ID = process.env.CF_D1_DATABASE_ID;
@@ -35,22 +44,6 @@ export async function d1Query(sql, params = []) {
   }
 
   return data.result?.[0]?.results ?? [];
-}
-
-/** Parse media_urls JSON; fall back to single media_url for legacy rows. */
-function parseMediaUrls(raw, mediaUrl) {
-  if (raw) {
-    try {
-      const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-      if (Array.isArray(parsed)) {
-        return parsed.filter((u) => typeof u === "string" && u).slice(0, 4);
-      }
-    } catch {
-      /* ignore */
-    }
-  }
-  if (mediaUrl) return [mediaUrl];
-  return [];
 }
 
 /**
@@ -98,17 +91,17 @@ export async function loadBlogDataFromD1() {
   }
 
   const posts = await d1Query(
-    "SELECT slug, title, summary, body_html, date, datetime, created_at, updated_at FROM posts ORDER BY datetime DESC"
+    `SELECT ${CONTENT_COLUMNS.post} FROM posts ORDER BY datetime DESC`
   );
 
   const reading = await d1Query(
-    "SELECT id, ym, title, url, added_at, cover_url, author FROM reading ORDER BY ym DESC, added_at DESC, id DESC"
+    `SELECT ${CONTENT_COLUMNS.reading} FROM reading ORDER BY ym DESC, added_at DESC, id DESC`
   );
 
   let readingFavorites = [];
   try {
     readingFavorites = await d1Query(
-      "SELECT id, title, url, added_at, cover_url, author FROM reading_favorites ORDER BY title COLLATE NOCASE ASC, id ASC"
+      `SELECT ${CONTENT_COLUMNS.favorite} FROM reading_favorites ORDER BY title COLLATE NOCASE ASC, id ASC`
     );
   } catch {
     readingFavorites = [];
@@ -139,7 +132,7 @@ export async function loadBlogDataFromD1() {
   }
 
   const linklog = await d1Query(
-    "SELECT url, title, date, datetime, tags FROM linklog ORDER BY datetime DESC"
+    `SELECT ${CONTENT_COLUMNS.linklog} FROM linklog ORDER BY datetime DESC`
   );
 
   let ouraSteps = null;
@@ -155,20 +148,9 @@ export async function loadBlogDataFromD1() {
   }
 
   const thinkingPostRows = await d1Query(
-    "SELECT slug, text, media_url, media_alt, media_type, media_urls, content_html, datetime, microblog_url, location_label FROM thinking_posts ORDER BY datetime DESC"
+    `SELECT ${CONTENT_COLUMNS.thinking} FROM thinking_posts ORDER BY datetime DESC`
   );
-  const thinkingPosts = thinkingPostRows.map((r) => ({
-    slug: r.slug,
-    text: r.text || "",
-    media_url: r.media_url || "",
-    media_alt: r.media_alt || "",
-    media_type: r.media_type || "",
-    media_urls: parseMediaUrls(r.media_urls, r.media_url),
-    content_html: r.content_html || "",
-    datetime: r.datetime,
-    microblog_url: r.microblog_url || "",
-    location_label: r.location_label || "",
-  }));
+  const thinkingPosts = thinkingPostRows.map(shapeThinkingRow);
   const latest = thinkingPosts[0];
   const thinking = latest
     ? {
@@ -191,43 +173,14 @@ export async function loadBlogDataFromD1() {
     },
     thinking,
     thinkingPosts,
-    posts: posts.map((p) => ({
-      slug: p.slug,
-      title: p.title,
-      summary: p.summary,
-      body_html: p.body_html,
-      date: p.date,
-      datetime: p.datetime,
-    })),
-    reading: reading.map((r) => ({
-      id: r.id,
-      ym: r.ym,
-      title: r.title,
-      url: r.url,
-      added_at: r.added_at,
-      cover_url: r.cover_url || "",
-      author: r.author || "",
-    })),
-    readingFavorites: readingFavorites.map((r) => ({
-      id: r.id,
-      title: r.title,
-      url: r.url,
-      added_at: r.added_at,
-      cover_url: r.cover_url || "",
-      author: r.author || "",
-      genres: genresByFavoriteId.get(r.id) || [],
-    })),
+    posts: posts.map(shapePostRow),
+    reading: reading.map(shapeReadingRow),
+    readingFavorites: readingFavorites.map((r) => shapeFavoriteRow(r, genresByFavoriteId.get(r.id) || [])),
     readingGenres: readingGenres.map((g) => ({
       slug: g.slug,
       label: g.label,
     })),
-    linklog: linklog.map((l) => ({
-      url: l.url,
-      title: l.title,
-      date: l.date,
-      datetime: l.datetime,
-      tags: (l.tags || "").split(/\s+/).filter(Boolean),
-    })),
+    linklog: linklog.map(shapeLinklogRow),
     links: site.links || [
       { label: "Now", url: "/now/", internal: true },
       { label: "About", url: "/about/", internal: true },

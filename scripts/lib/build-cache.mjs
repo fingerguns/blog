@@ -15,14 +15,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { d1Configured, d1Query } from "../d1-client.mjs";
 
-export const CACHE_NAMESPACES = {
-  READING_COVERS: "reading-covers",
-  SPOTIFY_THUMBNAILS: "spotify-thumbnails",
-  VIDEO_POSTERS: "video-posters",
-  LINKLOG_UNFURLS: "linklog-unfurls",
-  THINKING_UNFURLS: "thinking-unfurls",
-  NEIGHBORHOOD_PLACES: "neighborhood-places",
-};
+import { CACHE_NAMESPACES } from "./build-cache-namespaces.mjs";
+
+export { CACHE_NAMESPACES };
 
 /**
  * Which of `keys` the build still has to look up.

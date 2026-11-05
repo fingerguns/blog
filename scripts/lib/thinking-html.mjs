@@ -67,9 +67,36 @@ function resolvePhotoUrls(mediaUrl, mediaUrls, siteUrl) {
   return urls;
 }
 
-function renderPhotoGallery(urls, mediaAlt) {
+/**
+ * The resolved URL of a note's photo when it has exactly one, else "". The
+ * build uses it to know which photos to measure, so it must resolve URLs
+ * exactly as renderThinkingContentHtml does — the cache is keyed by it.
+ */
+export function singlePhotoUrl(mediaUrl, mediaType, siteUrl = "", mediaUrls = []) {
+  if (inferMediaType(mediaUrl, mediaType) !== "image") return "";
+  const urls = resolvePhotoUrls(mediaUrl, mediaUrls, siteUrl);
+  return urls.length === 1 ? urls[0] : "";
+}
+
+function isLandscape(size) {
+  return Boolean(size && size.width > 0 && size.height > 0 && size.width > size.height);
+}
+
+function renderPhotoGallery(urls, mediaAlt, photoSize) {
   const alt = escHtml(mediaAlt || "Photo");
   if (urls.length === 1) {
+    // A landscape photo fills the column at its own aspect ratio; portrait and
+    // square photos (and any whose size is unknown) keep the square crop at
+    // two-thirds width. width/height on the <img> let the browser reserve the
+    // box before the file arrives.
+    const size = typeof photoSize === "function" ? photoSize(urls[0]) : null;
+    if (isLandscape(size)) {
+      return (
+        `<button type="button" class="thinking-photo-tile thinking-photo-tile--single thinking-photo-tile--landscape" data-gallery-index="0" aria-label="View photo">` +
+          `<img class="thinking-photo" src="${escHtml(urls[0])}" alt="${alt}" width="${size.width}" height="${size.height}" loading="lazy" decoding="async" />` +
+        `</button>`
+      );
+    }
     return (
       `<button type="button" class="thinking-photo-tile thinking-photo-tile--single" data-gallery-index="0" aria-label="View photo">` +
         `<img class="thinking-photo" src="${escHtml(urls[0])}" alt="${alt}" loading="lazy" decoding="async" />` +
@@ -155,7 +182,7 @@ export function renderThinkingContentHtml(
       `<video class="thinking-video" controls preload="${videoPreload}" playsinline src="${escHtml(resolvedUrl)}#t=0.001">${escHtml(mediaAlt || "Video")}</video>`
     );
   } else if (photoUrls.length) {
-    parts.push(renderPhotoGallery(photoUrls, mediaAlt));
+    parts.push(renderPhotoGallery(photoUrls, mediaAlt, options.photoSize));
   }
   return parts.join("\n");
 }

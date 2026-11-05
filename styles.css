@@ -1537,6 +1537,19 @@ a.post-admin-delete:hover {
   object-position: center;
 }
 
+/* One landscape photo: the full column width at the photo's own aspect ratio,
+   uncropped. The <img> carries width/height attributes from the build, so the
+   browser reserves the right box before the file loads. */
+.thinking-photo-tile--single.thinking-photo-tile--landscape {
+  width: 100%;
+  aspect-ratio: auto;
+}
+.thinking-photo-tile--landscape img.thinking-photo,
+.microblog-body .thinking-photo-tile--landscape img,
+.post .body .thinking-photo-tile--landscape img {
+  height: auto;
+}
+
 html.thinking-lightbox-open {
   overflow: hidden;
 }
@@ -2069,6 +2082,19 @@ footer.site-footer a {
 
 footer.site-footer a:hover {
   color: var(--link-hover);
+}
+
+/* The theme toggle is an icon (sun in dark mode, moon in light), named by
+   its aria-label — no underline, and sat on the text baseline. */
+footer.site-footer a.theme-toggle {
+  display: inline-block;
+  text-decoration: none;
+  vertical-align: -0.125em;
+  line-height: 1;
+}
+
+footer.site-footer a.theme-toggle svg {
+  display: block;
 }
 
 footer.site-footer code {

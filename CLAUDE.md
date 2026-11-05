@@ -83,12 +83,16 @@ Cloudflare Pages only (not GitHub Pages — there's no root `CNAME`). Build comm
 ## Architecture
 
 ```text
-Admin UI (Pages, static) → Worker API (worker/update-thinking.js) → D1 (write) + R2 (photos/audio/video)
+Admin UI (Pages, static) → Worker API (worker/update-thinking.js) → D1 (write + content_changes) + R2 (photos/audio/video)
                                           ↓
                                   Pages deploy hook
                                           ↓
-Pages build (build-pages.mjs) → D1 HTTP API (read, scripts/d1-client.mjs) → scripts/build.mjs → dist/ → rommy.blog
+Pages build (build-pages.mjs) → D1 HTTP API (read, scripts/d1-client.mjs) → scripts/build.mjs → dist/ → Pages
+                                                                                                         ↓
+                                      reader → Worker live overlay (worker/live-overlay.mjs, HTML routes) → rommy.blog
 ```
+
+**Live publishing overlays the static site; it does not replace it.** The Worker fronts the HTML routes and applies any `content_changes` rows newer than a page's watermark, rendering with the shared renderers in `scripts/lib/render/` — the build calls the same functions, so a live item and a rebuilt one are byte-identical. Rules that keep that true: **every content write site calls `recordContentChange()`** (`worker/content-changes.mjs`) beside its D1 statement; **list markup changes go through `scripts/lib/render/`**, not inline in `build.mjs`, and keep the `data-live-*` attributes; **a varying slot on a permalink page goes through its `*Parts()` function** in `scripts/lib/render/pages.mjs` (the `/_live/` templates are those pages with markers in the slots). Modules under `scripts/lib/` that the Worker imports must stay free of Node built-ins. Full design: README → Live publishing.
 
 **Everything writes through one Worker file.** `worker/update-thinking.js` (~3000 lines) is a single-endpoint action dispatcher: every mutating request is `POST` with `{password, action, ...}` in the body, checked against `verifyAdminPassword` + a D1-backed rate limiter (`auth_rate_limit` table, 5 failures/15min) before dispatching on `action` to a `handle*` function. Two routes bypass this and use their own auth instead: `POST /api/locations` (Overland GPS ingest, Bearer token in `LOCATION_API_TOKEN`) and `GET /api/now-location` (public, no auth — powers the public `/now/` map). `worker/*.mjs` files hold split-out concerns (`location.mjs`, `media.mjs`, `image-thumb.mjs`, `r2-presign.mjs`, `oura.mjs`, `reading-genres.mjs`, etc.) imported by the main file.
 

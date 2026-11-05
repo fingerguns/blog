@@ -172,3 +172,14 @@ CREATE TABLE IF NOT EXISTS build_cache (
 );
 
 CREATE INDEX IF NOT EXISTS idx_build_cache_namespace ON build_cache(namespace);
+
+-- Live publishing change log — see worker/migrate-content-changes.sql.
+CREATE TABLE IF NOT EXISTS content_changes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL,
+  key TEXT NOT NULL,
+  op TEXT NOT NULL CHECK (op IN ('upsert', 'delete')),
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_content_changes_created_at ON content_changes(created_at);

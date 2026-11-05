@@ -48,6 +48,35 @@ zone_name = "rommy.blog"
 pattern = "rommy.blog/api/now-location"
 zone_name = "rommy.blog"
 
+# Live publishing (live-overlay.mjs): the HTML pages that list or are
+# content. The Worker serves each from Pages with anything published since
+# its build applied. Kept to these paths so CSS, images, feeds and the other
+# static pages never wake the Worker. "rommy.blog/" with no wildcard is the
+# homepage alone.
+[[routes]]
+pattern = "rommy.blog/"
+zone_name = "rommy.blog"
+
+[[routes]]
+pattern = "rommy.blog/thinking*"
+zone_name = "rommy.blog"
+
+[[routes]]
+pattern = "rommy.blog/posts/*"
+zone_name = "rommy.blog"
+
+[[routes]]
+pattern = "rommy.blog/writing*"
+zone_name = "rommy.blog"
+
+[[routes]]
+pattern = "rommy.blog/reading*"
+zone_name = "rommy.blog"
+
+[[routes]]
+pattern = "rommy.blog/sharing*"
+zone_name = "rommy.blog"
+
 [triggers]
 crons = ["0 */4 * * *"]
 
