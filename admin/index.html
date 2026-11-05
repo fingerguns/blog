@@ -84,6 +84,18 @@
       .admin-form textarea.body-field {
         min-height: 18rem;
       }
+      /* Text fields always match :focus-visible, so, as in the Thinking
+         composer, they show focus with their border, not the site-wide ring. */
+      .admin-form input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+      .admin-form textarea:focus-visible,
+      .admin-form select:focus-visible,
+      .ql-editor:focus-visible {
+        outline: none;
+        border-color: var(--text);
+      }
+      .ql-container.ql-snow:focus-within {
+        border-color: var(--text);
+      }
       .admin-form button {
         font: inherit;
         font-weight: 600;
