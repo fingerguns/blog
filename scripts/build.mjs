@@ -2676,12 +2676,17 @@ for (const entry of STATIC_ENTRIES) {
 
 // The watermark as a response header too, so the live overlay can tell from
 // the headers alone that a page is current and stream it through untouched.
-// Its own /* block: Pages merges matching blocks, and this name is unique.
-writeFileSync(
-  join(outDir, "_headers"),
-  `${readFileSync(join(outDir, "_headers"), "utf8").trimEnd()}\n\n/*\n  X-Live-Watermark: ${liveWatermark}\n`,
-  "utf8"
-);
+// It goes *inside* the existing /* block. A second /* block is not merged
+// with the first: Pages applied only the later one, and every page lost its
+// CSP, X-Frame-Options and HSTS until this was moved.
+{
+  const headersPath = join(outDir, "_headers");
+  const lines = readFileSync(headersPath, "utf8").split("\n");
+  const at = lines.findIndex((line) => line.trim() === "/*");
+  if (at === -1) throw new Error("_headers has no /* block for X-Live-Watermark");
+  lines.splice(at + 1, 0, `  X-Live-Watermark: ${liveWatermark}`);
+  writeFileSync(headersPath, lines.join("\n"), "utf8");
+}
 
 console.log(`Wrote ${outDir}/ (generated pages + static assets)`);
 
