@@ -1,3 +1,6 @@
+import { CONTENT_KIND } from "../scripts/lib/live-changes.mjs";
+import { recordContentChange } from "./content-changes.mjs";
+
 const LOCATION_LOOKUP_WINDOW_MS = 15 * 60 * 1000;
 const LOCATION_LOOKUP_FALLBACK_WINDOW_MS = 6 * 60 * 60 * 1000;
 const MAX_HORIZONTAL_ACCURACY_M = 150;
@@ -451,6 +454,7 @@ export async function handleBackfillThinkingLocations(db, env) {
       continue;
     }
     await db.prepare("UPDATE thinking_posts SET location_label = ? WHERE slug = ?").bind(label, row.slug).run();
+    await recordContentChange(db, CONTENT_KIND.THINKING, row.slug, "upsert");
     updated += 1;
   }
 

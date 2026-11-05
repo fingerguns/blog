@@ -29,3 +29,34 @@ export function inheritLatestCover(favorite, lookup) {
   if (titleKey && lookup.byTitle.has(titleKey)) return lookup.byTitle.get(titleKey);
   return null;
 }
+
+/**
+ * A book's cover from the build's "reading-covers" cache: by URL, else by any
+ * cached entry with the same ISBN.
+ */
+export function coverFromCacheFor(url, cache) {
+  if (!url) return null;
+  if (cache[url]) return cache[url];
+  const isbn = isbnFromBookshopUrl(url);
+  if (!isbn) return null;
+  for (const [key, cover] of Object.entries(cache)) {
+    if (isbnFromBookshopUrl(key) === isbn) return cover;
+  }
+  return null;
+}
+
+// Open Library URLs in the cache are auto-fetched fallbacks and must not
+// override an admin-picked cover_url. Non-Open-Library entries are intentional
+// edition overrides (R2 uploads, Booksense, AbeBooks, etc.) and should win at
+// build time even before a D1 SQL migration runs.
+export function isCommittedCoverOverride(coverUrl) {
+  if (!coverUrl) return false;
+  return !/covers\.openlibrary\.org\//i.test(coverUrl);
+}
+
+/** The cover a Reading entry shows: a committed override, else its pick, else the cache. */
+export function coverForReadingEntryFrom(r, cache) {
+  const cached = coverFromCacheFor(r.url, cache);
+  if (cached && isCommittedCoverOverride(cached)) return cached;
+  return r.cover_url || cached || null;
+}

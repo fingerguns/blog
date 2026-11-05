@@ -72,6 +72,8 @@ import {
 import { bookshopAffiliateUrl, bookshopAffiliateIdFromEnv, isbnFromBookshopUrl } from "./lib/bookshop-affiliate.mjs";
 import {
   buildLatestCoverLookup,
+  coverForReadingEntryFrom,
+  coverFromCacheFor,
   inheritLatestCover,
 } from "./lib/reading-cover-inherit.mjs";
 import {
@@ -987,29 +989,11 @@ function titlesMatch(a, b) {
 }
 
 function coverFromCache(url) {
-  if (!url) return null;
-  if (readingCoverCache[url]) return readingCoverCache[url];
-  const isbn = isbnFromBookshopUrl(url);
-  if (!isbn) return null;
-  for (const [key, cover] of Object.entries(readingCoverCache)) {
-    if (isbnFromBookshopUrl(key) === isbn) return cover;
-  }
-  return null;
-}
-
-// Open Library URLs in reading-covers.json are auto-fetched fallbacks and
-// must not override an admin-picked cover_url. Non-Open-Library entries are
-// intentional edition overrides (R2 uploads, Booksense, AbeBooks, etc.) and
-// should win at build time even before a D1 SQL migration runs.
-function isCommittedCoverOverride(coverUrl) {
-  if (!coverUrl) return false;
-  return !/covers\.openlibrary\.org\//i.test(coverUrl);
+  return coverFromCacheFor(url, readingCoverCache);
 }
 
 function coverForReadingEntry(r) {
-  const cached = coverFromCache(r.url);
-  if (cached && isCommittedCoverOverride(cached)) return cached;
-  return r.cover_url || cached || null;
+  return coverForReadingEntryFrom(r, readingCoverCache);
 }
 
 // Cover lookup, most precise first:
@@ -2689,6 +2673,15 @@ for (const entry of STATIC_ENTRIES) {
     cpSync(src, join(outDir, entry), { recursive: true });
   }
 }
+
+// The watermark as a response header too, so the live overlay can tell from
+// the headers alone that a page is current and stream it through untouched.
+// Its own /* block: Pages merges matching blocks, and this name is unique.
+writeFileSync(
+  join(outDir, "_headers"),
+  `${readFileSync(join(outDir, "_headers"), "utf8").trimEnd()}\n\n/*\n  X-Live-Watermark: ${liveWatermark}\n`,
+  "utf8"
+);
 
 console.log(`Wrote ${outDir}/ (generated pages + static assets)`);
 

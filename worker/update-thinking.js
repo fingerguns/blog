@@ -8,6 +8,10 @@ import { escHtml } from "../scripts/lib/html.mjs";
 import { coalesceImageParagraphsHtml } from "../scripts/lib/coalesce-images.mjs";
 import { addHashtagFacets } from "../scripts/lib/linkify.mjs";
 import { renderThinkingContentHtml } from "../scripts/lib/thinking-html.mjs";
+import { CONTENT_KIND } from "../scripts/lib/live-changes.mjs";
+import { pruneContentChanges, recordContentChange } from "./content-changes.mjs";
+import { isLiveRoute, serveLive } from "./live-overlay.mjs";
+import { warmThinkingCaches, warmLinklogCache } from "./live-warm.mjs";
 import { parseYouTubeUrl } from "../scripts/lib/youtube.mjs";
 import {
   scheduleSectionHintRefresh,
@@ -141,6 +145,13 @@ const AUTH_LOCKOUT_SEC = 15 * 60;
 
 export default {
   async fetch(request, env, ctx) {
+    // Site pages: the static page from Pages, with anything published since
+    // its build applied (live-overlay.mjs). Only reached on the HTML routes in
+    // wrangler.toml, and only for rommy.blog itself.
+    if (isLiveRoute(request)) {
+      return serveLive(request, env);
+    }
+
     const url = new URL(request.url);
     if (url.pathname.startsWith("/media/")) {
       return serveMedia(request, env);
@@ -494,6 +505,7 @@ export default {
       console.error("Oura scheduled sync failed", err);
     }
     ctx.waitUntil(pruneJobRuns(env.DB));
+    ctx.waitUntil(pruneContentChanges(env.DB));
   },
 };
 
@@ -1079,6 +1091,10 @@ async function handleThinking(payload, db, cors, env, ctx) {
       locationLabel || null,
       nowIso
     );
+    await recordContentChange(db, CONTENT_KIND.THINKING, slug, "upsert");
+    // Link cards, Spotify art and the photo's shape, ahead of the rebuild,
+    // so the live copy of the note is the finished one.
+    ctx.waitUntil(warmThinkingCaches(env, { text, mediaUrl, mediaType, mediaUrls: mediaType === "image" ? mediaUrls : [], contentHtml }));
 
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Thinking", triggerRebuild);
@@ -2347,6 +2363,7 @@ async function handleDeleteThinking(payload, db, cors, env, ctx) {
     }
 
     await dbRun(db, "DELETE FROM thinking_posts WHERE slug = ?", slug);
+    await recordContentChange(db, CONTENT_KIND.THINKING, slug, "delete");
 
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Thinking", triggerRebuild);
@@ -2421,6 +2438,7 @@ async function handlePost(body, db, cors, env, ctx) {
       datetimeStr
     );
 
+    await recordContentChange(db, CONTENT_KIND.POST, slug, "upsert");
     await savePostVersion(db, slug, cleanTitle, cleanSummary, bodyHtml);
 
     // Clear draft if publishing from one
@@ -2471,7 +2489,7 @@ async function handleReading(body, db, cors, env, ctx) {
   };
 
   try {
-    await dbRun(
+    const readingInsert = await dbRun(
       db,
       "INSERT INTO reading (ym, title, url, added_at, cover_url, author) VALUES (?, ?, ?, ?, ?, ?)",
       entry.ym,
@@ -2481,6 +2499,7 @@ async function handleReading(body, db, cors, env, ctx) {
       entry.coverUrl,
       entry.author
     );
+    await recordContentChange(db, CONTENT_KIND.READING, readingInsert?.meta?.last_row_id, "upsert");
 
     const affiliateUrl = bookshopAffiliateUrl(entry.url, env.BOOKSHOP_AFFILIATE_ID);
 
@@ -2524,6 +2543,7 @@ async function handleDeleteReading(payload, db, cors, env, ctx) {
     }
 
     await dbRun(db, "DELETE FROM reading WHERE id = ?", id);
+    await recordContentChange(db, CONTENT_KIND.READING, id, "delete");
 
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Reading", triggerRebuild);
@@ -2578,6 +2598,7 @@ async function handleReadingFavorite(body, db, cors, env, ctx) {
 
     const inserted = await dbFirst(db, "SELECT id FROM reading_favorites WHERE rowid = last_insert_rowid()");
     const favoriteId = inserted?.id;
+    await recordContentChange(db, CONTENT_KIND.FAVORITE, favoriteId, "upsert");
 
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Reading", triggerRebuild);
@@ -2625,6 +2646,7 @@ async function handleDeleteReadingFavorite(payload, db, cors, env, ctx) {
     }
 
     await dbRun(db, "DELETE FROM reading_favorites WHERE id = ?", id);
+    await recordContentChange(db, CONTENT_KIND.FAVORITE, id, "delete");
 
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Reading", triggerRebuild);
@@ -2662,6 +2684,7 @@ async function handleUpdateReadingFavoriteCover(payload, db, cors, env) {
       author,
       id
     );
+    await recordContentChange(db, CONTENT_KIND.FAVORITE, id, "upsert");
     await triggerRebuild(env);
 
     return json({ ok: true }, 200, cors);
@@ -2937,6 +2960,7 @@ async function handleUpdateReadingCover(payload, db, cors, env) {
       author,
       id
     );
+    await recordContentChange(db, CONTENT_KIND.READING, id, "upsert");
     await triggerRebuild(env);
 
     return json({ ok: true }, 200, cors);
@@ -2980,6 +3004,8 @@ async function handleSharing(body, db, cors, env, ctx) {
 
     const inserted = await dbFirst(db, "SELECT id FROM linklog WHERE rowid = last_insert_rowid()");
     const linklogId = inserted?.id;
+    await recordContentChange(db, CONTENT_KIND.LINKLOG, linklogId, "upsert");
+    ctx.waitUntil(warmLinklogCache(env, entry.url));
 
     // Assign the topic tag synchronously, before syndicating, so the
     // cross-posted hashtags reflect it — a background assignment (as used
@@ -3112,6 +3138,7 @@ async function handleEditPost(body, db, cors, env, ctx) {
       now,
       cleanSlug
     );
+    await recordContentChange(db, CONTENT_KIND.POST, cleanSlug, "upsert");
 
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Writing", triggerRebuild);
@@ -3140,6 +3167,7 @@ async function handleDeletePost(body, db, cors, env, ctx) {
 
     await dbRun(db, "DELETE FROM post_versions WHERE slug = ?", cleanSlug);
     await dbRun(db, "DELETE FROM posts WHERE slug = ?", cleanSlug);
+    await recordContentChange(db, CONTENT_KIND.POST, cleanSlug, "delete");
 
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Writing", triggerRebuild);
@@ -3191,6 +3219,7 @@ async function handleUnpublishPost(body, db, cors, env, ctx) {
     );
 
     await dbRun(db, "DELETE FROM posts WHERE slug = ?", cleanSlug);
+    await recordContentChange(db, CONTENT_KIND.POST, cleanSlug, "delete");
 
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Writing", triggerRebuild);

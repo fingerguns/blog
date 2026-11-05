@@ -1,5 +1,7 @@
 import { anthropicConfigured, extractAnthropicText, runAnthropicText } from "../scripts/lib/anthropic.mjs";
 import { logAnthropicUsage } from "./anthropic-usage.mjs";
+import { CONTENT_KIND } from "../scripts/lib/live-changes.mjs";
+import { recordContentChange } from "./content-changes.mjs";
 import {
   buildGenreAssignmentPrompt,
   parseGenreAssignmentResponse,
@@ -73,6 +75,9 @@ export async function ensureGenre(db, label) {
 }
 
 export async function assignGenresToFavorite(db, favoriteId, tags) {
+  // A book's genres are on its Must Reads entry (data-genres), so they are a
+  // change to that entry for the live overlay.
+  await recordContentChange(db, CONTENT_KIND.FAVORITE, favoriteId, "upsert");
   await dbRun(db, "DELETE FROM reading_favorite_genres WHERE favorite_id = ?", favoriteId);
 
   for (const tag of tags) {

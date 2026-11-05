@@ -1,6 +1,8 @@
 import { anthropicConfigured, extractAnthropicText, runAnthropicText } from "../scripts/lib/anthropic.mjs";
 import { logAnthropicUsage } from "./anthropic-usage.mjs";
 import { buildLinklogTagPrompt, parseLinklogTagResponse } from "../scripts/lib/linklog-tags.mjs";
+import { CONTENT_KIND } from "../scripts/lib/live-changes.mjs";
+import { recordContentChange } from "./content-changes.mjs";
 
 const TAG_SYSTEM =
   "You assign topic tags to shared links for a personal blog's linklog. Output only valid JSON as requested.";
@@ -53,6 +55,7 @@ export async function evaluateAndAssignLinklogTags(env, db, linklogId) {
   try {
     const tags = parseLinklogTagResponse(extractAnthropicText(result));
     await dbRun(db, "UPDATE linklog SET tags = ? WHERE id = ?", tags.join(" "), linklogId);
+    await recordContentChange(db, CONTENT_KIND.LINKLOG, linklogId, "upsert");
     return { linklogId, saved: true, title: entry.title, tags };
   } catch (err) {
     return {
