@@ -785,17 +785,11 @@ h2 {
 }
 
 /* On a phone the text runs tall and narrow, which would crop a wide image
-   to a sliver; there the image sits across the top at the Open Graph
-   shape instead. */
+   to a sliver, and a full-width image costs too much height: the card
+   shows its words alone. */
 @media (max-width: 30rem) {
-  .linklog-card {
-    flex-direction: column;
-  }
-
   .linklog-card-thumb {
-    flex: none;
-    min-height: 0;
-    aspect-ratio: 1.91 / 1;
+    display: none;
   }
 }
 
