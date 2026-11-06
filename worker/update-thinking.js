@@ -10,7 +10,7 @@ import { addHashtagFacets } from "../scripts/lib/linkify.mjs";
 import { renderThinkingContentHtml } from "../scripts/lib/thinking-html.mjs";
 import { CONTENT_KIND } from "../scripts/lib/live-changes.mjs";
 import { pruneContentChanges, recordContentChange } from "./content-changes.mjs";
-import { isLiveRoute, serveLive } from "./live-overlay.mjs";
+import { isLiveRoute, isSitePassthrough, serveLive } from "./live-overlay.mjs";
 import { warmThinkingCaches, warmLinklogCache } from "./live-warm.mjs";
 import { parseYouTubeUrl } from "../scripts/lib/youtube.mjs";
 import {
@@ -150,6 +150,9 @@ export default {
     // wrangler.toml, and only for rommy.blog itself.
     if (isLiveRoute(request)) {
       return serveLive(request, env, ctx);
+    }
+    if (isSitePassthrough(request)) {
+      return fetch(request);
     }
 
     const url = new URL(request.url);

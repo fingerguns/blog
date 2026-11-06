@@ -833,8 +833,8 @@ ${postAdminActionPanelHtml}
 ${v.pager}
       <a class="back-to-top" href="#">↑ Top</a>
       <footer class="site-footer">
-        <p class="footer-row">&copy; 2026 ${escHtml(site.author)}<span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle" role="button"></a></span></p>
-        <p class="footer-row"><span><a href="../../feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
+        <p class="footer-row footer-row-toggle"><span>&copy; 2026 ${escHtml(site.author)}</span><a href="#" class="theme-toggle" id="theme-toggle" role="button"></a><a href="/search/" class="footer-icon" aria-label="Search" title="Search"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4.35-4.35"/></svg></a></p>
+        <p class="footer-row"><span>Subscribe via <a href="../../feed.xml" type="application/atom+xml" class="footer-icon" aria-label="Atom feed" title="Atom feed"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z"/></svg></a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);var l=t==='dark'?'Switch to light mode':'Switch to dark mode';b.innerHTML=t==='dark'?'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>':'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';b.setAttribute('aria-label',l);b.title=l;localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'dark');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
@@ -1294,6 +1294,78 @@ const descriptionMeta = descriptionText
   : "";
 const subtitleHtml = descriptionText ? `      <p class="lead">${escHtml(descriptionText)}</p>\n\n` : "";
 
+// The fold-down Thinking composer: hidden from everyone but a browser with an
+// admin session, and the composer itself (/thinking-composer.js, shared with
+// the admin's Thinking tab) is only fetched on the first open. Posting
+// reloads the page, and the live overlay shows the new note at once.
+const CARET_DOWN = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const CARET_UP = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 10l5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const homeComposerHtml = `      <div class="home-composer" id="home-composer" hidden>
+        <button type="button" class="home-composer-toggle home-composer-open" aria-expanded="false" aria-controls="home-composer-fold" aria-label="Write a Thinking note">${CARET_DOWN}</button>
+        <div class="home-composer-fold" id="home-composer-fold">
+          <div class="home-composer-panel" inert>
+            <div id="home-composer-mount"></div>
+            <button type="button" class="home-composer-toggle home-composer-close" aria-controls="home-composer-fold" aria-label="Hide the composer">${CARET_UP}</button>
+          </div>
+        </div>
+      </div>
+`;
+const homeComposerScript = `    <script>(function(){
+      var SESSION_KEY="admin_session";
+      var SESSION_TTL=${30 * 24 * 60 * 60 * 1000};
+      var API_URL=(function(){var h=location.hostname;if(h==="localhost"||h==="127.0.0.1")return"https://rommy-blog-admin.fingerguns.workers.dev";return"/api/admin";})();
+      function loadPw(){
+        try{
+          var raw=localStorage.getItem(SESSION_KEY);
+          if(raw){var s=JSON.parse(raw);if(s&&s.pw&&s.ts&&Date.now()-s.ts<SESSION_TTL)return s.pw;}
+          raw=sessionStorage.getItem(SESSION_KEY);
+          if(raw){var tab=JSON.parse(raw);if(tab&&tab.pw)return tab.pw;}
+        }catch(e){}
+        return null;
+      }
+      var wrap=document.getElementById("home-composer");
+      if(!wrap||!loadPw())return;
+      wrap.hidden=false;
+      var openBtn=wrap.querySelector(".home-composer-open");
+      var closeBtn=wrap.querySelector(".home-composer-close");
+      var panel=wrap.querySelector(".home-composer-panel");
+      var mountEl=document.getElementById("home-composer-mount");
+      var composer=null,loading=null;
+      function load(){
+        if(loading)return loading;
+        loading=new Promise(function(resolve,reject){
+          if(window.ThinkingComposer){resolve();return;}
+          var s=document.createElement("script");
+          s.src="/thinking-composer.js?v=${cssV}";
+          s.onload=function(){resolve();};
+          s.onerror=function(){loading=null;reject(new Error("Could not load the composer."));};
+          document.head.appendChild(s);
+        });
+        return loading;
+      }
+      function setOpen(open){
+        wrap.classList.toggle("is-open",open);
+        openBtn.setAttribute("aria-expanded",open?"true":"false");
+        panel.inert=!open;
+        if(open){if(composer)setTimeout(composer.focus,500);}else openBtn.focus({preventScroll:true});
+      }
+      openBtn.addEventListener("click",function(){
+        load().then(function(){
+          if(!composer){
+            composer=window.ThinkingComposer.mount(mountEl,{
+              apiUrl:API_URL,
+              getPassword:loadPw,
+              idPrefix:"home-t",
+              signedOutMessage:"Sign in at rommy.blog/admin/ on this device, then try again.",
+              onSaved:function(){setTimeout(function(){location.reload();},1200);}
+            });
+          }
+          setOpen(true);
+        },function(err){openBtn.title=err.message;});
+      });
+      closeBtn.addEventListener("click",function(){setOpen(false);});
+    }());</script>`;
+
 const latestThinkingItem = microblogItems[0];
 const thinkingSection = hasThinking(thinking)
   ? `      <section aria-labelledby="now-heading">
@@ -1352,7 +1424,7 @@ ${gaSnippet}
       <h1 class="site-title">${escHtml(site.title)}</h1>
       <hr class="hr" />
 ${subtitleHtml}
-
+${homeComposerHtml}
 ${thinkingSection}
 
       <section aria-labelledby="posts-heading">
@@ -1388,8 +1460,8 @@ ${socialsHtml}
       </section>
 
       <footer class="site-footer">
-        <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle" role="button"></a></span></p>
-        <p class="footer-row"><span>Subscribe via <a href="feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a>.</span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
+        <p class="footer-row footer-row-toggle"><span>&copy; 2026 ${escHtml(site.author)} <a href="/admin/" class="footer-icon" aria-label="Admin" title="Admin"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg></a></span><a href="#" class="theme-toggle" id="theme-toggle" role="button"></a><a href="/search/" class="footer-icon" aria-label="Search" title="Search"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4.35-4.35"/></svg></a></p>
+        <p class="footer-row"><span>Subscribe via <a href="feed.xml" type="application/atom+xml" class="footer-icon" aria-label="Atom feed" title="Atom feed"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z"/></svg></a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
 
 ${colophonSection}    </main>
@@ -1397,6 +1469,7 @@ ${colophonSection}    </main>
 ${socialsToggleScript}
 ${portraitPhotoToggleScript}
 ${thinkingLightboxScript}
+${homeComposerScript}
   </body>
 </html>
 `;
@@ -1472,8 +1545,8 @@ ${extraHead}
       ${headingHtml ?? `<h1>${escHtml(title)}</h1>`}`;
 
 const archiveFoot = (extraScripts = "", { infiniteScroll = true } = {}) => `      <footer class="site-footer">
-        <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle" role="button"></a></span></p>
-        <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
+        <p class="footer-row footer-row-toggle"><span>&copy; 2026 ${escHtml(site.author)} <a href="/admin/" class="footer-icon" aria-label="Admin" title="Admin"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg></a></span><a href="#" class="theme-toggle" id="theme-toggle" role="button"></a><a href="/search/" class="footer-icon" aria-label="Search" title="Search"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4.35-4.35"/></svg></a></p>
+        <p class="footer-row"><span>Subscribe via <a href="/feed.xml" type="application/atom+xml" class="footer-icon" aria-label="Atom feed" title="Atom feed"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z"/></svg></a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);var l=t==='dark'?'Switch to light mode':'Switch to dark mode';b.innerHTML=t==='dark'?'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>':'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';b.setAttribute('aria-label',l);b.title=l;localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'dark');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
@@ -1857,8 +1930,8 @@ ${gaSnippet}
       </nav>`;
 
 const thinkingPostFoot = `      <footer class="site-footer">
-        <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle" role="button"></a></span></p>
-        <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
+        <p class="footer-row footer-row-toggle"><span>&copy; 2026 ${escHtml(site.author)} <a href="/admin/" class="footer-icon" aria-label="Admin" title="Admin"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg></a></span><a href="#" class="theme-toggle" id="theme-toggle" role="button"></a><a href="/search/" class="footer-icon" aria-label="Search" title="Search"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4.35-4.35"/></svg></a></p>
+        <p class="footer-row"><span>Subscribe via <a href="/feed.xml" type="application/atom+xml" class="footer-icon" aria-label="Atom feed" title="Atom feed"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z"/></svg></a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);var l=t==='dark'?'Switch to light mode':'Switch to dark mode';b.innerHTML=t==='dark'?'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>':'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';b.setAttribute('aria-label',l);b.title=l;localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'dark');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
@@ -2276,8 +2349,8 @@ if(wrap.getAttribute('data-view')==='map')start();
 }());</script>`;
 
 const thinkingArchiveFoot = `      <footer class="site-footer">
-        <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle" role="button"></a></span></p>
-        <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
+        <p class="footer-row footer-row-toggle"><span>&copy; 2026 ${escHtml(site.author)} <a href="/admin/" class="footer-icon" aria-label="Admin" title="Admin"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg></a></span><a href="#" class="theme-toggle" id="theme-toggle" role="button"></a><a href="/search/" class="footer-icon" aria-label="Search" title="Search"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4.35-4.35"/></svg></a></p>
+        <p class="footer-row"><span>Subscribe via <a href="/feed.xml" type="application/atom+xml" class="footer-icon" aria-label="Atom feed" title="Atom feed"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z"/></svg></a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);var l=t==='dark'?'Switch to light mode':'Switch to dark mode';b.innerHTML=t==='dark'?'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>':'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';b.setAttribute('aria-label',l);b.title=l;localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'dark');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
@@ -2416,8 +2489,8 @@ const READING_GENRE_SLUGS = readingGenres.map((g) => g.slug);
 const readingArchiveScript = `    <script>(function(){var wrap=document.querySelector('.reading-views');if(!wrap)return;var tabBtns=wrap.querySelectorAll('[data-tab-btn]');var viewBtns=wrap.querySelectorAll('.reading-view-btn');var scrollObs=null;var scrollSentinel=null;var favoritesPanel=wrap.querySelector('[data-tab-panel="favorites"]');var genreFilterSelect=favoritesPanel?favoritesPanel.querySelector('.reading-genre-select'):null;var genreSlugs=${JSON.stringify(READING_GENRE_SLUGS)};var activeGenre=null;var genreFilterActive=false;var TAB_PATH={latest:'/reading/latest/',favorites:'/reading/must-reads/'};var HASH_TAB={latest:'latest','must-reads':'favorites'};function normPath(){return location.pathname.replace(/\\/+$/,'')||'/';}function genreFromPath(){var p=normPath();if(p.indexOf('/reading/must-reads/')!==0)return null;var seg=p.slice('/reading/must-reads/'.length).replace(/\\/+$/,'');if(!seg)return null;return genreSlugs.indexOf(seg)>=0?seg:null;}function pathForGenre(){return activeGenre?'/reading/must-reads/'+activeGenre+'/':'/reading/must-reads/';}function tabFromPath(){var p=normPath();if(p==='/reading/latest')return'latest';if(p==='/reading/must-reads')return'favorites';if(p.indexOf('/reading/must-reads/')===0)return'favorites';return null;}function tabFromHash(){var h=location.hash.replace(/^#/,'');return HASH_TAB[h]||null;}function pathForTab(t){return TAB_PATH[t]||'/reading/latest/';}function activePanel(){return wrap.querySelector('[data-tab-panel="'+wrap.getAttribute('data-tab')+'"]');}function genreItemMatches(el){if(!genreFilterActive||!activeGenre)return true;var tags=(el.getAttribute('data-genres')||'').split(/\\s+/).filter(Boolean);return tags.indexOf(activeGenre)>=0;}function applyGenreFilters(){if(!favoritesPanel)return;var on=genreFilterActive&&activeGenre;if(genreFilterSelect)genreFilterSelect.value=on?activeGenre:'';favoritesPanel.querySelectorAll('.post-list li').forEach(function(el){el.hidden=on&&!genreItemMatches(el);});favoritesPanel.querySelectorAll('.reading-grid-item').forEach(function(el){el.hidden=on&&!genreItemMatches(el);});}function syncGenrePath(skipPath){if(skipPath||wrap.getAttribute('data-tab')!=='favorites')return;var want=pathForGenre();if(location.pathname!==want)history.replaceState(null,'',want);}function setGenreFromPath(){activeGenre=genreFromPath();genreFilterActive=Boolean(activeGenre);}function setTab(t,skipPath){wrap.setAttribute('data-tab',t);tabBtns.forEach(function(b){b.setAttribute('aria-selected',b.getAttribute('data-tab-btn')===t?'true':'false');});if(!skipPath){var want=pathForTab(t);if(location.pathname!==want||location.hash)history.replaceState(null,'',want);if(t!=='favorites'){activeGenre=null;genreFilterActive=false;}}applyGenreFilters();setupInfiniteScroll();}function setView(v){wrap.setAttribute('data-view',v);viewBtns.forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-view-btn')===v?'true':'false');});localStorage.setItem('readingView',v);}function setupInfiniteScroll(){if(scrollObs){scrollObs.disconnect();scrollObs=null;}if(scrollSentinel){scrollSentinel.remove();scrollSentinel=null;}if(wrap.getAttribute('data-tab')==='favorites'&&genreFilterActive&&activeGenre){return;}var panel=activePanel();if(!panel)return;var list=panel.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');items.forEach(function(li){if(!genreFilterActive||!activeGenre)li.hidden=false;});var BATCH=10;if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++){if(!genreFilterActive||!activeGenre)items[i].hidden=true;}var shown=BATCH;scrollSentinel=document.createElement('div');scrollSentinel.className='reading-scroll-sentinel';panel.appendChild(scrollSentinel);scrollObs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++){if(!genreFilterActive||!activeGenre)items[i].hidden=false;}shown=next;if(shown>=items.length){scrollObs.disconnect();scrollObs=null;}},{rootMargin:'0px'});scrollObs.observe(scrollSentinel);}var fromHash=tabFromHash();if(fromHash)history.replaceState(null,'',pathForTab(fromHash));setGenreFromPath();var initialTab=tabFromPath()||'latest';setTab(initialTab,true);setView(localStorage.getItem('readingView')||'list');tabBtns.forEach(function(b){b.addEventListener('click',function(){if(b.getAttribute('data-tab-btn')==='favorites'){activeGenre=null;genreFilterActive=false;}setTab(b.getAttribute('data-tab-btn'));});});viewBtns.forEach(function(b){b.addEventListener('click',function(){setView(b.getAttribute('data-view-btn'));});});if(genreFilterSelect){genreFilterSelect.addEventListener('change',function(){var slug=genreFilterSelect.value;if(!slug){activeGenre=null;genreFilterActive=false;}else{activeGenre=slug;genreFilterActive=true;}applyGenreFilters();setupInfiniteScroll();syncGenrePath();});}window.addEventListener('popstate',function(){setGenreFromPath();setTab(tabFromPath()||'latest',true);});}());</script>`;
 
 const readingArchiveFoot = `      <footer class="site-footer">
-        <p class="footer-row"><span>&copy; 2026 ${escHtml(site.author)} (<a href="/admin/">admin</a>)</span><span><a href="/search/">Search</a> // <a href="#" class="theme-toggle" id="theme-toggle" role="button"></a></span></p>
-        <p class="footer-row"><span><a href="/feed.xml" type="application/atom+xml">Atom feed</a> or <a href="https://buttondown.com/rommy" target="_blank" rel="noopener">Buttondown</a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
+        <p class="footer-row footer-row-toggle"><span>&copy; 2026 ${escHtml(site.author)} <a href="/admin/" class="footer-icon" aria-label="Admin" title="Admin"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg></a></span><a href="#" class="theme-toggle" id="theme-toggle" role="button"></a><a href="/search/" class="footer-icon" aria-label="Search" title="Search"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4.35-4.35"/></svg></a></p>
+        <p class="footer-row"><span>Subscribe via <a href="/feed.xml" type="application/atom+xml" class="footer-icon" aria-label="Atom feed" title="Atom feed"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z"/></svg></a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);var l=t==='dark'?'Switch to light mode':'Switch to dark mode';b.innerHTML=t==='dark'?'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>':'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';b.setAttribute('aria-label',l);b.title=l;localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'dark');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
@@ -2666,7 +2739,7 @@ ordered.forEach((p, i) => {
   writeFileSync(join(outDir, "posts", slug, "index.html"), postPageHtml(parts), "utf8");
 });
 
-const STATIC_ENTRIES = ["styles.css", "favicon.png", "about", "admin", "colophon", "contact", "_headers", "_redirects"];
+const STATIC_ENTRIES = ["styles.css", "thinking-composer.js", "favicon.png", "about", "admin", "colophon", "contact", "_headers", "_redirects"];
 for (const entry of STATIC_ENTRIES) {
   const src = join(root, entry);
   if (existsSync(src)) {
