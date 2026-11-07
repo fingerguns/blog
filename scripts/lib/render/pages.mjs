@@ -14,7 +14,14 @@
  */
 import { escHtml } from "../html.mjs";
 import { formatMbDate, readingMins, safeSlug, stripHtml, toETDate } from "./format.mjs";
-import { firstImageFromHtml, thinkingSnippet, thinkingPostMetaHtml, thinkingUnfurlsHtml } from "./thinking.mjs";
+import { videoPosterUrlFromVideoUrl } from "../media-url.mjs";
+import {
+  firstImageFromHtml,
+  thinkingSnippet,
+  thinkingPostMetaHtml,
+  thinkingUnfurlsHtml,
+  videoSrcFromHtml,
+} from "./thinking.mjs";
 
 /** Slot markers for the /_live/ templates. Plain ASCII, untouched by escHtml. */
 export const LIVE_TOKENS = {
@@ -75,22 +82,34 @@ export function ogMetaTags(ctx, { type = "website", title, description = "", url
   return lines.join("\n");
 }
 
-export function thinkingOgFromItem(item, ctx) {
+export function thinkingOgImage(item, ctx, renderCtx = {}) {
+  const photo = firstImageFromHtml(item.content_html);
+  if (photo) return photo;
+  const videoSrc = videoSrcFromHtml(item.content_html);
+  const posters = renderCtx.videoPosters || {};
+  if (videoSrc && posters[videoSrc]) {
+    const posterUrl = videoPosterUrlFromVideoUrl(videoSrc, ctx.base);
+    if (posterUrl) return posterUrl;
+  }
+  return defaultOgImage(ctx);
+}
+
+export function thinkingOgFromItem(item, ctx, renderCtx = {}) {
   const description = thinkingSnippet(stripHtml(item.content_html));
-  const image = firstImageFromHtml(item.content_html) || defaultOgImage(ctx);
-  return { description, image };
+  return { description, image: thinkingOgImage(item, ctx, renderCtx) };
 }
 
 /**
  * The varying slots of a Thinking permalink. `detailContent` is the note's
- * body rendered for its own page (the build preloads video there).
- * `renderCtx` is the full renderer context (for the link cards).
+ * body rendered for its own page (preload stays `metadata`, so a large clip
+ * does not start downloading until the visitor plays it).
+ * `renderCtx` is the full renderer context (for the link cards and OG image).
  */
 export function thinkingPermalinkParts(item, slug, detailContent, ctx, renderCtx) {
   const iso = item.date_published;
   const pageTitle = `${formatMbDate(iso)} — ${ctx.siteTitle}`;
   const pageUrl = `${ctx.base}/thinking/${slug}/`;
-  const og = thinkingOgFromItem(item, ctx);
+  const og = thinkingOgFromItem(item, ctx, renderCtx);
   return {
     title: escHtml(pageTitle),
     og: ogMetaTags(ctx, { type: "article", title: pageTitle, description: og.description, url: pageUrl, image: og.image }),

@@ -7,6 +7,7 @@ import {
   GRID_THUMB_WIDTH,
   toSiteMediaUrl,
   videoPosterKeyFromVideoUrl,
+  videoPosterUrlFromVideoUrl,
   upgradeSpotifyImageUrl,
   thinkingGridThumbUrl,
 } from "./media-url.mjs";
@@ -60,6 +61,14 @@ test("poster keys are derived after r2.dev normalisation", () => {
     videoPosterKeyFromVideoUrl("https://pub-abc.r2.dev/thinking/video/2026-07-12/clip.mov", SITE),
     "thinking/video/2026-07-12/clip-poster.jpg"
   );
+});
+
+test("poster public URLs sit next to the video on /media/", () => {
+  assert.equal(
+    videoPosterUrlFromVideoUrl(`${SITE}/media/thinking/video/2026-07-12/clip.mp4`, SITE),
+    `${SITE}/media/thinking/video/2026-07-12/clip-poster.jpg`
+  );
+  assert.equal(videoPosterUrlFromVideoUrl(`${SITE}/media/thinking/photo/a.jpg`, SITE), "");
 });
 
 test("non-video media yields no poster key", () => {

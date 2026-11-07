@@ -25,7 +25,6 @@ import { LINKLOG_TAG_LABELS } from "./lib/linklog-tags.mjs";
 import { mapWithConcurrency } from "./lib/concurrency.mjs";
 import { unfurlableUrls, singlePhotoUrl } from "./lib/thinking-html.mjs";
 import {
-  firstImageFromHtml,
   hasThinking,
   imageSrcAltFromHtml,
   monthLabelET,
@@ -34,7 +33,6 @@ import {
   stripMediaMarkup,
   THINKING_GRID_KINDS,
   THINKING_MEDIA_ICONS,
-  thinkingContentHtmlFromRow as thinkingContentHtmlFromRowShared,
   thinkingGridItemHtml as thinkingGridItemHtmlShared,
   thinkingGridKind,
   thinkingGridMonthHtml,
@@ -737,10 +735,6 @@ const THINKING_FILTER_PATH = {
 const THINKING_PATH_FILTER = Object.fromEntries(
   Object.entries(THINKING_FILTER_PATH).map(([kind, segment]) => [segment, kind])
 );
-
-function thinkingContentHtmlFromRow(p, options = {}) {
-  return thinkingContentHtmlFromRowShared(p, renderCtx, options);
-}
 
 function renderThinkingHtml(thinking) {
   return renderThinkingHtmlShared(thinking, renderCtx);
@@ -2700,14 +2694,11 @@ ${thinkingDeletePanelHtml}
 ${thinkingPostFoot}`;
 }
 
-// Individual thinking post pages — preload video on detail pages for faster playback start
+// Individual thinking post pages. Preload stays metadata (the list body's
+// default): eager `auto` would start downloading a 1 GB clip on page open.
 for (const item of microblogItems) {
   const slug = thinkingSlug(item);
-  const row = thinkingPosts.find((p) => p.slug === slug);
-  const detailContent = row
-    ? thinkingContentHtmlFromRow(row, { videoPreload: "auto" })
-    : item.content_html;
-  const parts = thinkingPermalinkParts(item, slug, detailContent, pageCtx, renderCtx);
+  const parts = thinkingPermalinkParts(item, slug, item.content_html, pageCtx, renderCtx);
   const postHtml = thinkingPermalinkPageHtml(parts);
   mkdirSync(join(outDir, "thinking", slug), { recursive: true });
   writeFileSync(join(outDir, "thinking", slug, "index.html"), postHtml, "utf8");

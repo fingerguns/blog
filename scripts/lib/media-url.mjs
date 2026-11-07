@@ -34,6 +34,13 @@ export function videoPosterKeyFromVideoUrl(url, siteUrl = "https://rommy.blog") 
   return "";
 }
 
+/** Public /media/ URL for a native video's grid poster, or "" if `url` is not one. */
+export function videoPosterUrlFromVideoUrl(url, siteUrl = "https://rommy.blog") {
+  const key = videoPosterKeyFromVideoUrl(url, siteUrl);
+  if (!key) return "";
+  return `${String(siteUrl).replace(/\/$/, "")}/media/${key}`;
+}
+
 /** Largest common Spotify CDN size for album/track art (640×640). */
 const SPOTIFY_ALBUM_ART_LARGE = "ab67616d0000b273";
 

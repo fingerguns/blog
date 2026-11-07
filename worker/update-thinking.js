@@ -37,7 +37,11 @@ import { hashtagWordsForTags } from "../scripts/lib/linklog-tags.mjs";
 import { getAnthropicUsageSummary } from "./anthropic-usage.mjs";
 import { serveMedia } from "./media.mjs";
 import { createR2PresignedPutUrl } from "./r2-presign.mjs";
-import { thinkingVideoPosterKey, uploadVideoPosterToR2 } from "./video-poster.mjs";
+import {
+  isValidThinkingVideoPosterKey,
+  thinkingVideoPosterKey,
+  uploadVideoPosterToR2,
+} from "./video-poster.mjs";
 import {
   handleLocationIngest,
   handleLocationQuery,
@@ -91,13 +95,17 @@ import {
  * Syndication of audio/video (Thinking posts):
  *   micro.blog  — audio and video URLs are passed via Micropub `audio[]` / `video[]` properties,
  *                 so micro.blog and downstream podcast/RSS readers render a native player.
+ *                 Video over 100 MB skips `video[]` and posts a permalink (Micro.blog
+ *                 would otherwise try to fetch the whole file).
  *   Mastodon    — audio and video files are uploaded as native media attachments (up to 40 MB).
  *                 Falls back to a link-in-text post when the file is too large or unavailable.
  *   Bluesky     — MP4 and MOV (iPhone) video both play natively via Bluesky's video-
  *                 processing service (video.bsky.app), which transcodes server-side.
  *                 Audio posts use a link card (Bluesky has no native audio support).
  *                 Video falls back to a link card when native upload, processing, or
- *                 createRecord fails.
+ *                 createRecord fails, or when the file is over 100 MB.
+ *   Link cards  — the fallback card (and the permalink's og:image) uses the video's
+ *                 still frame as the thumbnail, not a photo attachment with a play icon.
  *   All media   — when a native player is attached, the Thinking permalink is also included in
  *                 the post text (Bluesky cannot combine a link card embed with media embeds).
  */
@@ -106,7 +114,9 @@ const SITE_URL = "https://rommy.blog";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_PHOTO_INPUT_BYTES = 25 * 1024 * 1024;
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
-const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 1024 * 1024 * 1024; // 1 GB — presigned R2 path
+const MAX_VIDEO_MULTIPART_BYTES = 100 * 1024 * 1024; // Worker FormData fallback (request body + isolate memory)
+const VIDEO_PRESIGN_EXPIRES_SEC = 3600;
 const MAX_BLUESKY_IMAGE_BYTES = 2_000_000;
 const MAX_BLUESKY_LINK_THUMB_BYTES = 1_000_000;
 const MAX_BLUESKY_VIDEO_BYTES = 100 * 1024 * 1024;
@@ -805,12 +815,33 @@ function thinkingMediaLabel(mediaType) {
   return "Note";
 }
 
-function thinkingBlueskyLinkCard(postUrl, text, mediaType) {
+function thinkingBlueskyLinkCard(postUrl, text, mediaType, poster = null) {
   return {
     uri: postUrl,
     title: text.slice(0, 100).trim() || thinkingMediaLabel(mediaType),
     description: `${mediaType === "video" ? "Video" : "Audio"} on rommy.blog`,
-    thumb: null,
+    thumb: poster?.url || null,
+    thumbBytes: poster?.bytes || null,
+    thumbMime: poster?.mimeType || null,
+  };
+}
+
+function videoExceedsNativeSyndication(size) {
+  return Number(size) > MAX_BLUESKY_VIDEO_BYTES;
+}
+
+async function loadVideoPosterForSyndication(env, videoKey) {
+  const posterKey = thinkingVideoPosterKey(videoKey);
+  if (!isValidThinkingVideoPosterKey(posterKey) || !env.MEDIA) return null;
+  const object = await env.MEDIA.get(posterKey);
+  if (!object) return null;
+  const bytes = await object.arrayBuffer();
+  if (!bytes || bytes.byteLength === 0) return null;
+  const publicBase = (env.MEDIA_PUBLIC_URL || "").replace(/\/$/, "");
+  return {
+    url: publicBase ? `${publicBase}/${posterKey}` : null,
+    bytes,
+    mimeType: "image/jpeg",
   };
 }
 
@@ -916,8 +947,16 @@ async function handleThinking(payload, db, cors, env, ctx) {
           // Pass the hosted audio URL via Micropub so micro.blog renders a player.
           microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, mbText, null, mediaUrl, null);
         } else if (mediaType === "video") {
-          // Pass the hosted video URL via Micropub so micro.blog renders a player.
-          microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, mbText, null, null, mediaUrl);
+          if (videoExceedsNativeSyndication(syndicationMedia?.size)) {
+            // A `video[]` URL would make Micro.blog fetch a file it cannot host.
+            microblogUrl = await postToMicroblog(
+              env.MICROBLOG_TOKEN,
+              thinkingLinkSyndicationText(text, postUrl, "video")
+            );
+          } else {
+            // Pass the hosted video URL via Micropub so micro.blog renders a player.
+            microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, mbText, null, null, mediaUrl);
+          }
         } else if (mediaType === "image") {
           microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, mbText, syndicationPhotos);
         } else {
@@ -967,9 +1006,15 @@ async function handleThinking(payload, db, cors, env, ctx) {
 
         // Always prepare a link card for audio/video so Bluesky still posts when native
         // upload fails (MOV, Worker timeout, or createRecord rejecting the video embed).
+        // Video cards use the captured still as the thumb — a clickable card, not a
+        // photo attachment with a play icon, which would open the JPEG instead of the post.
         let blueskyLinkCard = null;
         if (isLinkOnlyThinkingMedia(mediaType)) {
-          blueskyLinkCard = thinkingBlueskyLinkCard(postUrl, text, mediaType);
+          const poster =
+            mediaType === "video" && syndicationMedia?.key
+              ? await loadVideoPosterForSyndication(env, syndicationMedia.key)
+              : null;
+          blueskyLinkCard = thinkingBlueskyLinkCard(postUrl, text, mediaType, poster);
         } else if (!blueskyImages) {
           // The Bluesky app builds a link card in its composer; posting through the API
           // gets none unless we attach one. Any text-only post with a URL carries that
@@ -1533,7 +1578,7 @@ async function handleThinkingVideoUploadUrl(payload, cors, env) {
     return json({ error: "Video must be MP4 or MOV (iPhone)." }, 400, cors);
   }
   if (!Number.isFinite(size) || size <= 0 || size > MAX_VIDEO_BYTES) {
-    return json({ error: "Video must be 100 MB or smaller." }, 400, cors);
+    return json({ error: "Video must be 1 GB or smaller." }, 400, cors);
   }
 
   const bucket = env.R2_BUCKET_NAME || "rommy-blog-media";
@@ -1556,6 +1601,7 @@ async function handleThinkingVideoUploadUrl(payload, cors, env) {
       accessKeyId: env.R2_ACCESS_KEY_ID,
       secretAccessKey: env.R2_SECRET_ACCESS_KEY,
       mimeType,
+      expiresSec: VIDEO_PRESIGN_EXPIRES_SEC,
     });
     posterUploadUrl = await createR2PresignedPutUrl({
       accountId: env.R2_ACCOUNT_ID,
@@ -1564,6 +1610,7 @@ async function handleThinkingVideoUploadUrl(payload, cors, env) {
       accessKeyId: env.R2_ACCESS_KEY_ID,
       secretAccessKey: env.R2_SECRET_ACCESS_KEY,
       mimeType: "image/jpeg",
+      expiresSec: VIDEO_PRESIGN_EXPIRES_SEC,
     });
   } catch (err) {
     return json(
@@ -1605,7 +1652,7 @@ async function finalizeVideoFromR2(env, key, expectedMime) {
     throw new Error("Video upload not found. Try uploading again.");
   }
   if (head.size > MAX_VIDEO_BYTES) {
-    throw new Error("Video must be 100 MB or smaller.");
+    throw new Error("Video must be 1 GB or smaller.");
   }
 
   const mimeType =
@@ -1637,8 +1684,8 @@ async function uploadVideoToR2(env, file) {
   if (!mimeType || !ALLOWED_VIDEO_TYPES.has(mimeType)) {
     throw new Error("Video must be MP4 or MOV (iPhone).");
   }
-  if (file.size > MAX_VIDEO_BYTES) {
-    throw new Error("Video must be 100 MB or smaller.");
+  if (file.size > MAX_VIDEO_MULTIPART_BYTES) {
+    throw new Error("Video must be 100 MB or smaller to upload through the Worker.");
   }
 
   const bytes = await file.arrayBuffer();
@@ -2037,39 +2084,49 @@ function truncateBlueskyEmbedText(value, maxLen = 256) {
 
 async function blueskyExternalEmbed(accessJwt, linkCard, { includeThumb = true } = {}) {
   let thumb = null;
-  if (includeThumb && linkCard.thumb) {
-    try {
-      const thumbRes = await fetch(linkCard.thumb, {
-        headers: { Accept: "image/*" },
-        redirect: "follow",
-      });
-      if (thumbRes.ok) {
-        const rawBytes = await thumbRes.arrayBuffer();
-        const rawMime = (thumbRes.headers.get("content-type") || "image/jpeg").split(";")[0].trim();
-        const mimeType = ALLOWED_IMAGE_TYPES.has(rawMime) ? rawMime : "image/jpeg";
-        let uploadBytes = null;
-        let uploadMime = mimeType;
-        try {
-          const prepared = await compressImageUnderByteLimit(
-            rawBytes,
-            mimeType,
-            MAX_BLUESKY_LINK_THUMB_BYTES
-          );
-          uploadBytes = prepared.bytes;
-          uploadMime = prepared.mimeType;
-        } catch {
-          // Oversized GIF or uncompressible image — post without thumb.
+  if (includeThumb) {
+    let rawBytes = linkCard.thumbBytes || null;
+    let rawMime = linkCard.thumbMime || "image/jpeg";
+    if (!rawBytes && linkCard.thumb) {
+      try {
+        const thumbRes = await fetch(linkCard.thumb, {
+          headers: { Accept: "image/*" },
+          redirect: "follow",
+        });
+        if (thumbRes.ok) {
+          rawBytes = await thumbRes.arrayBuffer();
+          rawMime = (thumbRes.headers.get("content-type") || "image/jpeg").split(";")[0].trim();
         }
-        if (uploadBytes) {
+      } catch {
+        rawBytes = null;
+      }
+    }
+    if (rawBytes) {
+      const mimeType = ALLOWED_IMAGE_TYPES.has(rawMime) ? rawMime : "image/jpeg";
+      let uploadBytes = null;
+      let uploadMime = mimeType;
+      try {
+        const prepared = await compressImageUnderByteLimit(
+          rawBytes,
+          mimeType,
+          MAX_BLUESKY_LINK_THUMB_BYTES
+        );
+        uploadBytes = prepared.bytes;
+        uploadMime = prepared.mimeType;
+      } catch {
+        // Oversized GIF or uncompressible image — post without thumb.
+      }
+      if (uploadBytes) {
+        try {
           const blobRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", {
             method: "POST",
             headers: { Authorization: `Bearer ${accessJwt}`, "Content-Type": uploadMime },
             body: uploadBytes,
           });
           if (blobRes.ok) ({ blob: thumb } = await blobRes.json());
-        }
+        } catch {}
       }
-    } catch {}
+    }
   }
   return {
     $type: "app.bsky.embed.external",
