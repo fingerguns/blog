@@ -4,7 +4,7 @@ A scored comparison of the four forge options for rommy.blog, with **GitHub as t
 
 Migration mechanics live in [`FORGEJO-MIGRATION.md`](FORGEJO-MIGRATION.md) and [`ORIGIN-MIGRATION.md`](ORIGIN-MIGRATION.md). Entire has no migration plan yet; it is mirrored, not migrated (see [Where a challenger already wins](#where-a-challenger-already-wins)). This document is only the comparison.
 
-**Last scored: 2026-08-28; Entire added 2026-11-07.** Kept current by the weekly docs drift sweep.
+**Last scored: 2026-08-28; Entire added 2026-11-07.** Kept current by the **Weekly forge re-score** Claude Code cloud routine (since 2026-11-07, Mondays 14:00 UTC), which re-researches every column, checks the tripwires, and opens a `docs/forge-rescore-*` PR only when something changed. Before that routine existed, nothing re-scored this document on a schedule.
 
 ---
 
