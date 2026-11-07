@@ -11,7 +11,7 @@
  * D1 every time. Never throws.
  */
 import { CACHE_NAMESPACES } from "../scripts/lib/build-cache-namespaces.mjs";
-import { fetchLinkUnfurl } from "../scripts/lib/link-unfurl.mjs";
+import { fetchLinkUnfurlResult, unfurlCacheValue } from "../scripts/lib/link-unfurl.mjs";
 import { imageSizeFromBytes } from "../scripts/lib/image-size.mjs";
 import { singlePhotoUrl, unfurlableUrls } from "../scripts/lib/thinking-html.mjs";
 import { upgradeSpotifyImageUrl, videoPosterKeyFromVideoUrl } from "../scripts/lib/media-url.mjs";
@@ -63,14 +63,14 @@ export async function warmThinkingCaches(env, { text, mediaUrl, mediaType, media
   const db = env.DB;
   if (!db) return;
   try {
-    // Link cards. A miss is cached as false and not retried, as in the build
-    // (the build drops those misses once when UNFURL_FETCHER_ID changes).
+    // Link cards. A miss is cached as { miss: reason } and not retried, as in
+    // the build (which drops misses once when UNFURL_FETCHER_ID changes).
     const urls = unfurlableUrls(text);
     const haveUnfurls = await cachedKeys(db, CACHE_NAMESPACES.THINKING_UNFURLS, urls);
     await Promise.all(
       urls
         .filter((u) => !haveUnfurls.has(u))
-        .map(async (u) => putCache(db, CACHE_NAMESPACES.THINKING_UNFURLS, u, (await fetchLinkUnfurl(u)) || false))
+        .map(async (u) => putCache(db, CACHE_NAMESPACES.THINKING_UNFURLS, u, unfurlCacheValue(await fetchLinkUnfurlResult(u))))
     );
 
     // Spotify art. The build caches only hits (a miss retries next build).
@@ -108,7 +108,7 @@ export async function warmLinklogCache(env, url) {
   if (!db || !url) return;
   try {
     if ((await cachedKeys(db, CACHE_NAMESPACES.LINKLOG_UNFURLS, [url])).has(url)) return;
-    await putCache(db, CACHE_NAMESPACES.LINKLOG_UNFURLS, url, (await fetchLinkUnfurl(url)) || false);
+    await putCache(db, CACHE_NAMESPACES.LINKLOG_UNFURLS, url, unfurlCacheValue(await fetchLinkUnfurlResult(url)));
   } catch (err) {
     console.error("live warm: Sharing card", err);
   }

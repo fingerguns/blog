@@ -6,6 +6,7 @@
  */
 import { escHtml } from "../html.mjs";
 import { safeSlug, stripHashtags, toETDate, linkDomain } from "./format.mjs";
+import { knownSiteName, unfurlHit } from "../link-unfurl.mjs";
 
 export const renderPostItem = (p, absolute = false) =>
   `          <li>
@@ -78,13 +79,18 @@ export const renderLinklogItem = (l) => {
           </li>`;
 };
 
-/** `unfurl` is the link's build_cache "linklog-unfurls" entry, or null. */
-export const renderLinklogArchiveItem = (l, unfurl) => {
+/**
+ * `cached` is the link's build_cache "linklog-unfurls" entry: card data, a
+ * miss (`false` or `{ miss }`), or null. A miss still renders a card — the
+ * link's own title is always there — named by publication when known.
+ */
+export const renderLinklogArchiveItem = (l, cached) => {
+  const unfurl = unfurlHit(cached);
   const tagSlugs = Array.isArray(l.tags) ? l.tags.filter(Boolean) : [];
   const tagAttr = tagSlugs.length ? ` data-tags="${escHtml(tagSlugs.join(" "))}"` : "";
   const title = stripHashtags(l.title);
   const domain = linkDomain(l.url);
-  const sourceLabel = unfurl?.siteName || domain;
+  const sourceLabel = unfurl?.siteName || knownSiteName(l.url) || domain;
   // Unlike Spotify/YouTube thumbnails (stable CDNs) or Thinking/Reading media
   // (R2-native), these images are hotlinked straight from whatever site was
   // shared — if one goes away or starts blocking hotlinking, fail quietly

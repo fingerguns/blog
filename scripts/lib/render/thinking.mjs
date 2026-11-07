@@ -17,6 +17,7 @@ import { renderThinkingContentHtml, unfurlableUrls } from "../thinking-html.mjs"
 import { thinkingGridThumbUrl, videoPosterKeyFromVideoUrl } from "../media-url.mjs";
 import { thinkingSlugFromIso } from "../thinking-slug.mjs";
 import { formatMbDate, stripHtml, linkDomain } from "./format.mjs";
+import { fallbackUnfurlFromUrl, isUnfurlMiss, unfurlHit } from "../link-unfurl.mjs";
 
 export function firstImageFromHtml(html) {
   const m = String(html || "").match(/<img[^>]+src=["']([^"']+)["']/i);
@@ -165,7 +166,10 @@ export function thinkingItemFromRow(p, ctx) {
 export const thinkingSlug = (item) => item._slug || thinkingSlugFromIso(item.date_published);
 
 export function thinkingUnfurlCardHtml(url, ctx) {
-  const unfurl = ctx.thinkingUnfurls[url];
+  // A page that could not be read still gets a card when its URL says what
+  // it is (fallbackUnfurlFromUrl); one not fetched yet gets none.
+  const cached = ctx.thinkingUnfurls[url];
+  const unfurl = unfurlHit(cached) || (isUnfurlMiss(cached) ? fallbackUnfurlFromUrl(url) : null);
   if (!unfurl) return "";
   const domain = linkDomain(url);
   const title = unfurl.title || domain || url;

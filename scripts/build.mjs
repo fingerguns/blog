@@ -20,7 +20,7 @@ import { escHtml, escXml } from "./lib/html.mjs";
 import { mergeSectionHints } from "./lib/section-hints.mjs";
 import { mergeReadingTabIntros } from "./lib/reading-tab-intros.mjs";
 import { thinkingGridThumbUrl, upgradeSpotifyImageUrl, videoPosterKeyFromVideoUrl } from "./lib/media-url.mjs";
-import { fetchLinkUnfurl, invalidateUnfurlMisses } from "./lib/link-unfurl.mjs";
+import { fetchLinkUnfurlResult, invalidateUnfurlMisses, unfurlCacheValue } from "./lib/link-unfurl.mjs";
 import { LINKLOG_TAG_LABELS } from "./lib/linklog-tags.mjs";
 import { mapWithConcurrency } from "./lib/concurrency.mjs";
 import { unfurlableUrls, singlePhotoUrl } from "./lib/thinking-html.mjs";
@@ -900,7 +900,7 @@ invalidateUnfurlMisses(thinkingUnfurlCache);
   if (missing.length > 0) {
     console.log(`Fetching ${missing.length} link preview(s) for Thinking…`);
     await mapWithConcurrency(missing, 6, async (url) => {
-      thinkingUnfurlCache[url] = (await fetchLinkUnfurl(url)) || false;
+      thinkingUnfurlCache[url] = unfurlCacheValue(await fetchLinkUnfurlResult(url));
     });
   }
 }
@@ -1239,12 +1239,12 @@ const missingUnfurls = orderedLinklog.filter((l) => !(l.url in linklogUnfurlCach
 if (missingUnfurls.length > 0) {
   console.log(`Fetching ${missingUnfurls.length} link preview(s) for Sharing archive…`);
   await mapWithConcurrency(missingUnfurls, 6, async (l) => {
-    linklogUnfurlCache[l.url] = (await fetchLinkUnfurl(l.url)) || false;
+    linklogUnfurlCache[l.url] = unfurlCacheValue(await fetchLinkUnfurlResult(l.url));
   });
 }
 await saveBuildCache(CACHE_NAMESPACES.LINKLOG_UNFURLS, linklogUnfurlCache);
 
-const renderLinklogArchiveItem = (l) => renderLinklogArchiveItemShared(l, linklogUnfurlCache[l.url] || null);
+const renderLinklogArchiveItem = (l) => renderLinklogArchiveItemShared(l, linklogUnfurlCache[l.url] ?? null);
 
 const linklogHtml = orderedLinklog.slice(0, MAX_PER_SECTION).map(renderLinklogItem).join("\n");
 const hasMoreLinklog = orderedLinklog.length > MAX_PER_SECTION;

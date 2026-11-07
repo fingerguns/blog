@@ -431,7 +431,7 @@ function listRenderers(ctx, linkFor, coverFor, linklogUnfurls) {
     linklog: {
       kind: CONTENT_KIND.LINKLOG,
       sort: (l) => datedItemSort(l),
-      html: (l) => renderLinklogArchiveItem(l, linklogUnfurls[l.url] || null),
+      html: (l) => renderLinklogArchiveItem(l, linklogUnfurls[l.url] ?? null),
     },
     reading: {
       kind: CONTENT_KIND.READING,

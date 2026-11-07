@@ -33,7 +33,7 @@ export function invalidateUnfurlMisses(cache, fetcherId = UNFURL_FETCHER_ID) {
   if (!cache || typeof cache !== "object") return cache;
   if (cache[UNFURL_FETCHER_CACHE_KEY] === fetcherId) return cache;
   for (const key of Object.keys(cache)) {
-    if (cache[key] === false) delete cache[key];
+    if (isUnfurlMiss(cache[key])) delete cache[key];
   }
   cache[UNFURL_FETCHER_CACHE_KEY] = fetcherId;
   return cache;
@@ -115,8 +115,15 @@ export function parseLinkUnfurl(html, url) {
   };
 }
 
-/** Fetch `url` and parse it with parseLinkUnfurl; null on any failure. */
-export async function fetchLinkUnfurl(url) {
+/**
+ * Fetch `url` and parse it. Returns `{ unfurl }` on success, or `{ miss }`
+ * naming why there is no card — `http-<status>` (a 403 is usually a bot
+ * gate), `not-html`, `too-large`, `timeout`, `network`, or `no-preview` (the
+ * page loaded but carried nothing to show). The reason is stored with the
+ * cached miss, so a link that never unfurled can be diagnosed from D1
+ * instead of re-fetched to find out.
+ */
+export async function fetchLinkUnfurlResult(url) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -128,18 +135,132 @@ export async function fetchLinkUnfurl(url) {
         accept: "text/html,application/xhtml+xml",
       },
     });
-    if (!res.ok) return null;
+    if (!res.ok) return { miss: `http-${res.status}` };
 
     const contentType = res.headers.get("content-type") || "";
-    if (!contentType.includes("html")) return null;
+    if (!contentType.includes("html")) return { miss: "not-html" };
     const contentLength = Number(res.headers.get("content-length") || 0);
-    if (contentLength > MAX_CONTENT_LENGTH) return null;
+    if (contentLength > MAX_CONTENT_LENGTH) return { miss: "too-large" };
 
     const html = await res.text();
-    return parseLinkUnfurl(html, res.url || url);
-  } catch {
-    return null;
+    const unfurl = parseLinkUnfurl(html, res.url || url);
+    return unfurl ? { unfurl } : { miss: "no-preview" };
+  } catch (err) {
+    return { miss: err?.name === "AbortError" ? "timeout" : "network" };
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** Fetch `url` and parse it with parseLinkUnfurl; null on any failure. */
+export async function fetchLinkUnfurl(url) {
+  return (await fetchLinkUnfurlResult(url)).unfurl || null;
+}
+
+/**
+ * What to store in an unfurl cache for a fetch result: the card data, or a
+ * miss with its reason and when it happened. Misses written before reasons
+ * were kept are a bare `false`; both are misses to every reader.
+ */
+export function unfurlCacheValue(result, now = new Date()) {
+  return result?.unfurl || { miss: result?.miss || "unknown", at: now.toISOString() };
+}
+
+/** Whether a cached unfurl value records a failed fetch. */
+export function isUnfurlMiss(value) {
+  return value === false || Boolean(value && typeof value === "object" && "miss" in value);
+}
+
+/** The card data in a cached unfurl value, or null for a miss or no entry. */
+export function unfurlHit(value) {
+  return value && typeof value === "object" && !("miss" in value) ? value : null;
+}
+
+// Publications whose names don't read well as a bare domain. Anything not
+// listed shows its domain, as the cards always have.
+const SITE_NAMES = {
+  "reuters.com": "Reuters",
+  "apnews.com": "AP News",
+  "nytimes.com": "The New York Times",
+  "washingtonpost.com": "The Washington Post",
+  "wsj.com": "The Wall Street Journal",
+  "ft.com": "Financial Times",
+  "bloomberg.com": "Bloomberg",
+  "theguardian.com": "The Guardian",
+  "bbc.com": "BBC",
+  "bbc.co.uk": "BBC",
+  "theatlantic.com": "The Atlantic",
+  "newyorker.com": "The New Yorker",
+  "npr.org": "NPR",
+  "cnn.com": "CNN",
+  "politico.com": "Politico",
+  "axios.com": "Axios",
+  "economist.com": "The Economist",
+};
+
+/** A publication's name for a link, or null if it is not one we know. */
+export function knownSiteName(url) {
+  let host;
+  try {
+    host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+  for (const [domain, name] of Object.entries(SITE_NAMES)) {
+    if (host === domain || host.endsWith(`.${domain}`)) return name;
+  }
+  return null;
+}
+
+// Kept upper-case when a title is rebuilt from a URL slug. Everything else
+// is sentence case: a slug has lost its capitals, and guessing proper nouns
+// would print wrong ones.
+const SLUG_ACRONYMS = new Set([
+  "ai", "doj", "fbi", "cia", "nsa", "irs", "sec", "fda", "cdc", "epa", "ice", "gop", "us", "usa", "uk", "eu",
+  "un", "nato", "nyc", "nypd", "la", "dc", "ceo", "cfo", "gdp", "nba", "nfl", "mlb", "nhl", "tv", "uk's", "us's",
+]);
+
+/**
+ * A minimal card for a link whose page could not be read: the publication
+ * and a title rebuilt from the URL's last path segment, with no image or
+ * description. Only when that segment reads as words — at least three, most
+ * of them alphabetic — so an id or hash never becomes a "title". Returns
+ * null otherwise, and the link stays a plain link.
+ *
+ *   https://www.reuters.com/world/trump-orders-doj-look-into-democrats-threatening-people-2026-11-07/
+ *   → { siteName: "Reuters", title: "Trump orders DOJ look into democrats threatening people" }
+ */
+export function fallbackUnfurlFromUrl(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+  const segments = parsed.pathname.split("/").filter(Boolean);
+  let slug = segments[segments.length - 1] || "";
+  try {
+    slug = decodeURIComponent(slug);
+  } catch {
+    return null;
+  }
+  slug = slug
+    .replace(/\.(s?html?|php|aspx?)$/i, "")
+    .replace(/[-_]\d{4}[-_]\d{2}[-_]\d{2}$/, "") // trailing date: -2026-11-07
+    .replace(/[-_](?=[a-z0-9]*\d)[a-z0-9]{6,}$/i, "") // trailing id with digits: -idUSKBN2A1B3C
+    .replace(/[-_]\d+$/, ""); // trailing number
+  const words = slug.split(/[-_+\s]+/).filter(Boolean);
+  const wordy = words.filter((w) => /^[\p{L}'’]+$/u.test(w));
+  if (words.length < 3 || wordy.length / words.length < 0.75) return null;
+  const title = words
+    .map((w, i) => {
+      const lower = w.toLowerCase();
+      if (SLUG_ACRONYMS.has(lower)) return lower.toUpperCase();
+      return i === 0 ? lower.charAt(0).toUpperCase() + lower.slice(1) : lower;
+    })
+    .join(" ")
+    .slice(0, 200);
+  const host = parsed.hostname.replace(/^www\./, "");
+  return { title, image: null, description: null, siteName: knownSiteName(url) || host, fallback: true };
 }

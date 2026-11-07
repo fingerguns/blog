@@ -7,10 +7,18 @@ import {
   LINK_UNFURL_USER_AGENT,
   UNFURL_FETCHER_CACHE_KEY,
   UNFURL_FETCHER_ID,
+  fallbackUnfurlFromUrl,
   fetchLinkUnfurl,
+  fetchLinkUnfurlResult,
   invalidateUnfurlMisses,
+  isUnfurlMiss,
+  knownSiteName,
   parseLinkUnfurl,
+  unfurlCacheValue,
+  unfurlHit,
 } from "./link-unfurl.mjs";
+import { thinkingUnfurlsHtml } from "./render/thinking.mjs";
+import { renderLinklogArchiveItem } from "./render/lists.mjs";
 
 const PAGE = "https://example.com/articles/one";
 
@@ -113,5 +121,142 @@ test("fetchLinkUnfurl sends the preview-crawler user-agent", async () => {
     assert.match(seen[0].ua, /fingergunsbot/);
   } finally {
     globalThis.fetch = realFetch;
+  }
+});
+
+/** Run `fn` with fetch answering `respond(url, init)`. */
+async function withFetch(respond, fn) {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => respond(url, init);
+  try {
+    return await fn();
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+}
+const page = (status, body = "", type = "text/html") => ({
+  ok: status >= 200 && status < 300,
+  status,
+  url: "",
+  headers: new Headers({ "content-type": type }),
+  text: async () => body,
+});
+
+test("fetchLinkUnfurlResult names why there is no card", async () => {
+  assert.deepEqual(await withFetch(() => page(403), () => fetchLinkUnfurlResult(PAGE)), { miss: "http-403" });
+  assert.deepEqual(await withFetch(() => page(200, "%PDF", "application/pdf"), () => fetchLinkUnfurlResult(PAGE)), {
+    miss: "not-html",
+  });
+  assert.deepEqual(await withFetch(() => page(200, "<html></html>"), () => fetchLinkUnfurlResult(PAGE)), {
+    miss: "no-preview",
+  });
+  assert.deepEqual(
+    await withFetch(
+      () => {
+        throw Object.assign(new Error("aborted"), { name: "AbortError" });
+      },
+      () => fetchLinkUnfurlResult(PAGE)
+    ),
+    { miss: "timeout" }
+  );
+  assert.deepEqual(
+    await withFetch(
+      () => {
+        throw new TypeError("fetch failed");
+      },
+      () => fetchLinkUnfurlResult(PAGE)
+    ),
+    { miss: "network" }
+  );
+  const ok = await withFetch(
+    () => page(200, '<meta property="og:title" content="Hello">'),
+    () => fetchLinkUnfurlResult(PAGE)
+  );
+  assert.equal(ok.unfurl.title, "Hello");
+});
+
+test("unfurlCacheValue stores a hit as-is and a miss with its reason", () => {
+  const now = new Date("2026-11-07T18:50:02.000Z");
+  assert.deepEqual(unfurlCacheValue({ unfurl: { title: "Hi" } }, now), { title: "Hi" });
+  assert.deepEqual(unfurlCacheValue({ miss: "http-403" }, now), { miss: "http-403", at: "2026-11-07T18:50:02.000Z" });
+});
+
+test("old false and new { miss } entries are both misses", () => {
+  assert.equal(isUnfurlMiss(false), true);
+  assert.equal(isUnfurlMiss({ miss: "http-403" }), true);
+  assert.equal(isUnfurlMiss({ title: "Hi" }), false);
+  assert.equal(isUnfurlMiss(undefined), false);
+  assert.equal(unfurlHit({ miss: "http-403" }), null);
+  assert.equal(unfurlHit(false), null);
+  assert.deepEqual(unfurlHit({ title: "Hi" }), { title: "Hi" });
+});
+
+test("invalidateUnfurlMisses drops reasoned misses too", () => {
+  const cache = { [UNFURL_FETCHER_CACHE_KEY]: "old-bot", "https://blocked.example/": { miss: "http-403", at: "x" } };
+  invalidateUnfurlMisses(cache, "new-bot");
+  assert.equal("https://blocked.example/" in cache, false);
+});
+
+test("fallbackUnfurlFromUrl rebuilds a title from a readable slug", () => {
+  assert.deepEqual(
+    fallbackUnfurlFromUrl(
+      "https://www.reuters.com/world/trump-orders-doj-look-into-democrats-threatening-people-2026-11-07/"
+    ),
+    {
+      title: "Trump orders DOJ look into democrats threatening people",
+      image: null,
+      description: null,
+      siteName: "Reuters",
+      fallback: true,
+    }
+  );
+  assert.equal(
+    fallbackUnfurlFromUrl("https://www.reuters.com/business/media-telecom/galliano-met-call-off-2027-exhibition-following-backlash-2026-08-31")
+      .title,
+    "Galliano met call off 2027 exhibition following backlash"
+  );
+  assert.equal(fallbackUnfurlFromUrl("https://example.org/blog/why-tea-is-better.html").siteName, "example.org");
+  assert.equal(fallbackUnfurlFromUrl("https://example.org/blog/why-tea-is-better.html").title, "Why tea is better");
+});
+
+test("fallbackUnfurlFromUrl gives up on slugs that are not words", () => {
+  for (const url of [
+    "https://example.com/",
+    "https://example.com/p/8f3a9c2e7b1d",
+    "https://example.com/watch?v=abc",
+    "https://example.com/2026/11/07/",
+    "https://example.com/a-b",
+    "https://example.com/x7f-q9z-k2m-p4r",
+    "not a url",
+  ]) {
+    assert.equal(fallbackUnfurlFromUrl(url), null, url);
+  }
+});
+
+test("knownSiteName matches subdomains of known publications only", () => {
+  assert.equal(knownSiteName("https://www.nytimes.com/x"), "The New York Times");
+  assert.equal(knownSiteName("https://cooking.nytimes.com/x"), "The New York Times");
+  assert.equal(knownSiteName("https://notnytimes.com/x"), null);
+});
+
+const REUTERS = "https://www.reuters.com/world/trump-orders-doj-look-into-democrats-threatening-people-2026-11-07/";
+
+test("a Thinking note gets a fallback card for a blocked link, and none for an unfetched one", () => {
+  const text = `Loser shit.\n\n${REUTERS}`;
+  for (const miss of [false, { miss: "http-403", at: "x" }]) {
+    const html = thinkingUnfurlsHtml(text, { thinkingUnfurls: { [REUTERS]: miss } });
+    assert.match(html, /class="linklog-card-meta">Reuters</);
+    assert.match(html, /class="linklog-card-title">Trump orders DOJ look into democrats threatening people</);
+    assert.doesNotMatch(html, /linklog-card-thumb/);
+  }
+  assert.equal(thinkingUnfurlsHtml(text, { thinkingUnfurls: {} }), "");
+});
+
+test("a Sharing card for a blocked link keeps its title and names the publication", () => {
+  const l = { url: REUTERS, title: "DOJ story", datetime: "2026-11-07T18:50:00Z", tags: [] };
+  for (const miss of [false, { miss: "http-403", at: "x" }, null]) {
+    const html = renderLinklogArchiveItem(l, miss);
+    assert.match(html, / · Reuters</);
+    assert.match(html, /linklog-card-title">DOJ story</);
   }
 });
