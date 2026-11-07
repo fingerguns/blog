@@ -63,7 +63,8 @@ export async function warmThinkingCaches(env, { text, mediaUrl, mediaType, media
   const db = env.DB;
   if (!db) return;
   try {
-    // Link cards. A miss is cached as false and not retried, as in the build.
+    // Link cards. A miss is cached as false and not retried, as in the build
+    // (the build drops those misses once when UNFURL_FETCHER_ID changes).
     const urls = unfurlableUrls(text);
     const haveUnfurls = await cachedKeys(db, CACHE_NAMESPACES.THINKING_UNFURLS, urls);
     await Promise.all(
