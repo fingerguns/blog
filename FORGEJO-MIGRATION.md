@@ -19,11 +19,11 @@ Re-audited against the current tree, not inherited from the Origin document. Two
 | 1 | The git remote | `https://github.com/fingerguns/blog.git` |
 | 2 | Three Actions workflows | `.github/workflows/{build,d1-execute,deploy-worker}.yml` |
 | 3 | Pages project `rommy-blog` builds on push to `main` | Cloudflare dashboard, build command `node build-pages.mjs` |
-| 4 | `triggerRebuild()` — deploy hook, with a GitHub `workflow_dispatch` fallback | `worker/update-thinking.js:622-685` |
-| 5 | Worker vars `GITHUB_OWNER` / `GITHUB_REPO` / `GITHUB_BRANCH`, secret `GITHUB_TOKEN` | `worker/wrangler.toml:11-13,58` |
-| 6 | Changelog entries link to `github.com/.../commit/{hash}` | `scripts/build.mjs:1957` |
-| 7 | Footer "GitHub" link, rendered with `rel="me"` | `scripts/d1-client.mjs:235` |
-| 8 | Colophon links: "repo", and "MIT licensed" → GitHub-hosted `LICENSE` | `colophon/index.html:29,44` |
+| 4 | `triggerRebuild()` — deploy hook, with a GitHub `workflow_dispatch` fallback | `worker/update-thinking.js` → `triggerRebuild()` |
+| 5 | Worker vars `GITHUB_OWNER` / `GITHUB_REPO` / `GITHUB_BRANCH`, secret `GITHUB_TOKEN` | `worker/wrangler.toml` → `[vars]`, and the `GITHUB_TOKEN` secret comment |
+| 6 | Changelog entries link to `github.com/.../commit/{hash}` | `scripts/build.mjs` → `changelogListHtml` |
+| 7 | Footer "GitHub" link, rendered with `rel="me"` | `scripts/d1-client.mjs` → default footer `links` in `loadBlogDataFromD1()` |
+| 8 | Colophon links: "repo", and "MIT licensed" → GitHub-hosted `LICENSE` | `colophon/index.html` → the "repo" and "MIT licensed" links |
 | 9 | **NEW —** the docs drift sweep routine clones `github.com/fingerguns/blog` | Cloud routine `trig_01RGunVKiR5vRmb56tVDoWjA` |
 | 10 | **NEW —** day-to-day `gh` CLI use, and `/code-review ultra <PR#>` | Local workflow, not the repo |
 
@@ -246,7 +246,7 @@ Disable automatic branch deployments on `rommy-blog`. Leave the project git-conn
 
 ### 6.2 The admin Worker
 
-`triggerRebuild()` at `worker/update-thinking.js:622-685` currently tries `PAGES_DEPLOY_HOOK`, then falls back to GitHub `workflow_dispatch`. After migration the hook is dead and the fallback becomes the only path.
+`triggerRebuild()` in `worker/update-thinking.js` currently tries `PAGES_DEPLOY_HOOK`, then falls back to GitHub `workflow_dispatch`. After migration the hook is dead and the fallback becomes the only path.
 
 **Option A:** replace both with a service binding to the builder Worker — Origin document section 5.2, unchanged.
 
@@ -259,7 +259,7 @@ Disable automatic branch deployments on `rommy-blog`. Leave the project git-conn
 // Authorization: `token ${env.FORGEJO_TOKEN}`
 ```
 
-Rename `GITHUB_*` vars to `FORGEJO_*` in `worker/wrangler.toml:11-13` and mint the token with repo-scoped write access only. Keep the `job_runs` recording that wraps it — the Health tab is how you will find out this broke.
+Rename `GITHUB_*` vars to `FORGEJO_*` in `worker/wrangler.toml`'s `[vars]` and mint the token with repo-scoped write access only. Keep the `job_runs` recording that wraps it — the Health tab is how you will find out this broke.
 
 ### 6.3 Retire the workflows
 
@@ -275,7 +275,7 @@ So after a migration the sweep has two options, neither free: keep a GitHub mirr
 
 **`gh` CLI and `/code-review ultra <PR#>` are GitHub-only.** Day-to-day review flow changes; `gh pr view` has no Forgejo equivalent in this setup. Forgejo has a REST API and a `tea` CLI, but the Claude Code integrations do not speak them. The local `docs-guard.sh` hook is unaffected — it only shells out to plain `git`.
 
-**The `rel="me"` identity chain.** `scripts/d1-client.mjs:235` renders a GitHub profile link with `rel="me"`, making GitHub an IndieAuth identity. If you ever signed in to webmention.io through it, removing the account can lock you out of the service that receives Writing comments. **Verify webmention.io sign-in through Bluesky, Mastodon, or micro.blog before deleting anything on GitHub** — not after. This is the single most dangerous step in the migration and it has nothing to do with git.
+**The `rel="me"` identity chain.** `scripts/d1-client.mjs` (the default footer `links` in `loadBlogDataFromD1()`) renders a GitHub profile link with `rel="me"`, making GitHub an IndieAuth identity. If you ever signed in to webmention.io through it, removing the account can lock you out of the service that receives Writing comments. **Verify webmention.io sign-in through Bluesky, Mastodon, or micro.blog before deleting anything on GitHub** — not after. This is the single most dangerous step in the migration and it has nothing to do with git.
 
 ---
 

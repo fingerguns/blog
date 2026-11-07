@@ -51,7 +51,7 @@ flowchart LR
 
 ### Why a container rather than porting the build into the Worker
 
-`scripts/build.mjs` imports `node:child_process` at line 6 to shell out to `git log` for the changelog, and `node:fs` at line 7 to write the `dist/` tree. A container reuses all 2,899 lines untouched. Porting into a Worker means rewriting both and replacing the output path with the Pages Direct Upload API. The container is the low-risk path.
+`scripts/build.mjs` imports `node:child_process` to shell out to `git log` for the changelog, and `node:fs` to write the `dist/` tree. A container reuses the whole script untouched. Porting into a Worker means rewriting both and replacing the output path with the Pages Direct Upload API. The container is the low-risk path.
 
 ### Options that were ruled out
 
@@ -124,7 +124,7 @@ git remote -v
 
 ```bash
 git fetch origin
-git branch -r          # expect main + the 20 cursor/* branches
+git branch -r          # expect the same list `git branch -r` printed against the old remote
 git log --oneline -5   # history intact, HEAD at 6414e2c or later
 ```
 
@@ -136,9 +136,9 @@ Do not delete or archive the GitHub repo until Phase 5 passes. It is your rollba
 
 ### 4.1 Fix the changelog first
 
-`scripts/build.mjs` lines 1011–1028 derive the changelog by shelling out to git, and swallow any failure:
+The `// Changelog from git log` block in `scripts/build.mjs` (it fills `changelogEntries`) derives the changelog by shelling out to git, and swallows any failure:
 
-```1011:1028:scripts/build.mjs
+```js
 // Changelog from git log
 let changelogEntries = [];
 try {
@@ -401,7 +401,7 @@ Keep the existing project rather than making a new one. Cloudflare does not let 
 
 ### 5.2 Admin Worker
 
-Replace `triggerRebuild()` at `worker/update-thinking.js` lines 622–685. Both current branches die: the deploy hook is deleted, and the GitHub `workflow_dispatch` fallback targets a workflow that no longer exists.
+Replace `triggerRebuild()` in `worker/update-thinking.js`. Both current branches die: the deploy hook is deleted, and the GitHub `workflow_dispatch` fallback targets a workflow that no longer exists.
 
 ```js
 async function triggerRebuild(env) {
@@ -410,7 +410,7 @@ async function triggerRebuild(env) {
 }
 ```
 
-In `worker/wrangler.toml`, drop `GITHUB_OWNER`, `GITHUB_REPO`, and `GITHUB_BRANCH` (lines 11–13) plus the `GITHUB_TOKEN` comment (line 58), and add:
+In `worker/wrangler.toml`, drop `GITHUB_OWNER`, `GITHUB_REPO`, and `GITHUB_BRANCH` from `[vars]` plus the `GITHUB_TOKEN` secret comment, and add:
 
 ```toml
 [[services]]
@@ -462,18 +462,18 @@ Origin repos are **Internal or Private only** — there is no public visibility 
 
 ### Links to fix
 
-- `scripts/build.mjs` line 1957 renders each changelog entry as a link to `github.com/fingerguns/blog/commit/{hash}`. Recommended: render the message as plain text with the short hash beside it.
-- `colophon/index.html` line 29 links the word "repo" to GitHub. Recommended: unlink it.
-- `colophon/index.html` line 44 links "MIT licensed" to the GitHub-hosted LICENSE. Recommended: serve a copy of `LICENSE` from the site and point there.
+- `changelogListHtml` in `scripts/build.mjs` renders each changelog entry as a link to `github.com/fingerguns/blog/commit/{hash}`. Recommended: render the message as plain text with the short hash beside it.
+- `colophon/index.html` links the word "repo" to GitHub. Recommended: unlink it.
+- `colophon/index.html` links "MIT licensed" to the GitHub-hosted LICENSE. Recommended: serve a copy of `LICENSE` from the site and point there.
 
 The alternative, if you would rather keep those links alive, is leaving the GitHub repo public and archived as a read-only historical artifact.
 
 ### Docs to update
 
-- `README.md` lines 149–160 and 190 — the Pages git build and the GitHub rebuild fallback
-- `worker/README.md` lines 5, 77, 83, 103–114, and 148–156 — same, plus the `git pull origin main` instruction at line 163
-- `colophon/index.html` line 29 — "Saving from the admin triggers a Pages rebuild; so does pushing to `main`". The first half stays true; the second half does not.
-- `worker/update-power-and-the-glory-cover.sql` line 3 — comment says to run via GitHub Actions
+- `README.md` — the `## Cloudflare Pages` section ("Deploys run on push to `main`") and the `GITHUB_TOKEN` row of the secrets table
+- `worker/README.md` — the opening ("rebuilt via a **Pages deploy hook**"), the `PAGES_DEPLOY_HOOK` and `GITHUB_TOKEN` lines of the `wrangler secret put` block, and the Pages deploy hook in the architecture diagram
+- `colophon/index.html` — "Saving from the admin triggers a Pages rebuild; so does pushing to `main`". The first half stays true; the second half does not.
+- `worker/update-power-and-the-glory-cover.sql` — its header comment says to run via GitHub Actions
 
 ---
 
@@ -507,15 +507,15 @@ Phases 1–5 move the repo and rebuild the deploy pipeline. What they do not cov
 
 ### 8.1 Three references Phase 4 missed
 
-**`scripts/d1-client.mjs` line 235** — the site footer nav includes a GitHub profile link:
+**`scripts/d1-client.mjs`, the default footer `links`** — the site footer nav includes a GitHub profile link:
 
-```235:235:scripts/d1-client.mjs
+```js
       { label: "GitHub", url: "https://github.com/fingerguns" },
 ```
 
-It renders through `scripts/build.mjs` line 1402, which applies `rel="me noopener"` to every footer link. Recommended: drop the entry, or repoint it at whichever public mirror you choose in [section 8.5](#85-public-source-browsing).
+It renders through `linksHtml` in `scripts/build.mjs`, which applies `rel="me noopener"` to every footer link. Recommended: drop the entry, or repoint it at whichever public mirror you choose in [section 8.5](#85-public-source-browsing).
 
-**That `rel="me"` has a consequence.** GitHub is currently one of your IndieAuth identity links. If you ever signed in to [webmention.io](https://webmention.io) through the GitHub `rel=me` chain, removing the account can lock you out of the service that receives Writing comments. Bluesky, Mastodon, and micro.blog are also `rel="me"` (`scripts/build.mjs` lines 1413–1419), so identity is recoverable — but **verify webmention.io sign-in through a non-GitHub identity before deleting anything on GitHub**, not after.
+**That `rel="me"` has a consequence.** GitHub is currently one of your IndieAuth identity links. If you ever signed in to [webmention.io](https://webmention.io) through the GitHub `rel=me` chain, removing the account can lock you out of the service that receives Writing comments. Bluesky, Mastodon, and micro.blog are also `rel="me"` (the social links beside `linksHtml` in `scripts/build.mjs`), so identity is recoverable — but **verify webmention.io sign-in through a non-GitHub identity before deleting anything on GitHub**, not after.
 
 **`data/posts.json`** carries a GitHub link in the legacy fallback data used when D1 env vars are absent. Cosmetic, but it should match the footer.
 
@@ -572,7 +572,7 @@ async function backup() {
 
 Then route it in the `createServer` block the same way `/build` is routed.
 
-Trigger it from the admin Worker's existing cron. `worker/update-thinking.js` lines 485–497 already run every four hours for the Oura sync; take the first run of the day:
+Trigger it from the admin Worker's existing cron. The `scheduled()` handler in `worker/update-thinking.js` already runs every four hours for the Oura sync; take the first run of the day:
 
 ```js
 async scheduled(event, env, ctx) {
@@ -666,7 +666,7 @@ git remote -v   # expect two (push) lines
 
 The first `set-url --add --push` replaces the implicit default, so **both** lines are required — listing only Codeberg would silently stop pushing to Origin.
 
-Then repoint the two colophon links from [section 6](#6-phase-4--public-facing-links-and-docs) at Codeberg instead of unlinking them, and restore the changelog commit links in `scripts/build.mjs` line 1957 against the Codeberg commit URL.
+Then repoint the two colophon links from [section 6](#6-phase-4--public-facing-links-and-docs) at Codeberg instead of unlinking them, and restore the changelog commit links (`changelogListHtml` in `scripts/build.mjs`) against the Codeberg commit URL.
 
 **Sequencing matters here.** Run the history scan in [section 8.6](#86-secret-scanning) *before* the mirror is public. A public mirror of a repo with a secret in its history is worse than no mirror.
 
