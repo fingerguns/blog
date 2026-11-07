@@ -2371,6 +2371,32 @@ b.addEventListener('click',function(e){
 });
 }());</script>`;
 
+// View counts on the archive's list view, in the same place as on each
+// note's own page: after the neighborhood, or after the date when there is
+// none, and before any admin "delete" link. Filled from one small JSON
+// request (GET /api/views, worker/page-views.mjs) rather than by the Worker
+// rewriting this page, the largest on the site. Loading the archive counts
+// nothing; a count only moves when the note itself is opened. Must stay in
+// step with formatViews in scripts/lib/page-views.mjs.
+const thinkingArchiveViewsScript = `    <script>(function(){
+var feed=document.querySelector('.microblog-feed');
+if(!feed||!window.fetch)return;
+fetch('/api/views',{credentials:'omit'}).then(function(r){return r.ok?r.json():{};}).then(function(counts){
+  feed.querySelectorAll('.microblog-entry[data-slug]').forEach(function(entry){
+    var n=counts[entry.getAttribute('data-slug')];
+    var meta=entry.querySelector('.post-meta');
+    if(!n||!meta||meta.querySelector('.post-views'))return;
+    var after=meta.querySelector('.post-location')||meta.querySelector('time.post-date');
+    if(!after)return;
+    var sep=document.createElement('span');
+    sep.className='post-meta-sep';sep.setAttribute('aria-hidden','true');sep.textContent='\u00b7';
+    var v=document.createElement('span');
+    v.className='post-views';v.textContent=n.toLocaleString('en-US')+(n===1?' view':' views');
+    after.after(sep,v);
+  });
+}).catch(function(){});
+}());</script>`;
+
 const thinkingArchiveFoot = `${thinkingBackToTopHtml}
       <footer class="site-footer">
         <p class="footer-row footer-row-toggle"><span>&copy; 2026 ${escHtml(site.author)} <a href="/admin/" class="footer-icon" aria-label="Admin" title="Admin"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg></a></span><a href="#" class="theme-toggle" id="theme-toggle" role="button"></a><a href="/search/" class="footer-icon" aria-label="Search" title="Search"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4.35-4.35"/></svg></a></p>
@@ -2384,6 +2410,7 @@ ${thinkingMapScript}
 ${thinkingLightboxScript}
 ${thinkingDeleteLinkScript}
 ${thinkingBackToTopScript}
+${thinkingArchiveViewsScript}
   </body>
 </html>
 `;

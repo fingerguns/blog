@@ -48,6 +48,11 @@ zone_name = "rommy.blog"
 pattern = "rommy.blog/api/now-location"
 zone_name = "rommy.blog"
 
+# Public view counts for the Thinking archive (worker/page-views.mjs).
+[[routes]]
+pattern = "rommy.blog/api/views"
+zone_name = "rommy.blog"
+
 # Live publishing (live-overlay.mjs): the HTML pages that list or are
 # content. The Worker serves each from Pages with anything published since
 # its build applied. Kept to these paths so CSS, images, feeds and the other

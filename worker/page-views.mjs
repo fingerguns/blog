@@ -85,3 +85,32 @@ export async function withViewCount(request, res, env) {
   out.headers.set("Cache-Control", "no-cache");
   return out;
 }
+
+const THINKING_VIEWS_SQL = "SELECT path, views FROM page_views WHERE path LIKE '/thinking/%' AND views > 0";
+
+/**
+ * GET /api/views — every Thinking note's count as `{ "<slug>": views }`, for
+ * the /thinking/ archive to fill in client-side. One small D1 read; the
+ * archive is the site's largest page, and rewriting it per request would
+ * blow the Free plan's 10 ms CPU budget. Public and read-only: it says no
+ * more than the permalinks already show. Viewing the archive counts nothing.
+ */
+export async function handleThinkingViews(env) {
+  const headers = {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "public, max-age=30",
+  };
+  if (!env.DB) return new Response("{}", { status: 503, headers });
+  try {
+    const { results = [] } = await env.DB.prepare(THINKING_VIEWS_SQL).all();
+    const out = {};
+    for (const row of results) {
+      const slug = /^\/thinking\/([^/]+)\/$/.exec(row.path)?.[1];
+      if (slug) out[slug] = Number(row.views);
+    }
+    return new Response(JSON.stringify(out), { headers });
+  } catch (err) {
+    console.error("page views: archive counts failed", err);
+    return new Response("{}", { status: 500, headers: { ...headers, "Cache-Control": "no-store" } });
+  }
+}

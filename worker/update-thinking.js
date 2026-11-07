@@ -11,6 +11,7 @@ import { renderThinkingContentHtml } from "../scripts/lib/thinking-html.mjs";
 import { CONTENT_KIND } from "../scripts/lib/live-changes.mjs";
 import { pruneContentChanges, recordContentChange } from "./content-changes.mjs";
 import { isLiveRoute, isSitePassthrough, serveLive } from "./live-overlay.mjs";
+import { handleThinkingViews } from "./page-views.mjs";
 import { warmThinkingCaches, warmLinklogCache } from "./live-warm.mjs";
 import { parseYouTubeUrl } from "../scripts/lib/youtube.mjs";
 import { LINK_UNFURL_USER_AGENT } from "../scripts/lib/link-unfurl.mjs";
@@ -191,6 +192,11 @@ export default {
       if (request.method === "POST") {
         return handleLocationIngest(request, env);
       }
+      return json({ error: "Method not allowed" }, 405);
+    }
+
+    if (url.pathname === "/api/views") {
+      if (request.method === "GET" || request.method === "HEAD") return handleThinkingViews(env);
       return json({ error: "Method not allowed" }, 405);
     }
 
