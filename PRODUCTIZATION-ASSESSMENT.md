@@ -32,13 +32,13 @@ everything.
 
 ### 2. Auth is one shared password
 
-`ADMIN_PASSWORD` as an env var, compared against a constant (`worker/update-thinking.js:226`). No
+`ADMIN_PASSWORD` as an env var, compared against a constant (`verifyAdminPassword()` in `worker/update-thinking.js`). No
 users table, no signup, no sessions, no reset flow. Not a gap to fill — a subsystem to build.
 
 ### 3. Publish triggers a full site rebuild
 
-`scripts/build.mjs:2260` does `rmSync(outDir)`, regenerates all **272** HTML pages, then fires
-`PAGES_DEPLOY_HOOK` (`worker/update-thinking.js:572`). Posting a one-line note destroys and rebuilds
+`scripts/build.mjs` does `rmSync(outDir)`, regenerates all **272** HTML pages, then fires
+`PAGES_DEPLOY_HOOK` (`triggerRebuild()` in `worker/update-thinking.js`). Posting a one-line note destroys and rebuilds
 the entire site.
 
 Fine at one user. At N users: either N Cloudflare Pages projects (quota + deploy-hook management

@@ -16,7 +16,8 @@
     "anthropic-usage": "node --env-file=.env scripts/anthropic-usage.mjs",
     "preview": "npx serve dist -p 3000",
     "lint:md": "markdownlint-cli2",
-    "seed-page-views": "node --env-file=.env scripts/seed-page-views.mjs"
+    "seed-page-views": "node --env-file=.env scripts/seed-page-views.mjs",
+    "lint:citations": "node scripts/check-doc-citations.mjs"
   },
   "devDependencies": {
     "ffmpeg-static": "^5.2.0",

@@ -18,7 +18,7 @@ Full feature list and Worker action reference: `README.md`. D1 schema, migration
 
 Read the existing text for what the change makes *wrong*, not only for something to add — a renamed tab, a changed default, a number that moved. Past drift has all been of that kind: the colophon said Inter for four days after the font became Hanken Grotesk, and quoted a thumbnail size that had doubled.
 
-**Cite code by name, never by line number** — a function, constant, section heading or link text (`changelogListHtml` in `scripts/build.mjs`, not `scripts/build.mjs:1994`), and no line counts or branch counts that the next commit changes. A line number is wrong after the next edit to that file; a name stays right until the thing itself is renamed or removed, which is a real change the docs should follow anyway. This applies most to the migration plans (`ORIGIN-MIGRATION.md`, `FORGEJO-MIGRATION.md`, `GIT-COMPARISON.md`), which used to cite line numbers and needed a fix-up PR nearly every week.
+**Cite code by name, never by line number** — a function, constant, section heading or link text (`changelogListHtml` in `scripts/build.mjs`, not `scripts/build.mjs:1994`), and no line counts or branch counts that the next commit changes. A line number is wrong after the next edit to that file; a name stays right until the thing itself is renamed or removed, which is a real change the docs should follow anyway. This applies most to the migration plans (`ORIGIN-MIGRATION.md`, `FORGEJO-MIGRATION.md`, `GIT-COMPARISON.md`), which used to cite line numbers and needed a fix-up PR nearly every week. `.github/workflows/docs-check.yml` (`npm run lint:citations` locally) fails a push or PR that adds one to any tracked Markdown file; a line that must show the pattern, like the example above, opts out with an HTML comment containing `citation-ok`. <!-- citation-ok -->
 
 `.claude/hooks/docs-guard.sh` (wired up in `.claude/settings.json`) refuses a `git commit` that stages `scripts/`, `worker/`, `admin/`, `styles.css`, `_headers`, `build-pages.mjs`, `about/`, or `contact/` without both `README.md` and `colophon/index.html`. It is a backstop for forgetting, not the trigger — write the docs as part of the work. For a change that genuinely needs none (a refactor, a chore, a fix with no visible effect), put `skip-docs` in the commit command; tests-only and docs-only commits pass without it.
 
@@ -60,6 +60,7 @@ npm run migrate-build-cache          # seed D1 build_cache from the legacy data/
 
 npm test                             # node --test over scripts/lib/*.test.mjs
 npm run lint:md                      # markdownlint-cli2
+npm run lint:citations               # fail on line-number citations in tracked .md files (also CI: docs-check.yml)
 ```
 
 `npm test` runs `node --test` over `scripts/lib/*.test.mjs` (no test framework, no config). Markdown is linted by `npm run lint:md` (`markdownlint-cli2`); there is no JS linter.

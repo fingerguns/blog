@@ -1,0 +1,31 @@
+name: Docs check
+
+# Docs cite code by name, never by line number (CLAUDE.md → "Cite code by
+# name"). A line number goes stale with the next edit to its file; this keeps
+# new ones out so no recurring sweep is needed to chase them.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**.md'
+      - 'scripts/check-doc-citations.mjs'
+      - 'scripts/lib/doc-citations.mjs'
+      - '.github/workflows/docs-check.yml'
+  pull_request:
+    paths:
+      - '**.md'
+      - 'scripts/check-doc-citations.mjs'
+      - 'scripts/lib/doc-citations.mjs'
+      - '.github/workflows/docs-check.yml'
+
+jobs:
+  citations:
+    runs-on: ubuntu-latest
+    name: No line-number citations
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/check-doc-citations.mjs
