@@ -54,7 +54,6 @@ import {
   hasThinking,
   monthLabelET,
   renderThinkingHtml,
-  thinkingContentHtmlFromRow,
   thinkingGridItemHtml,
   thinkingGridMonthHtml,
   thinkingItemFromRow,
@@ -384,8 +383,7 @@ async function permalinkResponse(url, target, changes, env, template) {
     if (!row) return null;
     const ctx = renderContext(site, await loadCaches(db, THINKING_CACHES));
     const item = thinkingItemFromRow(row, ctx);
-    const detail = thinkingContentHtmlFromRow(row, ctx, { videoPreload: "auto" });
-    parts = thinkingPermalinkParts(item, row.slug, detail, pageCtx, ctx);
+    parts = thinkingPermalinkParts(item, row.slug, item.content_html, pageCtx, ctx);
   } else {
     // The pager needs the neighbours, in the build's order (newest first).
     const posts = (await all(db, `SELECT ${CONTENT_COLUMNS.post} FROM posts ORDER BY datetime DESC`)).map(shapePostRow);

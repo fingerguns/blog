@@ -116,7 +116,9 @@ test("video gets the iOS first-frame fragment", () => {
   assert.ok(out.includes('preload="metadata"'), "default preload");
 });
 
-test("detail pages can request eager video preload", () => {
+test("eager video preload is opt-in, not the permalink default", () => {
+  // Permalinks used to pass videoPreload: "auto"; a 1 GB clip would start
+  // downloading on page open. The renderer still accepts the option.
   const out = renderThinkingContentHtml("", `${SITE}/media/thinking/video/a.mov`, "", "video", SITE, {
     videoPreload: "auto",
   });

@@ -25,14 +25,18 @@
   // MAX_BLUESKY_IMAGE_BYTES in the Worker, which cannot compress itself.
   var MAX_PHOTO_BLUESKY = 2000000;
   var MAX_PHOTO_INPUT = 25 * 1024 * 1024;
-  var MAX_VIDEO_INPUT = 100 * 1024 * 1024;
+  // Presigned R2 path; keep in sync with Worker MAX_VIDEO_BYTES.
+  var MAX_VIDEO_INPUT = 1024 * 1024 * 1024;
+  // Worker FormData fallback and native-syndication ceiling (Bluesky's 100 MB).
+  var MAX_VIDEO_VIA_WORKER = 100 * 1024 * 1024;
   var THINKING_SOFT_MAX = 300;
   var MAX_THINKING_PHOTOS = 4;
   var GRID_POSTER_SIZE = 512;
 
   function formatBytes(n) {
     if (n < 1024 * 1024) return Math.round(n / 1024) + " KB";
-    return (n / (1024 * 1024)).toFixed(1) + " MB";
+    if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + " MB";
+    return (n / (1024 * 1024 * 1024)).toFixed(1) + " GB";
   }
 
   function isAllowedThinkingVideo(file) {
@@ -281,6 +285,11 @@
     var init = await initRes.json();
     if (!initRes.ok) {
       if (initRes.status === 503 || (init.error && init.error.indexOf("not configured") !== -1)) {
+        if (videoFile.size > MAX_VIDEO_VIA_WORKER) {
+          throw new Error(
+            "Direct video upload is not configured, and this file is too large to send through the Worker (max 100 MB)."
+          );
+        }
         var fd = new FormData();
         fd.append("password", pw);
         fd.append("action", "thinking");
@@ -720,8 +729,10 @@
       videoName.textContent = file.name;
       setWarn(
         file.size > MAX_VIDEO_INPUT
-          ? "This file is " + formatBytes(file.size) + " (max 100 MB)."
-          : "MP4 or MOV from iPhone. Plays on rommy.blog; syndication sends text and a link to the post."
+          ? "This file is " + formatBytes(file.size) + " (max 1 GB)."
+          : file.size > MAX_VIDEO_VIA_WORKER
+            ? "Plays on rommy.blog. Over 100 MB, so Bluesky, Mastodon, and Micro.blog get a still that links here."
+            : "MP4 or MOV from iPhone. Plays on rommy.blog; syndication sends native video where the platform allows."
       );
     });
 
@@ -760,7 +771,7 @@
         return;
       }
       if (videoFile && videoFile.size > MAX_VIDEO_INPUT) {
-        showStatus("Video must be 100 MB or smaller (yours is " + formatBytes(videoFile.size) + ").", true);
+        showStatus("Video must be 1 GB or smaller (yours is " + formatBytes(videoFile.size) + ").", true);
         return;
       }
       submit.disabled = true;

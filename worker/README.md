@@ -83,7 +83,7 @@ wrangler secret put MASTODON_INSTANCE     # optional, defaults to https://mas.to
 wrangler secret put GITHUB_TOKEN          # optional fallback for rebuild trigger
 ```
 
-Direct video upload (faster — browser PUTs to R2, optional; multipart fallback if unset):
+Direct video upload (browser PUTs to R2, up to 1 GB, URL valid 1 hour; optional — multipart fallback through the Worker is 100 MB):
 
 ```bash
 wrangler secret put R2_ACCOUNT_ID
