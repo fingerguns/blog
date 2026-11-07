@@ -7,6 +7,38 @@
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_CONTENT_LENGTH = 3 * 1024 * 1024;
 
+/**
+ * Open Graph is meant for link-preview crawlers. A self-identified bot
+ * (`fingergunsbot` alone) is 403'd by DataDome on news sites — NYTimes
+ * included — so the on-site card never appears and the miss is cached as
+ * `false`. Keep our name, and add Twitterbot, the token those gates
+ * whitelist for preview fetches. Confirmed 2026-11-07: fingergunsbot alone
+ * → 403; this string → 200 with og:title.
+ */
+export const LINK_UNFURL_USER_AGENT =
+  "Mozilla/5.0 (compatible; fingergunsbot/1.0; +https://rommy.blog) Twitterbot/1.0";
+
+/** Bumped when the fetch identity changes, so cached scraper-blocks refetch. */
+export const UNFURL_FETCHER_ID = "twitterbot-1";
+
+/** Not a URL; stored alongside unfurl entries so a fetcher bump can find it. */
+export const UNFURL_FETCHER_CACHE_KEY = "__fetcher";
+
+/**
+ * Drop cached misses when the fetch identity has changed, so a site that
+ * 403'd the old crawler is tried again. Hits stay. No-op once this fetcher
+ * has already run against this cache.
+ */
+export function invalidateUnfurlMisses(cache, fetcherId = UNFURL_FETCHER_ID) {
+  if (!cache || typeof cache !== "object") return cache;
+  if (cache[UNFURL_FETCHER_CACHE_KEY] === fetcherId) return cache;
+  for (const key of Object.keys(cache)) {
+    if (cache[key] === false) delete cache[key];
+  }
+  cache[UNFURL_FETCHER_CACHE_KEY] = fetcherId;
+  return cache;
+}
+
 function decodeEntities(s) {
   return String(s)
     .replace(/&amp;/g, "&")
@@ -92,7 +124,7 @@ export async function fetchLinkUnfurl(url) {
       signal: controller.signal,
       redirect: "follow",
       headers: {
-        "user-agent": "Mozilla/5.0 (compatible; fingergunsbot/1.0; +https://fingerguns.blog)",
+        "user-agent": LINK_UNFURL_USER_AGENT,
         accept: "text/html,application/xhtml+xml",
       },
     });

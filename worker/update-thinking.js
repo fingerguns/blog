@@ -13,6 +13,7 @@ import { pruneContentChanges, recordContentChange } from "./content-changes.mjs"
 import { isLiveRoute, isSitePassthrough, serveLive } from "./live-overlay.mjs";
 import { warmThinkingCaches, warmLinklogCache } from "./live-warm.mjs";
 import { parseYouTubeUrl } from "../scripts/lib/youtube.mjs";
+import { LINK_UNFURL_USER_AGENT } from "../scripts/lib/link-unfurl.mjs";
 import {
   scheduleSectionHintRefresh,
   refreshSectionHint,
@@ -1852,8 +1853,7 @@ async function fetchLinkCard(url) {
       // answers must not hold the post up.
       signal: AbortSignal.timeout(8000),
       headers: {
-        "User-Agent":
-          "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        "User-Agent": LINK_UNFURL_USER_AGENT,
         Accept: "text/html",
       },
       redirect: "follow",
@@ -3360,8 +3360,7 @@ async function handleFetchTitle(body, cors) {
   try {
     const res = await fetch(url.trim(), {
       headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "User-Agent": LINK_UNFURL_USER_AGENT,
         Accept: "text/html,application/xhtml+xml",
       },
       redirect: "follow",

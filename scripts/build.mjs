@@ -20,7 +20,7 @@ import { escHtml, escXml } from "./lib/html.mjs";
 import { mergeSectionHints } from "./lib/section-hints.mjs";
 import { mergeReadingTabIntros } from "./lib/reading-tab-intros.mjs";
 import { thinkingGridThumbUrl, upgradeSpotifyImageUrl, videoPosterKeyFromVideoUrl } from "./lib/media-url.mjs";
-import { fetchLinkUnfurl } from "./lib/link-unfurl.mjs";
+import { fetchLinkUnfurl, invalidateUnfurlMisses } from "./lib/link-unfurl.mjs";
 import { LINKLOG_TAG_LABELS } from "./lib/linklog-tags.mjs";
 import { mapWithConcurrency } from "./lib/concurrency.mjs";
 import { unfurlableUrls, singlePhotoUrl } from "./lib/thinking-html.mjs";
@@ -889,12 +889,15 @@ const microblogItems = thinkingPosts.map((p) => thinkingItemFromRow(p, renderCtx
 // fresh from D1 on every build, so this covers old notes and new ones alike:
 // any URL not yet in the cache is fetched here, and a new note's links are
 // fetched on the rebuild the Worker triggers after posting. A miss is cached
-// as `false` and not retried, as on Sharing — a site that blocks scrapers
-// would otherwise cost a timeout on every build. The cards are kept out of
+// as `false` and not retried, as on Sharing — a site that still blocks the
+// preview-crawler UA would otherwise cost a timeout on every build. Changing
+// that UA bumps UNFURL_FETCHER_ID, which drops those misses once so they
+// refetch. The cards are kept out of
 // content_html on purpose: the grid, search, og:image and og:description all
 // read that string, and a linked page's image or blurb must not become the
 // note's own.
 const thinkingUnfurlCache = await loadBuildCache(CACHE_NAMESPACES.THINKING_UNFURLS);
+invalidateUnfurlMisses(thinkingUnfurlCache);
 {
   const urls = new Set();
   for (const p of thinkingPosts) for (const u of unfurlableUrls(p.text)) urls.add(u);
@@ -1236,6 +1239,7 @@ const readingAllHtml = orderedReading
 // not yet in the cache gets fetched here. The homepage Sharing section
 // intentionally stays plain links — see renderLinklogItem above.
 const linklogUnfurlCache = await loadBuildCache(CACHE_NAMESPACES.LINKLOG_UNFURLS);
+invalidateUnfurlMisses(linklogUnfurlCache);
 
 const missingUnfurls = orderedLinklog.filter((l) => !(l.url in linklogUnfurlCache));
 if (missingUnfurls.length > 0) {
