@@ -196,7 +196,9 @@ export default {
     }
 
     if (url.pathname === "/api/views") {
-      if (request.method === "GET" || request.method === "HEAD") return handleThinkingViews(env);
+      if (request.method === "GET" || request.method === "HEAD") {
+        return handleThinkingViews(env, url.searchParams.get("kind") === "posts" ? "posts" : "thinking");
+      }
       return json({ error: "Method not allowed" }, 405);
     }
 

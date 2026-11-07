@@ -48,7 +48,7 @@ zone_name = "rommy.blog"
 pattern = "rommy.blog/api/now-location"
 zone_name = "rommy.blog"
 
-# Public view counts for the Thinking archive (worker/page-views.mjs).
+# Public view counts for the Thinking and Writing archives (worker/page-views.mjs).
 [[routes]]
 pattern = "rommy.blog/api/views"
 zone_name = "rommy.blog"

@@ -5,23 +5,29 @@
  * passed in, so the Worker can supply the same values from D1.
  */
 import { escHtml } from "../html.mjs";
-import { safeSlug, stripHashtags, toETDate, linkDomain } from "./format.mjs";
+import { safeSlug, stripHashtags, toETDate, linkDomain, readingMins } from "./format.mjs";
 import { knownSiteName, unfurlHit } from "../link-unfurl.mjs";
 
 /**
- * `withBody` is for the /writing/ archive: the post's body rides along in a
+ * `withBody` is for the /writing/ archive: the post rides along in a
  * <template>, which the browser parses but never renders or fetches media
  * for, so the collapsed list costs nothing extra to display. The archive's
- * expanded (feed) view clones it into place on demand.
+ * expanded (feed) view clones it into place on demand. Its header copies the
+ * permalink's (postPageHtml in scripts/build.mjs): the title at the same
+ * size, then the date with the read time opposite; the view count is added
+ * client-side from /api/views?kind=posts, as the Worker adds it there.
  */
-export const renderPostItem = (p, absolute = false, { withBody = false } = {}) =>
-  `          <li>
-            <span class="post-date">${escHtml(toETDate(p))}</span>
-            <a href="${absolute ? `/posts/${escHtml(safeSlug(p.slug))}/` : `posts/${escHtml(safeSlug(p.slug))}/`}">${escHtml(p.title)}</a>${
+export const renderPostItem = (p, absolute = false, { withBody = false } = {}) => {
+  const href = absolute ? `/posts/${escHtml(safeSlug(p.slug))}/` : `posts/${escHtml(safeSlug(p.slug))}/`;
+  const date = escHtml(toETDate(p));
+  return `          <li>
+            <span class="post-date">${date}</span>
+            <a href="${href}">${escHtml(p.title)}</a>${
               withBody && p.body_html ? `
-            <template class="post-feed-body"><div class="body">${p.body_html}</div></template>` : ""
+            <template class="post-feed-body"><h2 class="post-feed-title"><a href="${href}">${escHtml(p.title)}</a></h2><time class="post-feed-time" datetime="${date}"><span>${date}</span><span class="reading-time">${readingMins(p.body_html)} min read</span></time><div class="body">${p.body_html}</div></template>` : ""
             }
           </li>`;
+};
 
 /** `linkUrl` is the Bookshop affiliate link the build resolved for this book. */
 export const renderReadingItem = (r, linkUrl) =>

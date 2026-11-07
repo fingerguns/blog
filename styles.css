@@ -671,6 +671,40 @@ h2 {
   margin-top: 0.75rem;
 }
 
+/* The feed entry brings its own permalink-style header, so the collapsed
+   row's date and title step aside. */
+.post-list.is-feed li > .post-date,
+.post-list.is-feed li > a {
+  display: none;
+}
+
+.post-list.is-feed li {
+  display: block;
+}
+
+.post-list.is-feed .post-feed-entry {
+  margin-top: 0;
+}
+
+/* It is an h2 (the page's h1 is "Writing"), so undo the site's small-caps
+   h2 look; size and spacing come from the shared .post h1 rule. */
+.post-list .post-feed-title {
+  text-transform: none;
+  color: var(--text);
+}
+
+.post-list .post-feed-title a,
+.post-list.is-feed .post-feed-entry .post-feed-title a {
+  color: inherit;
+  font-weight: inherit;
+  text-decoration: none;
+}
+
+.post-list.is-feed .post-feed-entry .post-feed-title a:hover {
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+}
+
 /* Links inside a body read as body links, not list titles. */
 .post-list.is-feed .post-feed-entry a {
   font-weight: inherit;
@@ -2381,7 +2415,8 @@ html[data-colophon="whitman"] #colophon-whitman {
   margin-top: 1.25rem;
 }
 
-.post h1 {
+.post h1,
+.post-list .post-feed-title {
   font-size: var(--fs-2xl);
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -2389,7 +2424,8 @@ html[data-colophon="whitman"] #colophon-whitman {
   margin: 0 0 0.5rem;
 }
 
-.post:not(.microblog-entry) > time:not(.thinking-crumb-date) {
+.post:not(.microblog-entry) > time:not(.thinking-crumb-date),
+.post-list .post-feed-time {
   display: flex;
   justify-content: space-between;
   align-items: baseline;

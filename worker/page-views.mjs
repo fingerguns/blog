@@ -86,26 +86,33 @@ export async function withViewCount(request, res, env) {
   return out;
 }
 
-const THINKING_VIEWS_SQL = "SELECT path, views FROM page_views WHERE path LIKE '/thinking/%' AND views > 0";
+// Which permalinks /api/views can report, by `?kind=`. Thinking is the
+// default so the /thinking/ archive's existing request is unchanged.
+const ARCHIVE_VIEW_KINDS = {
+  thinking: { sql: "SELECT path, views FROM page_views WHERE path LIKE '/thinking/%' AND views > 0", re: /^\/thinking\/([^/]+)\/$/ },
+  posts: { sql: "SELECT path, views FROM page_views WHERE path LIKE '/posts/%' AND views > 0", re: /^\/posts\/([^/]+)\/$/ },
+};
 
 /**
  * GET /api/views — every Thinking note's count as `{ "<slug>": views }`, for
- * the /thinking/ archive to fill in client-side. One small D1 read; the
+ * the /thinking/ archive to fill in client-side; `?kind=posts` answers the
+ * same for Writing posts, for the /writing/ archive's expanded view. One small D1 read; the
  * archive is the site's largest page, and rewriting it per request would
  * blow the Free plan's 10 ms CPU budget. Public and read-only: it says no
  * more than the permalinks already show. Viewing the archive counts nothing.
  */
-export async function handleThinkingViews(env) {
+export async function handleThinkingViews(env, kind = "thinking") {
   const headers = {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "public, max-age=30",
   };
+  const spec = ARCHIVE_VIEW_KINDS[kind] ?? ARCHIVE_VIEW_KINDS.thinking;
   if (!env.DB) return new Response("{}", { status: 503, headers });
   try {
-    const { results = [] } = await env.DB.prepare(THINKING_VIEWS_SQL).all();
+    const { results = [] } = await env.DB.prepare(spec.sql).all();
     const out = {};
     for (const row of results) {
-      const slug = /^\/thinking\/([^/]+)\/$/.exec(row.path)?.[1];
+      const slug = spec.re.exec(row.path)?.[1];
       if (slug) out[slug] = Number(row.views);
     }
     return new Response(JSON.stringify(out), { headers });
