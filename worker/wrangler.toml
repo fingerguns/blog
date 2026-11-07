@@ -49,8 +49,10 @@ pattern = "rommy.blog/api/now-location"
 zone_name = "rommy.blog"
 
 # Public view counts for the Thinking and Writing archives (worker/page-views.mjs).
+# Trailing * so /api/views?kind=posts matches too: a pattern without one is an
+# exact match, and a query string alone made it fall through to Pages.
 [[routes]]
-pattern = "rommy.blog/api/views"
+pattern = "rommy.blog/api/views*"
 zone_name = "rommy.blog"
 
 # Live publishing (live-overlay.mjs): the HTML pages that list or are
