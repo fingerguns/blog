@@ -426,7 +426,7 @@ function listRenderers(ctx, linkFor, coverFor, linklogUnfurls) {
     writing: {
       kind: CONTENT_KIND.POST,
       sort: (p) => datedItemSort(p),
-      html: (p) => renderPostItem(p, true),
+      html: (p) => renderPostItem(p, true, { withBody: true }),
     },
     linklog: {
       kind: CONTENT_KIND.LINKLOG,

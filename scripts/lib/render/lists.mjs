@@ -8,10 +8,19 @@ import { escHtml } from "../html.mjs";
 import { safeSlug, stripHashtags, toETDate, linkDomain } from "./format.mjs";
 import { knownSiteName, unfurlHit } from "../link-unfurl.mjs";
 
-export const renderPostItem = (p, absolute = false) =>
+/**
+ * `withBody` is for the /writing/ archive: the post's body rides along in a
+ * <template>, which the browser parses but never renders or fetches media
+ * for, so the collapsed list costs nothing extra to display. The archive's
+ * expanded (feed) view clones it into place on demand.
+ */
+export const renderPostItem = (p, absolute = false, { withBody = false } = {}) =>
   `          <li>
             <span class="post-date">${escHtml(toETDate(p))}</span>
-            <a href="${absolute ? `/posts/${escHtml(safeSlug(p.slug))}/` : `posts/${escHtml(safeSlug(p.slug))}/`}">${escHtml(p.title)}</a>
+            <a href="${absolute ? `/posts/${escHtml(safeSlug(p.slug))}/` : `posts/${escHtml(safeSlug(p.slug))}/`}">${escHtml(p.title)}</a>${
+              withBody && p.body_html ? `
+            <template class="post-feed-body"><div class="body">${p.body_html}</div></template>` : ""
+            }
           </li>`;
 
 /** `linkUrl` is the Bookshop affiliate link the build resolved for this book. */

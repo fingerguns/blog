@@ -610,6 +610,78 @@ h2 {
   display: none !important;
 }
 
+/* /writing/ view toggle, right-aligned on the heading's line. */
+.section-head:has(.view-toggle:not([hidden])) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.view-toggle {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.view-toggle[hidden] {
+  display: none;
+}
+
+.view-toggle-btn {
+  background: none;
+  border: none;
+  padding: 0.2rem;
+  margin: 0;
+  font: inherit;
+  font-size: var(--fs-lg);
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.15s ease;
+}
+
+.view-toggle-btn svg {
+  display: block;
+}
+
+.view-toggle-btn:hover,
+.view-toggle-btn[aria-pressed="true"] {
+  color: var(--text);
+}
+
+/* Expanded (feed) view: each post's body under its title, full width. */
+.post-list .post-feed-entry {
+  display: none;
+}
+
+.post-list.is-feed li {
+  margin: 0 0 2.5rem;
+  padding-bottom: 2.5rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.post-list.is-feed li:last-child {
+  border-bottom: none;
+}
+
+.post-list.is-feed .post-feed-entry {
+  display: block;
+  grid-column: 1 / -1;
+  margin-top: 0.75rem;
+}
+
+/* Links inside a body read as body links, not list titles. */
+.post-list.is-feed .post-feed-entry a {
+  font-weight: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+}
+
+.post-list.is-feed .post-feed-entry a:hover {
+  text-decoration-color: currentColor;
+}
+
 .link-list li {
   margin: 0.35rem 0;
   padding: 0;

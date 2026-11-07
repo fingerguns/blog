@@ -203,7 +203,7 @@ const GA_ID = "G-L1CC5F3DP8";
 const gaSnippet = `    <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_ID}"></script>
     <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}');</script>`;
 
-const portraitPhotoToggleScript = `    <script>(function(){function init(){document.querySelectorAll(".post .body img:not(.thinking-photo)").forEach(function(img){if(img.dataset.portraitInit)return;function setup(){var w=img.naturalWidth,h=img.naturalHeight;if(!w||!h)return;img.dataset.portraitInit="1";if(h<=w)return;img.classList.add("photo-portrait");img.setAttribute("role","button");img.setAttribute("tabindex","0");img.setAttribute("aria-expanded","false");img.title="Click to enlarge";function toggle(){var ex=img.classList.toggle("photo-expanded");img.setAttribute("aria-expanded",ex?"true":"false");}img.addEventListener("click",toggle);img.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle();}});}if(img.complete)setup();else img.addEventListener("load",setup,{once:true});});}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();}());</script>`;
+const portraitPhotoToggleScript = `    <script>(function(){function init(){document.querySelectorAll(".post .body img:not(.thinking-photo)").forEach(function(img){if(img.dataset.portraitInit)return;function setup(){var w=img.naturalWidth,h=img.naturalHeight;if(!w||!h)return;img.dataset.portraitInit="1";if(h<=w)return;img.classList.add("photo-portrait");img.setAttribute("role","button");img.setAttribute("tabindex","0");img.setAttribute("aria-expanded","false");img.title="Click to enlarge";function toggle(){var ex=img.classList.toggle("photo-expanded");img.setAttribute("aria-expanded",ex?"true":"false");}img.addEventListener("click",toggle);img.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle();}});}if(img.complete)setup();else img.addEventListener("load",setup,{once:true});});}window.initPortraitPhotos=init;if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();}());</script>`;
 
 const socialsToggleScript = `    <script>(function(){var btn=document.querySelector(".socials-toggle");if(!btn)return;var list=document.getElementById("socials-sublist");btn.addEventListener("click",function(){var open=btn.getAttribute("aria-expanded")==="true";btn.setAttribute("aria-expanded",open?"false":"true");list.hidden=open;});}());</script>`;
 
@@ -1307,18 +1307,29 @@ apply();
 // The tooltip sits beside the heading, not inside it, so the heading's text
 // (and the accessible name of any section labelled by it) stays just the
 // label; the hint is attached as a description instead.
-const sectionHeading = (label, tag, id) => {
+const sectionHeading = (label, tag, id, actionsHtml = "") => {
   const hint = SECTION_HINTS[label];
   const idAttr = id ? ` id="${id}"` : "";
   const tipId = `hint-${String(label).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
-  return `<div class="section-head"><${tag}${idAttr}><span class="section-hint" tabindex="0" aria-describedby="${tipId}">${escHtml(label)}</span></${tag}><div class="section-hint-tip" id="${tipId}" role="tooltip">${escHtml(hint)}</div></div>`;
+  return `<div class="section-head"><${tag}${idAttr}><span class="section-hint" tabindex="0" aria-describedby="${tipId}">${escHtml(label)}</span></${tag}><div class="section-hint-tip" id="${tipId}" role="tooltip">${escHtml(hint)}</div>${actionsHtml}</div>`;
 };
+
+// /writing/ view toggle: collapsed (date + title, the default) or expanded
+// (every post's body inline, like a feed). Hidden until the script runs, so
+// without JS the page is just the collapsed list. The choice is remembered
+// per browser in localStorage under "writing-view".
+const writingViewToggleHtml = `<div class="view-toggle" role="group" aria-label="Writing view" hidden><button type="button" class="view-toggle-btn" data-view="collapsed" aria-pressed="true" aria-label="Collapsed list" title="Collapsed list"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h.01M3 12h.01M3 18h.01M8 6h13M8 12h13M8 18h13"/></svg></button><button type="button" class="view-toggle-btn" data-view="expanded" aria-pressed="false" aria-label="Expanded feed" title="Expanded feed"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="7" x="3" y="3" rx="1.5"/><rect width="18" height="7" x="3" y="14" rx="1.5"/></svg></button></div>`;
+
+// Expanding clones each item's <template> body into the list item once, with
+// images set to lazy-load so items still hidden by infinite scroll fetch
+// nothing until they are revealed; collapsing only hides those bodies.
+const writingViewToggleScript = `    <script>(function(){var g=document.querySelector('.view-toggle');var list=document.querySelector('.post-list');if(!g||!list)return;var KEY='writing-view';function fill(){list.querySelectorAll('li').forEach(function(li){if(li.querySelector('.post-feed-entry'))return;var t=li.querySelector('template.post-feed-body');if(!t)return;var d=document.createElement('div');d.className='post-feed-entry';d.appendChild(t.content.cloneNode(true));d.querySelectorAll('img').forEach(function(img){if(!img.hasAttribute('loading'))img.loading='lazy';});li.appendChild(d);});if(window.initPortraitPhotos)window.initPortraitPhotos();}function set(v,save){var ex=v==='expanded';if(ex)fill();list.classList.toggle('is-feed',ex);g.querySelectorAll('.view-toggle-btn').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.view===v?'true':'false');});if(save){try{localStorage.setItem(KEY,v);}catch(e){}}}g.hidden=false;g.addEventListener('click',function(e){var b=e.target.closest('.view-toggle-btn');if(b)set(b.dataset.view,true);});var v='collapsed';try{v=localStorage.getItem(KEY)||'collapsed';}catch(e){}set(v,false);}());</script>`;
 
 // Homepage lists (capped at MAX_PER_SECTION)
 const postListHtml = ordered.slice(0, MAX_PER_SECTION).map((p) => renderPostItem(p)).join("\n");
 const hasMorePosts = ordered.length > MAX_PER_SECTION;
 const postListAllHtml = ordered
-  .map((p) => withLiveAttrs(renderPostItem(p, true), liveKey(CONTENT_KIND.POST, p.slug), datedItemSort(p)))
+  .map((p) => withLiveAttrs(renderPostItem(p, true, { withBody: true }), liveKey(CONTENT_KIND.POST, p.slug), datedItemSort(p)))
   .join("\n");
 
 const readingHtml = orderedReading.slice(0, MAX_PER_SECTION).map(renderReadingItem).join("\n");
@@ -1789,11 +1800,11 @@ if(filterBtns.length){
 }());</script>`;
 
 
-const writingPageHtml = `${archiveHead("Writing", sectionHeading("Writing", "h1"))}
+const writingPageHtml = `${archiveHead("Writing", sectionHeading("Writing", "h1", undefined, writingViewToggleHtml))}
       <ol class="post-list" reversed${liveListAttrs("writing")}>
 ${postListAllHtml}
       </ol>
-${archiveFoot()}`;
+${archiveFoot(writingViewToggleScript)}`;
 
 const sharingPageHtml = `${archiveHead("Sharing", sectionHeading("Sharing", "h1"))}
 ${linklogTagFilterHtml}
