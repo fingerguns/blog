@@ -183,3 +183,10 @@ CREATE TABLE IF NOT EXISTS content_changes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_content_changes_created_at ON content_changes(created_at);
+
+-- Permalink view counts — see worker/migrate-page-views.sql.
+CREATE TABLE IF NOT EXISTS page_views (
+  path TEXT PRIMARY KEY,
+  views INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT
+);

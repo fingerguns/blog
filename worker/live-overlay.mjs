@@ -78,6 +78,7 @@ import {
   thinkingPermalinkParts,
 } from "../scripts/lib/render/pages.mjs";
 import { changesSince, latestChangeId } from "./content-changes.mjs";
+import { viewPathFor, withoutConditionals, withViewCount } from "./page-views.mjs";
 
 const SITE_HOST = "rommy.blog";
 const HOME_LIST_SIZE = 5; // MAX_PER_SECTION in scripts/build.mjs
@@ -101,8 +102,18 @@ export function isSitePassthrough(request) {
   return url.hostname === SITE_HOST && !/^\/(api|media)\//.test(url.pathname);
 }
 
-/** Serve a page from Pages with the changes since its build applied. */
+/**
+ * Serve a page from Pages with the changes since its build applied, and —
+ * on a permalink — its view count (worker/page-views.mjs), added after the
+ * overlay's edge cache so a cached copy never freezes the number.
+ */
 export async function serveLive(request, env, ctx) {
+  if (viewPathFor(request)) request = withoutConditionals(request);
+  const res = await overlaid(request, env, ctx);
+  return withViewCount(request, res, env);
+}
+
+async function overlaid(request, env, ctx) {
   let origin = await fetch(request);
   try {
     // A browser revalidating its copy gets a bodiless 304 from Pages, which

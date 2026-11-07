@@ -61,6 +61,12 @@ Add Sharing (linklog) topic tags (`tags` column, backing the archive's tag-filte
 wrangler d1 execute rommy-blog-db --file=migrate-linklog-tags.sql --remote
 ```
 
+Add permalink view counts (`page_views`, filled by the Worker on each page load and seeded once from Google Analytics with `npm run seed-page-views`):
+
+```bash
+wrangler d1 execute rommy-blog-db --file=migrate-page-views.sql --remote
+```
+
 Migrate existing content from `data/posts.json`:
 
 ```bash

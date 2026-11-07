@@ -849,6 +849,13 @@ h2 {
   color: var(--muted);
 }
 
+/* View count on Writing and Thinking permalinks, written in by the Worker
+   (worker/page-views.mjs). */
+.post-views {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Admin-only "edit" / "delete" links on a Writing post page (injected
    client-side when a signed-in admin session is present in this browser). */
 a.post-admin-edit,
