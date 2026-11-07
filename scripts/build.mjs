@@ -876,7 +876,7 @@ ${gaSnippet}
   <body>
     <article class="post" data-slug="${v.slug}">
       <a class="post-back" href="../../index.html" aria-label="Home">←</a>
-      <h1>${v.heading}</h1>
+      <h1 class="post-title">${v.heading}</h1>
       <time datetime="${v.displayDate}"><span>${v.displayDate}</span><span class="reading-time">${v.readMins} min read</span></time>
       <div class="body">
         ${v.body}

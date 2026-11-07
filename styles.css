@@ -59,6 +59,9 @@
   --fs-xl: 1.5rem;
   --fs-2xl: 1.65rem;
   --fs-3xl: 2rem;
+  /* Writing post titles (permalink and the /writing/ feed): three-quarters
+     of --fs-2xl, so it sits between --fs-lg and --fs-xl, off the scale. */
+  --fs-post-title: calc(var(--fs-2xl) * 0.75);
   --thinking-delete-bg: #ebe6de;
   /* Raised surfaces (link cards): a step off the page, either theme. */
   --surface: #ece6db;
@@ -2422,6 +2425,12 @@ html[data-colophon="whitman"] #colophon-whitman {
   letter-spacing: -0.02em;
   line-height: 1.25;
   margin: 0 0 0.5rem;
+}
+
+/* Writing post titles only — archive and page headings keep --fs-2xl. */
+.post h1.post-title,
+.post-list .post-feed-title {
+  font-size: var(--fs-post-title);
 }
 
 .post:not(.microblog-entry) > time:not(.thinking-crumb-date),
