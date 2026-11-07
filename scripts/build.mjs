@@ -1655,7 +1655,33 @@ ${extraHead}
       <a class="post-back" href="/" aria-label="Home">←</a>
       ${headingHtml ?? `<h1>${escHtml(title)}</h1>`}`;
 
-const archiveFoot = (extraScripts = "", { infiniteScroll = true } = {}) => `      <footer class="site-footer">
+// Back to top for the long archives (Thinking, Writing, Reading, Sharing).
+// Each archive ships whole in the first page load, so the list only ever grows
+// by scrolling; the button stays out of the way until the reader is more than
+// one screen down, then pins bottom-right.
+// visibility:hidden (not just opacity) keeps it out of the tab order while unseen.
+const archiveBackToTopHtml = `      <a href="#" class="archive-to-top"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg><span>Back to top</span></a>`;
+
+const archiveBackToTopScript = `    <script>(function(){
+var b=document.querySelector('.archive-to-top');
+if(!b)return;
+var queued=false;
+function update(){queued=false;b.classList.toggle('is-visible',window.scrollY>window.innerHeight);}
+function queue(){if(!queued){queued=true;requestAnimationFrame(update);}}
+window.addEventListener('scroll',queue,{passive:true});
+window.addEventListener('resize',queue);
+update();
+b.addEventListener('click',function(e){
+  e.preventDefault();
+  var still=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.scrollTo({top:0,behavior:still?'auto':'smooth'});
+  // Hand focus back to the top of the page so keyboard users start over there too.
+  var h=document.querySelector('.post h1');
+  if(h){h.setAttribute('tabindex','-1');h.focus({preventScroll:true});}
+});
+}());</script>`;
+
+const archiveFoot = (extraScripts = "", { infiniteScroll = true, backToTop = false } = {}) => `${backToTop ? `${archiveBackToTopHtml}\n` : ""}      <footer class="site-footer">
         <p class="footer-row footer-row-toggle"><span>&copy; 2026 ${escHtml(site.author)} <a href="/admin/" class="footer-icon" aria-label="Admin" title="Admin"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg></a></span><a href="#" class="theme-toggle" id="theme-toggle" role="button"></a><a href="/search/" class="footer-icon" aria-label="Search" title="Search"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4.35-4.35"/></svg></a></p>
         <p class="footer-row"><span>Subscribe via <a href="/feed.xml" type="application/atom+xml" class="footer-icon" aria-label="Atom feed" title="Atom feed"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z"/></svg></a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
@@ -1664,7 +1690,7 @@ const archiveFoot = (extraScripts = "", { infiniteScroll = true } = {}) => `    
 ${portraitPhotoToggleScript}
 ${thinkingLightboxScript}
 ${infiniteScroll ? `    <script>(function(){var BATCH=10;var list=document.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++)items[i].hidden=true;var shown=BATCH;var sentinel=document.createElement('div');document.body.appendChild(sentinel);var obs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++)items[i].hidden=false;shown=next;if(shown>=items.length)obs.disconnect();},{rootMargin:'0px'});obs.observe(sentinel);}());</script>` : ""}
-${extraScripts}
+${backToTop ? `${archiveBackToTopScript}\n` : ""}${extraScripts}
   </body>
 </html>
 `;
@@ -1804,14 +1830,14 @@ const writingPageHtml = `${archiveHead("Writing", sectionHeading("Writing", "h1"
       <ol class="post-list" reversed${liveListAttrs("writing")}>
 ${postListAllHtml}
       </ol>
-${archiveFoot(writingViewToggleScript)}`;
+${archiveFoot(writingViewToggleScript, { backToTop: true })}`;
 
 const sharingPageHtml = `${archiveHead("Sharing", sectionHeading("Sharing", "h1"))}
 ${linklogTagFilterHtml}
       <ol class="post-list linklog-archive-list" reversed${liveListAttrs("linklog")}>
 ${linklogAllHtml}
       </ol>
-${archiveFoot(linklogFilterScript, { infiniteScroll: false })}`;
+${archiveFoot(linklogFilterScript, { infiniteScroll: false, backToTop: true })}`;
 
 // /now page
 const nowMonthYear = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "America/New_York" });
@@ -2459,31 +2485,6 @@ new MutationObserver(function(){
 if(wrap.getAttribute('data-view')==='map')start();
 }());</script>`;
 
-// Back to top for the Thinking archive. Every note ships in the first page
-// load, so the list only ever grows by scrolling; the button stays out of the
-// way until the reader is more than one screen down, then pins bottom-right.
-// visibility:hidden (not just opacity) keeps it out of the tab order while unseen.
-const thinkingBackToTopHtml = `      <a href="#" class="thinking-to-top"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg><span>Back to top</span></a>`;
-
-const thinkingBackToTopScript = `    <script>(function(){
-var b=document.querySelector('.thinking-to-top');
-if(!b)return;
-var queued=false;
-function update(){queued=false;b.classList.toggle('is-visible',window.scrollY>window.innerHeight);}
-function queue(){if(!queued){queued=true;requestAnimationFrame(update);}}
-window.addEventListener('scroll',queue,{passive:true});
-window.addEventListener('resize',queue);
-update();
-b.addEventListener('click',function(e){
-  e.preventDefault();
-  var still=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  window.scrollTo({top:0,behavior:still?'auto':'smooth'});
-  // Hand focus back to the top of the page so keyboard users start over there too.
-  var h=document.querySelector('.post h1');
-  if(h){h.setAttribute('tabindex','-1');h.focus({preventScroll:true});}
-});
-}());</script>`;
-
 // View counts on the archive's list view, in the same place as on each
 // note's own page: after the neighborhood, or after the date when there is
 // none, and before any admin "delete" link. Filled from one small JSON
@@ -2510,7 +2511,7 @@ fetch('/api/views',{credentials:'omit'}).then(function(r){return r.ok?r.json():{
 }).catch(function(){});
 }());</script>`;
 
-const thinkingArchiveFoot = `${thinkingBackToTopHtml}
+const thinkingArchiveFoot = `${archiveBackToTopHtml}
       <footer class="site-footer">
         <p class="footer-row footer-row-toggle"><span>&copy; 2026 ${escHtml(site.author)} <a href="/admin/" class="footer-icon" aria-label="Admin" title="Admin"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg></a></span><a href="#" class="theme-toggle" id="theme-toggle" role="button"></a><a href="/search/" class="footer-icon" aria-label="Search" title="Search"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4.35-4.35"/></svg></a></p>
         <p class="footer-row"><span>Subscribe via <a href="/feed.xml" type="application/atom+xml" class="footer-icon" aria-label="Atom feed" title="Atom feed"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z"/></svg></a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
@@ -2522,7 +2523,7 @@ ${thinkingViewToggleScript}
 ${thinkingMapScript}
 ${thinkingLightboxScript}
 ${thinkingDeleteLinkScript}
-${thinkingBackToTopScript}
+${archiveBackToTopScript}
 ${thinkingArchiveViewsScript}
   </body>
 </html>
@@ -2653,7 +2654,8 @@ const READING_GENRE_SLUGS = readingGenres.map((g) => g.slug);
 
 const readingArchiveScript = `    <script>(function(){var wrap=document.querySelector('.reading-views');if(!wrap)return;var tabBtns=wrap.querySelectorAll('[data-tab-btn]');var viewBtns=wrap.querySelectorAll('.reading-view-btn');var scrollObs=null;var scrollSentinel=null;var favoritesPanel=wrap.querySelector('[data-tab-panel="favorites"]');var genreFilterSelect=favoritesPanel?favoritesPanel.querySelector('.reading-genre-select'):null;var genreSlugs=${JSON.stringify(READING_GENRE_SLUGS)};var activeGenre=null;var genreFilterActive=false;var TAB_PATH={latest:'/reading/latest/',favorites:'/reading/must-reads/'};var HASH_TAB={latest:'latest','must-reads':'favorites'};function normPath(){return location.pathname.replace(/\\/+$/,'')||'/';}function genreFromPath(){var p=normPath();if(p.indexOf('/reading/must-reads/')!==0)return null;var seg=p.slice('/reading/must-reads/'.length).replace(/\\/+$/,'');if(!seg)return null;return genreSlugs.indexOf(seg)>=0?seg:null;}function pathForGenre(){return activeGenre?'/reading/must-reads/'+activeGenre+'/':'/reading/must-reads/';}function tabFromPath(){var p=normPath();if(p==='/reading/latest')return'latest';if(p==='/reading/must-reads')return'favorites';if(p.indexOf('/reading/must-reads/')===0)return'favorites';return null;}function tabFromHash(){var h=location.hash.replace(/^#/,'');return HASH_TAB[h]||null;}function pathForTab(t){return TAB_PATH[t]||'/reading/latest/';}function activePanel(){return wrap.querySelector('[data-tab-panel="'+wrap.getAttribute('data-tab')+'"]');}function genreItemMatches(el){if(!genreFilterActive||!activeGenre)return true;var tags=(el.getAttribute('data-genres')||'').split(/\\s+/).filter(Boolean);return tags.indexOf(activeGenre)>=0;}function applyGenreFilters(){if(!favoritesPanel)return;var on=genreFilterActive&&activeGenre;if(genreFilterSelect)genreFilterSelect.value=on?activeGenre:'';favoritesPanel.querySelectorAll('.post-list li').forEach(function(el){el.hidden=on&&!genreItemMatches(el);});favoritesPanel.querySelectorAll('.reading-grid-item').forEach(function(el){el.hidden=on&&!genreItemMatches(el);});}function syncGenrePath(skipPath){if(skipPath||wrap.getAttribute('data-tab')!=='favorites')return;var want=pathForGenre();if(location.pathname!==want)history.replaceState(null,'',want);}function setGenreFromPath(){activeGenre=genreFromPath();genreFilterActive=Boolean(activeGenre);}function setTab(t,skipPath){wrap.setAttribute('data-tab',t);tabBtns.forEach(function(b){b.setAttribute('aria-selected',b.getAttribute('data-tab-btn')===t?'true':'false');});if(!skipPath){var want=pathForTab(t);if(location.pathname!==want||location.hash)history.replaceState(null,'',want);if(t!=='favorites'){activeGenre=null;genreFilterActive=false;}}applyGenreFilters();setupInfiniteScroll();}function setView(v){wrap.setAttribute('data-view',v);viewBtns.forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-view-btn')===v?'true':'false');});localStorage.setItem('readingView',v);}function setupInfiniteScroll(){if(scrollObs){scrollObs.disconnect();scrollObs=null;}if(scrollSentinel){scrollSentinel.remove();scrollSentinel=null;}if(wrap.getAttribute('data-tab')==='favorites'&&genreFilterActive&&activeGenre){return;}var panel=activePanel();if(!panel)return;var list=panel.querySelector('.post-list');if(!list)return;var items=list.querySelectorAll('li');items.forEach(function(li){if(!genreFilterActive||!activeGenre)li.hidden=false;});var BATCH=10;if(items.length<=BATCH)return;for(var i=BATCH;i<items.length;i++){if(!genreFilterActive||!activeGenre)items[i].hidden=true;}var shown=BATCH;scrollSentinel=document.createElement('div');scrollSentinel.className='reading-scroll-sentinel';panel.appendChild(scrollSentinel);scrollObs=new IntersectionObserver(function(e){if(!e[0].isIntersecting)return;var next=Math.min(shown+BATCH,items.length);for(var i=shown;i<next;i++){if(!genreFilterActive||!activeGenre)items[i].hidden=false;}shown=next;if(shown>=items.length){scrollObs.disconnect();scrollObs=null;}},{rootMargin:'0px'});scrollObs.observe(scrollSentinel);}var fromHash=tabFromHash();if(fromHash)history.replaceState(null,'',pathForTab(fromHash));setGenreFromPath();var initialTab=tabFromPath()||'latest';setTab(initialTab,true);setView(localStorage.getItem('readingView')||'list');tabBtns.forEach(function(b){b.addEventListener('click',function(){if(b.getAttribute('data-tab-btn')==='favorites'){activeGenre=null;genreFilterActive=false;}setTab(b.getAttribute('data-tab-btn'));});});viewBtns.forEach(function(b){b.addEventListener('click',function(){setView(b.getAttribute('data-view-btn'));});});if(genreFilterSelect){genreFilterSelect.addEventListener('change',function(){var slug=genreFilterSelect.value;if(!slug){activeGenre=null;genreFilterActive=false;}else{activeGenre=slug;genreFilterActive=true;}applyGenreFilters();setupInfiniteScroll();syncGenrePath();});}window.addEventListener('popstate',function(){setGenreFromPath();setTab(tabFromPath()||'latest',true);});}());</script>`;
 
-const readingArchiveFoot = `      <footer class="site-footer">
+const readingArchiveFoot = `${archiveBackToTopHtml}
+      <footer class="site-footer">
         <p class="footer-row footer-row-toggle"><span>&copy; 2026 ${escHtml(site.author)} <a href="/admin/" class="footer-icon" aria-label="Admin" title="Admin"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg></a></span><a href="#" class="theme-toggle" id="theme-toggle" role="button"></a><a href="/search/" class="footer-icon" aria-label="Search" title="Search"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4.35-4.35"/></svg></a></p>
         <p class="footer-row"><span>Subscribe via <a href="/feed.xml" type="application/atom+xml" class="footer-icon" aria-label="Atom feed" title="Atom feed"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z"/></svg></a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
@@ -2662,6 +2664,7 @@ const readingArchiveFoot = `      <footer class="site-footer">
 ${portraitPhotoToggleScript}
 ${readingArchiveScript}
 ${thinkingLightboxScript}
+${archiveBackToTopScript}
   </body>
 </html>
 `;

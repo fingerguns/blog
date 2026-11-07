@@ -2790,9 +2790,10 @@ footer.site-footer code {
   margin-top: 1.5rem;
 }
 
-/* Floating back-to-top on the Thinking archive, shown once the reader is more
-   than a screen down (see thinkingBackToTopScript in build.mjs). */
-.thinking-to-top {
+/* Floating back-to-top on the Thinking, Writing, Reading and Sharing archives,
+   shown once the reader is more than a screen down (see archiveBackToTopScript
+   in build.mjs). */
+.archive-to-top {
   position: fixed;
   right: max(1rem, env(safe-area-inset-right));
   bottom: max(1rem, env(safe-area-inset-bottom));
@@ -2812,24 +2813,24 @@ footer.site-footer code {
   transform: translateY(0.5rem);
   transition: opacity 0.2s, transform 0.2s, visibility 0s linear 0.2s, color 0.15s, background-color 0.15s;
 }
-.thinking-to-top.is-visible {
+.archive-to-top.is-visible {
   opacity: 1;
   visibility: visible;
   transform: none;
   transition: opacity 0.2s, transform 0.2s, visibility 0s, color 0.15s, background-color 0.15s;
 }
-.thinking-to-top:hover,
-.thinking-to-top:focus-visible {
+.archive-to-top:hover,
+.archive-to-top:focus-visible {
   background: var(--surface-hover);
   color: var(--link-hover);
 }
-.thinking-to-top svg {
+.archive-to-top svg {
   display: block;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .thinking-to-top,
-  .thinking-to-top.is-visible {
+  .archive-to-top,
+  .archive-to-top.is-visible {
     transform: none;
     transition: none;
   }
