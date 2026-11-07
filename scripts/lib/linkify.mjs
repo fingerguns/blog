@@ -1,5 +1,15 @@
+import { escHtml } from "./html.mjs";
+
 /** Bluesky hashtag search pages — rommy.blog links here for #tags in Thinking. */
 export const BSKY_HASHTAG_BASE = "https://bsky.app/hashtag/";
+
+/**
+ * Visible length of a bare URL on rommy.blog, after dropping the scheme.
+ * Longer addresses end in an ellipsis; the href stays the full URL.
+ * Cross-posts are sent unshortened — Micro.blog, Bluesky, and Mastodon
+ * clip them in their own clients.
+ */
+export const URL_DISPLAY_MAX = 40;
 
 export function blueskyHashtagUrl(tag) {
   return `${BSKY_HASHTAG_BASE}${encodeURIComponent(tag)}`;
@@ -11,11 +21,29 @@ const HASHTAG_BODY = /#([a-zA-Z_][a-zA-Z0-9_]{0,63})/g;
 /** Hashtag must follow start-of-string or whitespace/open-paren (not mid-word). */
 const HASHTAG_FACET_RE = /(?:^|[\s(])(#[a-zA-Z_][a-zA-Z0-9_]{0,63})/g;
 
+/** Decode the few entities `escHtml` introduces, so we measure the real URL. */
+function decodeHref(href) {
+  return String(href).replace(/&amp;/g, "&").replace(/&quot;/g, '"');
+}
+
+/**
+ * Label shown for a URL on the page: scheme stripped, then clipped with a
+ * trailing ellipsis if it would still run long. Does not change the href.
+ */
+export function urlDisplayLabel(href) {
+  const bare = decodeHref(href).replace(/^https?:\/\//i, "");
+  if (bare.length <= URL_DISPLAY_MAX) return bare;
+  return `${bare.slice(0, URL_DISPLAY_MAX - 1)}…`;
+}
+
 export function linkifyUrls(html) {
   return html.replace(/https?:\/\/[^\s<>"]+/g, (url) => {
     const clean = url.replace(/[.,;:!?)"']+$/, "");
     const trail = url.slice(clean.length);
-    return `<a href="${clean}" target="_blank" rel="noopener">${clean}</a>${trail}`;
+    const decoded = decodeHref(clean);
+    const label = urlDisplayLabel(clean);
+    const title = label.length < decoded.replace(/^https?:\/\//i, "").length ? ` title="${escHtml(decoded)}"` : "";
+    return `<a href="${clean}"${title} target="_blank" rel="noopener">${escHtml(label)}</a>${trail}`;
   });
 }
 
