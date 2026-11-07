@@ -2346,7 +2346,33 @@ new MutationObserver(function(){
 if(wrap.getAttribute('data-view')==='map')start();
 }());</script>`;
 
-const thinkingArchiveFoot = `      <footer class="site-footer">
+// Back to top for the Thinking archive. Every note ships in the first page
+// load, so the list only ever grows by scrolling; the button stays out of the
+// way until the reader is more than one screen down, then pins bottom-right.
+// visibility:hidden (not just opacity) keeps it out of the tab order while unseen.
+const thinkingBackToTopHtml = `      <a href="#" class="thinking-to-top"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg><span>Back to top</span></a>`;
+
+const thinkingBackToTopScript = `    <script>(function(){
+var b=document.querySelector('.thinking-to-top');
+if(!b)return;
+var queued=false;
+function update(){queued=false;b.classList.toggle('is-visible',window.scrollY>window.innerHeight);}
+function queue(){if(!queued){queued=true;requestAnimationFrame(update);}}
+window.addEventListener('scroll',queue,{passive:true});
+window.addEventListener('resize',queue);
+update();
+b.addEventListener('click',function(e){
+  e.preventDefault();
+  var still=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.scrollTo({top:0,behavior:still?'auto':'smooth'});
+  // Hand focus back to the top of the page so keyboard users start over there too.
+  var h=document.querySelector('.post h1');
+  if(h){h.setAttribute('tabindex','-1');h.focus({preventScroll:true});}
+});
+}());</script>`;
+
+const thinkingArchiveFoot = `${thinkingBackToTopHtml}
+      <footer class="site-footer">
         <p class="footer-row footer-row-toggle"><span>&copy; 2026 ${escHtml(site.author)} <a href="/admin/" class="footer-icon" aria-label="Admin" title="Admin"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg></a></span><a href="#" class="theme-toggle" id="theme-toggle" role="button"></a><a href="/search/" class="footer-icon" aria-label="Search" title="Search"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4.35-4.35"/></svg></a></p>
         <p class="footer-row"><span>Subscribe via <a href="/feed.xml" type="application/atom+xml" class="footer-icon" aria-label="Atom feed" title="Atom feed"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z"/></svg></a></span><span><a href="/changelog/">Changelog</a> // <a href="/colophon/">Colophon</a></span></p>
       </footer>
@@ -2357,6 +2383,7 @@ ${thinkingViewToggleScript}
 ${thinkingMapScript}
 ${thinkingLightboxScript}
 ${thinkingDeleteLinkScript}
+${thinkingBackToTopScript}
   </body>
 </html>
 `;

@@ -2650,3 +2650,48 @@ footer.site-footer code {
 .post-pager + .back-to-top {
   margin-top: 1.5rem;
 }
+
+/* Floating back-to-top on the Thinking archive, shown once the reader is more
+   than a screen down (see thinkingBackToTopScript in build.mjs). */
+.thinking-to-top {
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  line-height: 1;
+  text-decoration: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(0.5rem);
+  transition: opacity 0.2s, transform 0.2s, visibility 0s linear 0.2s, color 0.15s, background-color 0.15s;
+}
+.thinking-to-top.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition: opacity 0.2s, transform 0.2s, visibility 0s, color 0.15s, background-color 0.15s;
+}
+.thinking-to-top:hover,
+.thinking-to-top:focus-visible {
+  background: var(--surface-hover);
+  color: var(--link-hover);
+}
+.thinking-to-top svg {
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking-to-top,
+  .thinking-to-top.is-visible {
+    transform: none;
+    transition: none;
+  }
+}
