@@ -1987,6 +1987,21 @@ html.thinking-lightbox-open {
   touch-action: none;
   cursor: zoom-in;
   will-change: transform;
+  /* Click-to-zoom eases in and out rather than jumping. */
+  transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Following a finger or the mouse while panning, and resetting for a new
+   photo, must not lag behind a transition. */
+.thinking-lightbox--panning .thinking-lightbox-figure img,
+.thinking-lightbox--instant .thinking-lightbox-figure img {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking-lightbox-figure img {
+    transition: none;
+  }
 }
 
 .thinking-lightbox--zoomed .thinking-lightbox-figure img {

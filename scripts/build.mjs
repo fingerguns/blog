@@ -214,15 +214,79 @@ const thinkingLightboxScript = `    <script>(function(){
   var zoomed=false,scale=1,tx=0,ty=0,originX=50,originY=50;
   var panning=false,panStartX=0,panStartY=0,panStartTx=0,panStartTy=0;
   var imgTap={active:false,mx:0,my:0,t:0,moved:false};
+  // Opening swoops the photo out of the tile it was tapped from; closing
+  // swoops it back into the tile of whichever photo is showing. The tile is a
+  // centre-cropped rounded square and the lightbox shows the whole photo, so
+  // the swoop scales to cover the tile and clips the overflow away, easing
+  // the clip open as it grows. A tile scrolled out of view, a browser without
+  // the Web Animations API, or prefers-reduced-motion: no swoop, as before.
+  var tiles=[],animating=false;
+  var OPEN_MS=340,CLOSE_MS=280,TILE_RADIUS=4;
+  var EASE_OUT="cubic-bezier(.2,.8,.2,1)",EASE_IN_OUT="cubic-bezier(.4,0,.2,1)";
+  function canSwoop(){
+    return typeof imgEl.animate==="function"&&!window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+  function onScreen(el){
+    if(!el)return null;
+    var r=el.getBoundingClientRect();
+    if(!r.width||!r.height||r.bottom<=0||r.right<=0||r.top>=window.innerHeight||r.left>=window.innerWidth)return null;
+    return r;
+  }
+  // Keyframes from a tile's box to the photo's full box (reverse them to close).
+  function swoopFrames(tile,full){
+    var s=Math.max(tile.width/full.width,tile.height/full.height);
+    var dx=(tile.left+tile.width/2)-(full.left+full.width/2);
+    var dy=(tile.top+tile.height/2)-(full.top+full.height/2);
+    var ix=Math.max(0,(full.width-tile.width/s)/2),iy=Math.max(0,(full.height-tile.height/s)/2);
+    return [
+      {transform:"translate("+dx+"px,"+dy+"px) scale("+s+")",clipPath:"inset("+iy+"px "+ix+"px round "+(TILE_RADIUS/s)+"px)"},
+      {transform:"translate(0px,0px) scale(1)",clipPath:"inset(0px 0px round 0px)"}
+    ];
+  }
+  function backdrop(show,ms){
+    var opts={duration:ms,easing:"ease",fill:"both"};
+    var anims=[overlay.animate({backgroundColor:show?["rgba(0,0,0,0)","rgba(0,0,0,0.88)"]:["rgba(0,0,0,0.88)","rgba(0,0,0,0)"]},opts)];
+    overlay.querySelectorAll(".thinking-lightbox-prev, .thinking-lightbox-next, .thinking-lightbox-counter").forEach(function(el){
+      anims.push(el.animate({opacity:show?[0,1]:[1,0]},opts));
+    });
+    return anims;
+  }
+  function cancelAll(list){list.forEach(function(a){try{a.cancel();}catch(e){}});}
+  function stopSwoop(){
+    if(!overlay)return;
+    cancelAll(imgEl.getAnimations?imgEl.getAnimations():[]);
+    cancelAll(overlay.getAnimations?overlay.getAnimations({subtree:true}):[]);
+    tiles.forEach(function(t){t.style.visibility="";});
+    imgEl.style.opacity="";
+    animating=false;
+  }
+  // Run once the lightbox image has a size to measure (it is usually the
+  // tile's own file, already loaded); give up waiting after a moment.
+  function whenSized(cb){
+    var done=false;
+    function go(){if(done)return;done=true;requestAnimationFrame(cb);}
+    if(imgEl.complete&&imgEl.naturalWidth)return go();
+    imgEl.addEventListener("load",go,{once:true});
+    imgEl.addEventListener("error",go,{once:true});
+    setTimeout(go,600);
+  }
   function applyTransform(){
     imgEl.style.transformOrigin=originX+"% "+originY+"%";
     imgEl.style.transform="translate("+tx+"px,"+ty+"px) scale("+scale+")";
   }
-  function resetZoom(){
-    zoomed=false;scale=1;tx=0;ty=0;originX=50;originY=50;panning=false;
+  // Zooming eases in and out (a CSS transition on transform). Zooming out
+  // keeps the point it zoomed into, so the photo settles back toward it;
+  // a reset for a new photo or for closing happens at once.
+  function resetZoom(animate){
+    zoomed=false;scale=1;tx=0;ty=0;panning=false;
+    overlay.classList.remove("thinking-lightbox--zoomed","thinking-lightbox--panning");
+    if(animate){imgEl.style.transform="";return;}
+    overlay.classList.add("thinking-lightbox--instant");
+    originX=50;originY=50;
     imgEl.style.transform="";
     imgEl.style.transformOrigin="";
-    overlay.classList.remove("thinking-lightbox--zoomed","thinking-lightbox--panning");
+    void imgEl.offsetWidth;
+    overlay.classList.remove("thinking-lightbox--instant");
   }
   function zoomPoint(clientX,clientY){
     var r=imgEl.getBoundingClientRect();
@@ -241,7 +305,8 @@ const thinkingLightboxScript = `    <script>(function(){
     applyTransform();
   }
   function toggleZoom(e){
-    if(zoomed){resetZoom();return;}
+    if(animating)return;
+    if(zoomed){resetZoom(true);return;}
     var x=e.clientX,y=e.clientY;
     if(x==null&&e.changedTouches&&e.changedTouches[0]){
       x=e.changedTouches[0].clientX;y=e.changedTouches[0].clientY;
@@ -331,7 +396,7 @@ const thinkingLightboxScript = `    <script>(function(){
     document.addEventListener("mouseup",function(){endPan();});
     document.addEventListener("keydown",function(e){
       if(overlay.hidden)return;
-      if(e.key==="Escape"){if(zoomed){resetZoom();e.preventDefault();return;}close();}
+      if(e.key==="Escape"){if(zoomed){resetZoom(true);e.preventDefault();return;}close();}
       else if(!zoomed&&e.key==="ArrowLeft")show(index-1);
       else if(!zoomed&&e.key==="ArrowRight")show(index+1);
     });
@@ -368,38 +433,75 @@ const thinkingLightboxScript = `    <script>(function(){
   }
   function show(i){
     if(!urls.length)return;
-    resetZoom();
+    resetZoom(false);
     index=(i+urls.length)%urls.length;
     imgEl.src=urls[index];
     counterEl.textContent=urls.length>1?(index+1)+" / "+urls.length:"";
     overlay.classList.toggle("thinking-lightbox--multi",urls.length>1);
   }
-  function open(list,start){
+  function open(list,start,fromTiles){
     ensure();
+    stopSwoop();
     urls=list;
+    tiles=fromTiles||[];
     show(start||0);
-    overlay.hidden=false;
+    // Lock the page first: hiding the scrollbar can shift the tile.
     document.documentElement.classList.add("thinking-lightbox-open");
+    overlay.hidden=false;
+    var tile=tiles[index];
+    if(!canSwoop()||!onScreen(tile))return;
+    animating=true;
+    imgEl.style.opacity="0";
+    var fades=backdrop(true,OPEN_MS);
+    whenSized(function(){
+      if(!animating)return;
+      imgEl.style.opacity="";
+      var from=onScreen(tile),to=imgEl.getBoundingClientRect();
+      if(!from||!to.width||!to.height){cancelAll(fades);animating=false;return;}
+      tile.style.visibility="hidden";
+      var a=imgEl.animate(swoopFrames(from,to),{duration:OPEN_MS,easing:EASE_OUT});
+      a.onfinish=function(){tile.style.visibility="";cancelAll(fades);animating=false;};
+    });
   }
-  function close(){
-    if(!overlay||overlay.hidden)return;
-    resetZoom();
+  function finishClose(){
+    stopSwoop();
     overlay.hidden=true;
     imgEl.removeAttribute("src");
     document.documentElement.classList.remove("thinking-lightbox-open");
   }
-  function collectUrls(root){
-    return Array.prototype.map.call(root.querySelectorAll("img.thinking-photo"),function(img){return img.currentSrc||img.src;}).filter(Boolean);
+  function close(){
+    if(!overlay||overlay.hidden)return;
+    stopSwoop();
+    resetZoom(false);
+    var tile=tiles[index],to=onScreen(tile),from=imgEl.getBoundingClientRect();
+    if(!canSwoop()||!to||!from.width||!from.height)return finishClose();
+    animating=true;
+    tile.style.visibility="hidden";
+    backdrop(false,CLOSE_MS);
+    var a=imgEl.animate(swoopFrames(to,from).reverse(),{duration:CLOSE_MS,easing:EASE_IN_OUT,fill:"forwards"});
+    a.onfinish=finishClose;
+  }
+  // The gallery's photo URLs, each with the tile it sits in (the swoop's
+  // start and end), kept in step so a photo without a src drops both.
+  function collect(root){
+    var urls=[],tiles=[];
+    Array.prototype.forEach.call(root.querySelectorAll("img.thinking-photo"),function(img){
+      var src=img.currentSrc||img.src;
+      if(!src)return;
+      urls.push(src);
+      tiles.push(img.closest(".thinking-photo-tile")||img);
+    });
+    return {urls:urls,tiles:tiles};
   }
   function onActivate(btn){
     var grid=btn.closest("[data-gallery], .thinking-photo-grid");
     var single=btn.classList.contains("thinking-photo-tile--single")?btn:null;
     var root=grid||single;
     if(!root)return;
-    var list=collectUrls(root);
-    if(!list.length)return;
+    var g=collect(root);
+    if(!g.urls.length)return;
     var start=parseInt(btn.getAttribute("data-gallery-index")||"0",10)||0;
-    open(list,start);
+    open(g.urls,start,g.tiles);
   }
   function init(){
     document.addEventListener("click",function(e){
