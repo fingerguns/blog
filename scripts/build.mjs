@@ -1829,9 +1829,79 @@ function setView(v){
   localStorage.setItem('thinkingView',v);
   scanGridMedia();
 }
+// List <-> grid as a View Transition on a spring (the easing and timing live
+// in styles.css). Each note on screen before the switch is named; after it,
+// the same note in the other view takes that name, so the browser moves it
+// from one place to the other, and the page scrolls so the first such note
+// stays where the reader's eye was. Unpartnered tiles on screen are named too,
+// so they spring in (or fade out) one by one, staggered outward from that
+// note, instead of only cross-fading with the page. Names come off afterwards.
+// Map, reduced motion and browsers without View Transitions switch instantly.
+var MORPH_MEDIA='.microblog-body img,.microblog-body video,.microblog-body .thinking-youtube,.microblog-body .thinking-spotify';
+var staggerSheet=null;
+function tileSlug(t){var seg=(t.getAttribute('href')||'').split('/');return seg[1]==='thinking'?seg[2]||'':'';}
+function noteEls(v){
+  var out={};
+  if(v==='list'){listEntries.forEach(function(e){if(e.hidden)return;out[e.getAttribute('data-slug')]=e.querySelector(MORPH_MEDIA)||e.querySelector('.microblog-body')||e;});}
+  else if(v==='grid'){items.forEach(function(t){if(!t.hidden)out[tileSlug(t)]=t;});}
+  return out;
+}
+function onScreen(el){var r=el.getBoundingClientRect();return r.width>0&&r.bottom>0&&r.top<window.innerHeight;}
+function imgSettled(img){return new Promise(function(res){if(img.complete&&img.naturalWidth){res();return;}img.addEventListener('load',res,{once:true});img.addEventListener('error',res,{once:true});});}
+function switchView(v){
+  var from=wrap.getAttribute('data-view');
+  if(v===from)return;
+  var still=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(!document.startViewTransition||still||(from!=='list'&&from!=='grid')||(v!=='list'&&v!=='grid')){setView(v);return;}
+  var oldEls=noteEls(from),nameOf={},named=[],anchor=null,n=0;
+  Object.keys(oldEls).forEach(function(slug){
+    var el=oldEls[slug];
+    if(!onScreen(el))return;
+    var top=el.getBoundingClientRect().top;
+    if(!anchor||(anchor.top<0&&top>=0))anchor={slug:slug,top:top};
+    nameOf[slug]='thinking-note-'+(n++);
+    el.style.viewTransitionName=nameOf[slug];
+    named.push(el);
+  });
+  var t=document.startViewTransition(function(){
+    setView(v);
+    var newEls=noteEls(v);
+    var a=anchor&&newEls[anchor.slug];
+    if(a)window.scrollBy(0,a.getBoundingClientRect().top-anchor.top);
+    var waits=[],order=[];
+    Object.keys(newEls).forEach(function(slug){
+      var el=newEls[slug];
+      if(!onScreen(el))return;
+      if(!nameOf[slug])nameOf[slug]='thinking-note-'+(n++);
+      el.style.viewTransitionName=nameOf[slug];
+      named.push(el);
+      order.push({name:nameOf[slug],r:el.getBoundingClientRect()});
+      var img=el.querySelector&&el.querySelector('img[data-src]');
+      if(img&&startGridMedia(img))waits.push(imgSettled(img));
+    });
+    // Stagger by distance from the anchor note: nearest first.
+    var c=a?a.getBoundingClientRect():{left:0,top:0,width:0,height:0};
+    var cx=c.left+c.width/2,cy=c.top+c.height/2;
+    try{
+      if(!staggerSheet){staggerSheet=new CSSStyleSheet();document.adoptedStyleSheets=document.adoptedStyleSheets.concat(staggerSheet);}
+      var rules=order.map(function(o){
+        var d=Math.hypot(o.r.left+o.r.width/2-cx,o.r.top+o.r.height/2-cy);
+        var ms=Math.min(Math.round(d/6),180);
+        return '::view-transition-new('+o.name+'):only-child{animation-delay:'+ms+'ms}';
+      });
+      staggerSheet.replaceSync(rules.join(''));
+    }catch(e){}
+    // Give the tiles a moment to have their pictures before the new view is shown.
+    return Promise.race([Promise.all(waits),new Promise(function(res){setTimeout(res,250);})]);
+  });
+  t.finished.finally(function(){
+    named.forEach(function(el){el.style.viewTransitionName='';});
+    if(staggerSheet)staggerSheet.replaceSync('');
+  });
+}
 if(viewBtns.length){
   setView(localStorage.getItem('thinkingView')||'list');
-  viewBtns.forEach(function(b){b.addEventListener('click',function(){setView(b.getAttribute('data-view-btn'));});});
+  viewBtns.forEach(function(b){b.addEventListener('click',function(){switchView(b.getAttribute('data-view-btn'));});});
 }
 if(filterBtns.length){
   setFiltersFromPath();

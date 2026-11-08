@@ -1270,6 +1270,57 @@ a.post-admin-delete:hover {
 .thinking-views[data-view="map"] .microblog-feed,
 .thinking-views[data-view="map"] .thinking-grid-wrap { display: none; }
 
+/* Switching Thinking views animates as a View Transition (thinkingViewToggleScript
+   in build.mjs): each note on screen in both views is named on both sides and
+   travels between its list position and its grid tile; everything else
+   cross-fades. Movement follows a spring (response 0.5s, damping 0.8: a 1.5%
+   overshoot that settles back) traced as linear() by springEasing in
+   scripts/lib/spring.mjs; spring.test.mjs keeps these numbers in step with it.
+   Browsers without linear() keep the cubic-bezier above it. */
+:root {
+  --thinking-spring: cubic-bezier(0.2, 0.9, 0.3, 1);
+  --thinking-spring: linear(0, 0.0208, 0.0739, 0.1478, 0.2337, 0.3245, 0.4153, 0.5025, 0.5838, 0.6577, 0.7235, 0.7808, 0.8301, 0.8716, 0.906, 0.9341, 0.9566, 0.9742, 0.9876, 0.9977, 1.0049, 1.0098, 1.0128, 1.0145, 1.0151, 1.015, 1.0143, 1.0132, 1.012, 1.0106, 1.0092, 1.0079, 1.0066, 1.0055, 1.0044, 1.0035, 1.0028, 1.0021, 1.0015, 1.0011, 1);
+  --thinking-spring-duration: 690ms;
+}
+::view-transition-group(*) {
+  animation-duration: var(--thinking-spring-duration);
+  animation-timing-function: var(--thinking-spring);
+}
+/* A note's two pictures fill its moving box rather than stretching to it: the
+   box changes shape (a wide photo becoming a square tile), so each is cropped
+   to cover, and the box clips them. Cross-fade quickly, early in the move. */
+::view-transition-group(*) {
+  overflow: clip;
+  border-radius: 4px;
+}
+::view-transition-group(root) {
+  border-radius: 0;
+}
+::view-transition-old(*),
+::view-transition-new(*) {
+  height: 100%;
+  object-fit: cover;
+  animation-duration: 0.28s;
+  animation-timing-function: ease-out;
+}
+/* A tile arriving with no partner in the old view springs up from slightly small. */
+::view-transition-new(*):only-child {
+  animation: thinking-tile-in var(--thinking-spring-duration) var(--thinking-spring) both;
+}
+::view-transition-old(*):only-child {
+  animation-duration: 0.18s;
+}
+@keyframes thinking-tile-in {
+  from { opacity: 0; transform: scale(0.92); }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
 /* Thinking map view — one pin per neighborhood, never per coordinate. A post
    stores a label and nothing finer, so the pin sits at the neighborhood centre
    and says how many posts share it. See scripts/lib/thinking-map.mjs. */
