@@ -1,15 +1,22 @@
 /**
- * Generate 512×512 JPEG posters for existing Thinking videos and upload to R2.
+ * Generate the two JPEG stills for existing Thinking videos and upload them
+ * to R2, beside each video: `<uuid>-poster.jpg`, a 512×512 square crop for
+ * the grid tile, and `<uuid>-frame.jpg`, the first frame at the video's own
+ * shape (longest side up to 1280px), which the feed uses as <video poster>.
+ * Only missing stills are made; a video with both is skipped without being
+ * downloaded.
  * Run from project root: node --env-file=.env scripts/backfill-video-posters.mjs
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createWriteStream, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import ffmpegStatic from "ffmpeg-static";
 import { d1Configured, loadBlogDataFromD1 } from "./d1-client.mjs";
-import { videoPosterKeyFromVideoUrl } from "./lib/media-url.mjs";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import { videoFrameKeyFromVideoUrl, videoPosterKeyFromVideoUrl } from "./lib/media-url.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
@@ -26,9 +33,9 @@ function videoSrcFromHtml(html) {
   return m[1].replace(/#t=0\.001$/, "");
 }
 
-async function posterExists(posterKey) {
+async function stillExists(key) {
   try {
-    const res = await fetch(`${base}/media/${posterKey}`, { method: "HEAD" });
+    const res = await fetch(`${base}/media/${key}`, { method: "HEAD" });
     return res.ok;
   } catch {
     return false;
@@ -42,7 +49,8 @@ async function posterExists(posterKey) {
  * statically linked against glibc and so cannot dlopen the NSS modules it needs
  * to resolve a hostname: on some Linux hosts, handing it a URL segfaults before
  * it reads a byte. Fetching first also spares the Worker a run of range
- * requests to produce one frame.
+ * requests to produce one frame. Streamed to disk, since a video can run to
+ * hundreds of megabytes.
  */
 async function downloadVideo(videoUrl, outPath) {
   const res = await fetch(videoUrl);
@@ -50,11 +58,26 @@ async function downloadVideo(videoUrl, outPath) {
     console.error(`  download failed (HTTP ${res.status}): ${videoUrl}`);
     return false;
   }
-  writeFileSync(outPath, Buffer.from(await res.arrayBuffer()));
+  await pipeline(Readable.fromWeb(res.body), createWriteStream(outPath));
   return true;
 }
 
-function extractPoster(videoPath, outPath) {
+// ffmpeg applies the video's rotation itself, so a portrait iPhone clip comes
+// out portrait in both stills.
+const STILLS = [
+  {
+    name: "grid poster",
+    keyFor: videoPosterKeyFromVideoUrl,
+    filter: "scale=512:512:force_original_aspect_ratio=increase,crop=512:512",
+  },
+  {
+    name: "full-frame still",
+    keyFor: videoFrameKeyFromVideoUrl,
+    filter: "scale='min(1280,iw)':'min(1280,ih)':force_original_aspect_ratio=decrease",
+  },
+];
+
+function extractStill(videoPath, outPath, filter) {
   if (!ffmpegStatic) {
     throw new Error("ffmpeg-static binary is unavailable on this platform.");
   }
@@ -71,7 +94,7 @@ function extractPoster(videoPath, outPath) {
       "-frames:v",
       "1",
       "-vf",
-      "scale=512:512:force_original_aspect_ratio=increase,crop=512:512",
+      filter,
       "-q:v",
       "4",
       "-y",
@@ -86,7 +109,7 @@ function extractPoster(videoPath, outPath) {
   return existsSync(outPath);
 }
 
-function uploadPoster(posterKey, filePath) {
+function uploadStill(key, filePath) {
   const childEnv = { ...process.env };
   delete childEnv.CF_API_TOKEN;
   delete childEnv.CLOUDFLARE_API_TOKEN;
@@ -97,7 +120,7 @@ function uploadPoster(posterKey, filePath) {
       "r2",
       "object",
       "put",
-      `${bucket}/${posterKey}`,
+      `${bucket}/${key}`,
       `--file=${filePath}`,
       "--content-type=image/jpeg",
       "--remote",
@@ -135,36 +158,36 @@ let failed = 0;
 
 try {
   for (const videoSrc of videoSrcs) {
-    const posterKey = videoPosterKeyFromVideoUrl(videoSrc, base);
-    if (!posterKey) {
-      console.log(`  skip (not on rommy.blog): ${videoSrc}`);
-      skipped++;
-      continue;
+    const wanted = [];
+    for (const still of STILLS) {
+      const key = still.keyFor(videoSrc, base);
+      if (!key) continue;
+      if (await stillExists(key)) {
+        console.log(`  exists: ${key}`);
+        skipped++;
+      } else {
+        wanted.push({ ...still, key });
+      }
     }
-    if (await posterExists(posterKey)) {
-      console.log(`  exists: ${posterKey}`);
-      skipped++;
-      continue;
-    }
+    if (!wanted.length) continue;
 
-    const outPath = join(tmpDir, posterKey.replace(/\//g, "_"));
-    const videoPath = `${outPath}.src`;
-    console.log(`  generating: ${posterKey}`);
+    const videoPath = join(tmpDir, "video.src");
+    console.log(`  downloading: ${videoSrc}`);
     if (!(await downloadVideo(videoSrc, videoPath))) {
-      failed++;
+      failed += wanted.length;
       continue;
     }
-    const extracted = extractPoster(videoPath, outPath);
+    for (const still of wanted) {
+      const outPath = join(tmpDir, still.key.replace(/\//g, "_"));
+      console.log(`  generating ${still.name}: ${still.key}`);
+      if (extractStill(videoPath, outPath, still.filter) && uploadStill(still.key, outPath)) {
+        created++;
+      } else {
+        failed++;
+      }
+      rmSync(outPath, { force: true });
+    }
     rmSync(videoPath, { force: true });
-    if (!extracted) {
-      failed++;
-      continue;
-    }
-    if (!uploadPoster(posterKey, outPath)) {
-      failed++;
-      continue;
-    }
-    created++;
   }
 } finally {
   rmSync(tmpDir, { recursive: true, force: true });
@@ -172,5 +195,5 @@ try {
 
 console.log(`Done. created=${created} skipped=${skipped} failed=${failed}`);
 if (created > 0) {
-  console.log("Run npm run build to refresh the grid poster cache.");
+  console.log("Run npm run build to refresh the video still caches.");
 }

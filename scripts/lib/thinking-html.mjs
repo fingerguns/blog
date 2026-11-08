@@ -1,6 +1,6 @@
 import { escHtml } from "./html.mjs";
 import { linkifyThinkingEscapedHtml } from "./linkify.mjs";
-import { toSiteMediaUrl } from "./media-url.mjs";
+import { toSiteMediaUrl, videoFrameUrlFromVideoUrl } from "./media-url.mjs";
 import { extractYouTubeEmbeds, parseYouTubeUrl } from "./youtube.mjs";
 import { extractSpotifyEmbeds, parseSpotifyUrl } from "./spotify.mjs";
 
@@ -72,6 +72,16 @@ function resolvePhotoUrls(mediaUrl, mediaUrls, siteUrl) {
  * build uses it to know which photos to measure, so it must resolve URLs
  * exactly as renderThinkingContentHtml does — the cache is keyed by it.
  */
+/**
+ * The resolved URL of a note's native video, or "". Like singlePhotoUrl, it
+ * resolves exactly as renderThinkingContentHtml does, because the build keys
+ * the "video-frames" cache by it.
+ */
+export function nativeVideoUrl(mediaUrl, mediaType, siteUrl = "") {
+  if (!mediaUrl || inferMediaType(mediaUrl, mediaType) !== "video") return "";
+  return siteUrl ? toSiteMediaUrl(mediaUrl, siteUrl) : mediaUrl;
+}
+
 export function singlePhotoUrl(mediaUrl, mediaType, siteUrl = "", mediaUrls = []) {
   if (inferMediaType(mediaUrl, mediaType) !== "image") return "";
   const urls = resolvePhotoUrls(mediaUrl, mediaUrls, siteUrl);
@@ -176,10 +186,21 @@ export function renderThinkingContentHtml(
         `${escHtml(mediaAlt || "Audio")}</audio>`
     );
   } else if (resolvedUrl && type === "video") {
-    // Appending #t=0.001 causes iOS Safari (and other mobile browsers) to seek
-    // to the first frame and render it as the thumbnail instead of a blank box.
+    // With a full-frame still (`<uuid>-frame.jpg`, measured into the
+    // "video-frames" cache), the thumbnail is that image and the box is sized
+    // from its width and height before any video loads, so nothing is fetched
+    // until play is pressed. Mobile Safari skips `preload` in Low Power and Low
+    // Data modes and caps how many videos a page may load, which used to leave
+    // feed videos with no frame, no size and no usable play button.
+    // Without one, #t=0.001 asks the browser to seek to the first frame and
+    // draw it as the thumbnail, which it may or may not do.
+    const frame = options.videoFrame?.(resolvedUrl);
+    const frameUrl = frame ? videoFrameUrlFromVideoUrl(resolvedUrl, siteUrl || undefined) : "";
+    const stillAttrs = frameUrl
+      ? ` poster="${escHtml(frameUrl)}" width="${frame.width}" height="${frame.height}"`
+      : "";
     parts.push(
-      `<video class="thinking-video" controls preload="${videoPreload}" playsinline src="${escHtml(resolvedUrl)}#t=0.001">${escHtml(mediaAlt || "Video")}</video>`
+      `<video class="thinking-video" controls preload="${frameUrl ? "none" : videoPreload}" playsinline${stillAttrs} src="${escHtml(resolvedUrl)}#t=0.001">${escHtml(mediaAlt || "Video")}</video>`
     );
   } else if (photoUrls.length) {
     parts.push(renderPhotoGallery(photoUrls, mediaAlt, options.photoSize));

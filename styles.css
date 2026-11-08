@@ -2215,11 +2215,14 @@ html.thinking-lightbox-open {
   max-width: 28rem;
   margin: 0.75rem 0 0;
 }
+/* height: auto lets the width/height attributes (from the video's full-frame
+   still) set the aspect ratio before any video loads, at the column's width. */
 .microblog-body video.thinking-video,
 .post .body video.thinking-video {
   display: block;
   width: 100%;
   max-width: 100%;
+  height: auto;
   margin: 0.75rem 0 0;
   border-radius: 4px;
   background: var(--bg);

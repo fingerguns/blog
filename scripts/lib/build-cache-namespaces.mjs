@@ -7,6 +7,7 @@ export const CACHE_NAMESPACES = {
   READING_COVERS: "reading-covers",
   SPOTIFY_THUMBNAILS: "spotify-thumbnails",
   VIDEO_POSTERS: "video-posters",
+  VIDEO_FRAMES: "video-frames",
   LINKLOG_UNFURLS: "linklog-unfurls",
   THINKING_UNFURLS: "thinking-unfurls",
   NEIGHBORHOOD_PLACES: "neighborhood-places",

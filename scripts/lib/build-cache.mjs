@@ -26,12 +26,13 @@ export { CACHE_NAMESPACES };
  * for covers, Spotify art and unfurls a miss is permanent, and refetching it
  * every build would be wasted requests against someone else's service.
  *
- * `retryEmpty` is for a cache whose misses are *transient*. A video poster is
- * the one such case: it appears in R2 later, whenever a capture that failed at
- * upload time gets filled in by `npm run backfill-video-posters`. Trusting a
- * cached `false` there strands the tile as a placeholder forever, and made the
- * backfill script's own advice ("run npm run build to refresh the grid poster
- * cache") do nothing at all.
+ * `retryEmpty` is for a cache whose misses are *transient*. Video stills (the
+ * grid poster and the full-frame poster) are such cases: they appear in R2
+ * later, whenever a capture that failed at upload time, or predates the still,
+ * gets filled in by `npm run backfill-video-posters`. Trusting a cached `false`
+ * there strands the tile as a placeholder forever, and made the backfill
+ * script's own advice ("run npm run build to refresh the grid poster cache")
+ * do nothing at all.
  */
 export function cacheKeysToLookUp(cache, keys, { retryEmpty = false } = {}) {
   return [...keys].filter((key) => (retryEmpty ? !cache[key] : !(key in cache)));

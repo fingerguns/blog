@@ -32,6 +32,9 @@
   var THINKING_SOFT_MAX = 300;
   var MAX_THINKING_PHOTOS = 4;
   var GRID_POSTER_SIZE = 512;
+  // Longest side of the full-frame still (<uuid>-frame.jpg) that the feed
+  // shows as the video's poster, at the video's own shape.
+  var FRAME_STILL_MAX = 1280;
 
   function formatBytes(n) {
     if (n < 1024 * 1024) return Math.round(n / 1024) + " KB";
@@ -295,7 +298,8 @@
         fd.append("action", "thinking");
         fd.append("text", text);
         fd.append("video", videoFile);
-        if (videoPoster) fd.append("video_poster", videoPoster, "poster.jpg");
+        if (videoPoster && videoPoster.poster) fd.append("video_poster", videoPoster.poster, "poster.jpg");
+        if (videoPoster && videoPoster.frame) fd.append("video_frame", videoPoster.frame, "frame.jpg");
         if (onProgress) return postThinkingMultipart(apiUrl, fd, onProgress);
         var fallbackRes = await fetch(apiUrl, { method: "POST", body: fd });
         var fallbackData = await fallbackRes.json();
@@ -306,8 +310,11 @@
     }
 
     await putFileToPresignedUrl(init.uploadUrl, videoFile, init.mimeType, onProgress);
-    if (videoPoster && init.posterUploadUrl) {
-      await putFileToPresignedUrl(init.posterUploadUrl, videoPoster, "image/jpeg", null);
+    if (videoPoster && videoPoster.poster && init.posterUploadUrl) {
+      await putFileToPresignedUrl(init.posterUploadUrl, videoPoster.poster, "image/jpeg", null);
+    }
+    if (videoPoster && videoPoster.frame && init.frameUploadUrl) {
+      await putFileToPresignedUrl(init.frameUploadUrl, videoPoster.frame, "image/jpeg", null);
     }
     if (onProgress) onProgress(100, "processing");
 
@@ -464,13 +471,13 @@
       setProgress(false, 0, "");
     }
 
-    function captureVideoPosterBlob(videoEl) {
+    function captureVideoStills(videoEl) {
       return new Promise(function (resolve) {
         var settled = false;
-        function settle(blob) {
+        function settle(stills) {
           if (settled) return;
           settled = true;
-          resolve(blob || null);
+          resolve(stills || null);
         }
 
         function snap() {
@@ -489,9 +496,21 @@
             var dw = vw * scale;
             var dh = vh * scale;
             ctx.drawImage(videoEl, (GRID_POSTER_SIZE - dw) / 2, (GRID_POSTER_SIZE - dh) / 2, dw, dh);
+            // The same frame, uncropped, for the feed's <video poster>.
+            var fit = Math.min(1, FRAME_STILL_MAX / Math.max(vw, vh));
+            var frameCanvas = document.createElement("canvas");
+            frameCanvas.width = Math.round(vw * fit);
+            frameCanvas.height = Math.round(vh * fit);
+            frameCanvas.getContext("2d").drawImage(videoEl, 0, 0, frameCanvas.width, frameCanvas.height);
             canvas.toBlob(
-              function (blob) {
-                settle(blob);
+              function (poster) {
+                frameCanvas.toBlob(
+                  function (frame) {
+                    settle(poster || frame ? { poster: poster, frame: frame } : null);
+                  },
+                  "image/jpeg",
+                  0.8
+                );
               },
               "image/jpeg",
               0.82
@@ -543,7 +562,7 @@
       // blob to a variable that submit reads whenever it happens to run.
       // Posting straight after choosing a file used to beat the capture and
       // upload no poster at all, leaving a permanently blank grid tile.
-      videoPosterPromise = captureVideoPosterBlob(videoPreview);
+      videoPosterPromise = captureVideoStills(videoPreview);
     }
 
     function selectedPhotoFiles() {
@@ -716,7 +735,7 @@
       }
       revokeVideoPreviewUrl();
       videoPreview._objectUrl = URL.createObjectURL(file);
-      // captureVideoPosterBlob waits for readyState itself, so start it
+      // captureVideoStills waits for readyState itself, so start it
       // here rather than from a "loadeddata" listener: iOS Safari will not
       // pull media data for a video nobody has played, so that event can
       // never fire and the capture would never even begin. preload="auto"
@@ -814,6 +833,7 @@
               }
             }
           : null;
+        // { poster, frame }: the grid's square crop and the feed's full frame.
         var videoPoster = videoFile && videoPosterPromise ? await videoPosterPromise : null;
         var result = await callThinkingAPI(
           apiUrl,

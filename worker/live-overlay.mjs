@@ -347,12 +347,14 @@ async function shapeFavorites(db, rows) {
 /** Renderer context (see scripts/lib/render/thinking.mjs) built from build_cache. */
 function renderContext(site, caches) {
   const sizes = caches[CACHE_NAMESPACES.THINKING_PHOTO_SIZES] || {};
+  const frames = caches[CACHE_NAMESPACES.VIDEO_FRAMES] || {};
   return {
     base: site.base,
     thinkingUnfurls: caches[CACHE_NAMESPACES.THINKING_UNFURLS] || {},
     spotifyThumbnails: caches[CACHE_NAMESPACES.SPOTIFY_THUMBNAILS] || {},
     videoPosters: caches[CACHE_NAMESPACES.VIDEO_POSTERS] || {},
     photoSize: (u) => sizes[u] || null,
+    videoFrame: (u) => frames[u] || null,
   };
 }
 
@@ -361,6 +363,7 @@ const THINKING_CACHES = [
   CACHE_NAMESPACES.SPOTIFY_THUMBNAILS,
   CACHE_NAMESPACES.VIDEO_POSTERS,
   CACHE_NAMESPACES.THINKING_PHOTO_SIZES,
+  CACHE_NAMESPACES.VIDEO_FRAMES,
 ];
 
 // ─── Permalinks ───────────────────────────────────────────────────────────────

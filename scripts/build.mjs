@@ -19,11 +19,11 @@ import { d1Configured, d1Query, loadBlogDataFromD1 } from "./d1-client.mjs";
 import { escHtml, escXml } from "./lib/html.mjs";
 import { mergeSectionHints } from "./lib/section-hints.mjs";
 import { mergeReadingTabIntros } from "./lib/reading-tab-intros.mjs";
-import { thinkingGridThumbUrl, upgradeSpotifyImageUrl, videoPosterKeyFromVideoUrl } from "./lib/media-url.mjs";
+import { thinkingGridThumbUrl, upgradeSpotifyImageUrl, videoFrameUrlFromVideoUrl, videoPosterKeyFromVideoUrl } from "./lib/media-url.mjs";
 import { fetchLinkUnfurlResult, invalidateUnfurlMisses, unfurlCacheValue } from "./lib/link-unfurl.mjs";
 import { LINKLOG_TAG_LABELS } from "./lib/linklog-tags.mjs";
 import { mapWithConcurrency } from "./lib/concurrency.mjs";
-import { unfurlableUrls, singlePhotoUrl } from "./lib/thinking-html.mjs";
+import { nativeVideoUrl, unfurlableUrls, singlePhotoUrl } from "./lib/thinking-html.mjs";
 import {
   hasThinking,
   imageSrcAltFromHtml,
@@ -180,6 +180,7 @@ const renderCtx = {
   spotifyThumbnails: {},
   videoPosters: {},
   photoSize: (url) => thinkingPhotoSize(url),
+  videoFrame: (url) => videoFrameCache[url] || null,
 };
 const pageCtx = { base, siteTitle: site.title };
 const toSortableMs = (p) => {
@@ -975,6 +976,30 @@ await saveBuildCache(CACHE_NAMESPACES.THINKING_PHOTO_SIZES, thinkingPhotoSizeCac
 function thinkingPhotoSize(url) {
   return thinkingPhotoSizeCache[url] || null;
 }
+
+// Native videos: the full-frame still beside each one in R2 (`<uuid>-frame.jpg`)
+// becomes its <video poster>, and the still's width and height size the box, so
+// the feed shows a thumbnail and a play button without loading any video (see
+// renderThinkingContentHtml). Measured like the photos above, from the JPEG's
+// header, but a miss is retried every build: the still may be backfilled later.
+const videoFrameCache = await loadBuildCache(CACHE_NAMESPACES.VIDEO_FRAMES);
+{
+  const srcs = new Set();
+  for (const p of [...thinkingPosts, thinking]) {
+    if (!p) continue;
+    const src = nativeVideoUrl(p.media_url, p.media_type, base);
+    if (src) srcs.add(src);
+  }
+  const missing = cacheKeysToLookUp(videoFrameCache, srcs, { retryEmpty: true });
+  if (missing.length > 0) {
+    console.log(`Measuring ${missing.length} video still(s)…`);
+    await mapWithConcurrency(missing, 6, async (src) => {
+      const frameUrl = videoFrameUrlFromVideoUrl(src, base);
+      videoFrameCache[src] = (frameUrl && (await fetchImageSize(frameUrl))) || false;
+    });
+  }
+}
+await saveBuildCache(CACHE_NAMESPACES.VIDEO_FRAMES, videoFrameCache);
 
 // Thinking posts from D1 (populated by the admin Worker on every post/delete)
 const microblogItems = thinkingPosts.map((p) => thinkingItemFromRow(p, renderCtx));

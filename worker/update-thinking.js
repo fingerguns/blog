@@ -42,6 +42,8 @@ import {
   isValidThinkingVideoPosterKey,
   thinkingVideoPosterKey,
   uploadVideoPosterToR2,
+  thinkingVideoFrameKey,
+  uploadVideoFrameToR2,
 } from "./video-poster.mjs";
 import {
   handleLocationIngest,
@@ -780,6 +782,15 @@ async function parseRequest(request) {
           ? poster
           : null;
       })(),
+      video_frame: (() => {
+        const frame = fd.get("video_frame");
+        return frame &&
+          typeof frame === "object" &&
+          "arrayBuffer" in frame &&
+          frame.size > 0
+          ? frame
+          : null;
+      })(),
     };
   }
   return request.json();
@@ -930,6 +941,9 @@ async function handleThinking(payload, db, cors, env, ctx) {
       const uploaded = await uploadVideoToR2(env, video);
       if (payload.video_poster) {
         await uploadVideoPosterToR2(env, uploaded.key, payload.video_poster);
+      }
+      if (payload.video_frame) {
+        await uploadVideoFrameToR2(env, uploaded.key, payload.video_frame);
       }
       mediaUrl = uploaded.url;
       mediaAlt = text.slice(0, 1000) || "Video";
@@ -1598,9 +1612,11 @@ async function handleThinkingVideoUploadUrl(payload, cors, env) {
   const ext = VIDEO_EXT[mimeType] || "mp4";
   const key = `thinking/video/${toDateStr(new Date())}/${crypto.randomUUID()}.${ext}`;
   const posterKey = thinkingVideoPosterKey(key);
+  const frameKey = thinkingVideoFrameKey(key);
 
   let uploadUrl;
   let posterUploadUrl;
+  let frameUploadUrl;
   try {
     uploadUrl = await createR2PresignedPutUrl({
       accountId: env.R2_ACCOUNT_ID,
@@ -1620,6 +1636,15 @@ async function handleThinkingVideoUploadUrl(payload, cors, env) {
       mimeType: "image/jpeg",
       expiresSec: VIDEO_PRESIGN_EXPIRES_SEC,
     });
+    frameUploadUrl = await createR2PresignedPutUrl({
+      accountId: env.R2_ACCOUNT_ID,
+      bucket,
+      key: frameKey,
+      accessKeyId: env.R2_ACCESS_KEY_ID,
+      secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+      mimeType: "image/jpeg",
+      expiresSec: VIDEO_PRESIGN_EXPIRES_SEC,
+    });
   } catch (err) {
     return json(
       { error: err.message || "Could not create upload URL." },
@@ -1633,8 +1658,10 @@ async function handleThinkingVideoUploadUrl(payload, cors, env) {
       ok: true,
       uploadUrl,
       posterUploadUrl,
+      frameUploadUrl,
       key,
       posterKey,
+      frameKey,
       mediaUrl: `${publicBase}/${key}`,
       mimeType,
     },

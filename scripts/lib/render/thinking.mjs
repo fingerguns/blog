@@ -11,6 +11,8 @@
  *   ctx.spotifyThumbnails build_cache "spotify-thumbnails" { "type:id": url }
  *   ctx.videoPosters      build_cache "video-posters"      { videoSrc: bool }
  *   ctx.photoSize(url)    {width, height} | null, from "thinking-photo-sizes"
+ *   ctx.videoFrame(src)   {width, height} | null, from "video-frames" — the
+ *                         full-frame still beside a native video, if it has one
  */
 import { escHtml } from "../html.mjs";
 import { renderThinkingContentHtml, unfurlableUrls } from "../thinking-html.mjs";
@@ -144,7 +146,7 @@ export function thinkingContentHtmlFromRow(p, ctx, options = {}) {
     p.media_alt,
     p.media_type,
     ctx.base,
-    { ...options, mediaUrls: p.media_urls || [], photoSize: ctx.photoSize }
+    { ...options, mediaUrls: p.media_urls || [], photoSize: ctx.photoSize, videoFrame: ctx.videoFrame }
   );
   if (fromSource) return fromSource;
   return p.content_html || "";
@@ -200,7 +202,7 @@ export function renderThinkingHtml(thinking, ctx) {
     thinking?.media_alt,
     thinking?.media_type,
     ctx.base,
-    { mediaUrls: thinking?.media_urls || [], photoSize: ctx.photoSize }
+    { mediaUrls: thinking?.media_urls || [], photoSize: ctx.photoSize, videoFrame: ctx.videoFrame }
   );
   if (!inner) return "";
   return `<div class="microblog-body">${inner}</div>${thinkingUnfurlsHtml(thinking?.text, ctx)}`;

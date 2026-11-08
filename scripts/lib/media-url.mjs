@@ -18,15 +18,18 @@ export function toSiteMediaUrl(url, siteUrl = "https://rommy.blog") {
   return url;
 }
 
-/** R2 key for a native video's grid poster JPEG (paired with the .mov/.mp4). */
-export function videoPosterKeyFromVideoUrl(url, siteUrl = "https://rommy.blog") {
+// A native video's stills live beside it in R2, named after the video file:
+// `<uuid>-poster.jpg` is the 512×512 square crop for the grid tile, and
+// `<uuid>-frame.jpg` the first frame at the video's own shape, used as the
+// <video poster> in the feed and on the permalink.
+function videoCompanionKey(url, siteUrl, suffix) {
   if (!url) return "";
   const normalized = toSiteMediaUrl(url, siteUrl);
   try {
     const u = new URL(normalized);
     const key = u.pathname.replace(/^\/media\//, "");
     if (/^thinking\/video\/.+\.(mp4|mov|m4v)$/i.test(key)) {
-      return key.replace(/\.(mp4|mov|m4v)$/i, "-poster.jpg");
+      return key.replace(/\.(mp4|mov|m4v)$/i, suffix);
     }
   } catch {
     /* ignore invalid URLs */
@@ -34,11 +37,28 @@ export function videoPosterKeyFromVideoUrl(url, siteUrl = "https://rommy.blog") 
   return "";
 }
 
+function companionUrl(key, siteUrl) {
+  return key ? `${String(siteUrl).replace(/\/$/, "")}/media/${key}` : "";
+}
+
+/** R2 key for a native video's grid poster JPEG (paired with the .mov/.mp4). */
+export function videoPosterKeyFromVideoUrl(url, siteUrl = "https://rommy.blog") {
+  return videoCompanionKey(url, siteUrl, "-poster.jpg");
+}
+
 /** Public /media/ URL for a native video's grid poster, or "" if `url` is not one. */
 export function videoPosterUrlFromVideoUrl(url, siteUrl = "https://rommy.blog") {
-  const key = videoPosterKeyFromVideoUrl(url, siteUrl);
-  if (!key) return "";
-  return `${String(siteUrl).replace(/\/$/, "")}/media/${key}`;
+  return companionUrl(videoPosterKeyFromVideoUrl(url, siteUrl), siteUrl);
+}
+
+/** R2 key for a native video's full-frame still (its <video poster>). */
+export function videoFrameKeyFromVideoUrl(url, siteUrl = "https://rommy.blog") {
+  return videoCompanionKey(url, siteUrl, "-frame.jpg");
+}
+
+/** Public /media/ URL for a native video's full-frame still, or "" if `url` is not one. */
+export function videoFrameUrlFromVideoUrl(url, siteUrl = "https://rommy.blog") {
+  return companionUrl(videoFrameKeyFromVideoUrl(url, siteUrl), siteUrl);
 }
 
 /** Largest common Spotify CDN size for album/track art (640×640). */

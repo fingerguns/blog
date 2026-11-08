@@ -116,6 +116,27 @@ test("video gets the iOS first-frame fragment", () => {
   assert.ok(out.includes('preload="metadata"'), "default preload");
 });
 
+test("a video with a full-frame still shows it as the poster, sized, loading nothing", () => {
+  // Mobile Safari may never draw the first frame (Low Power mode, too many
+  // videos on the page); the still and the box size make that not matter.
+  const src = `${SITE}/media/thinking/video/2026-07-12/a.mov`;
+  const out = renderThinkingContentHtml("", src, "", "video", SITE, {
+    videoFrame: (u) => (u === src ? { width: 1920, height: 1080 } : null),
+  });
+  assert.ok(out.includes(`poster="${SITE}/media/thinking/video/2026-07-12/a-frame.jpg"`));
+  assert.ok(out.includes('width="1920" height="1080"'));
+  assert.ok(out.includes('preload="none"'));
+  assert.ok(out.includes(`src="${src}#t=0.001"`), "src and first-frame fragment unchanged");
+});
+
+test("a video without a still keeps the first-frame fallback", () => {
+  const out = renderThinkingContentHtml("", `${SITE}/media/thinking/video/a.mov`, "", "video", SITE, {
+    videoFrame: () => null,
+  });
+  assert.ok(!out.includes("poster="));
+  assert.ok(out.includes('preload="metadata"'));
+});
+
 test("eager video preload is opt-in, not the permalink default", () => {
   // Permalinks used to pass videoPreload: "auto"; a 1 GB clip would start
   // downloading on page open. The renderer still accepts the option.

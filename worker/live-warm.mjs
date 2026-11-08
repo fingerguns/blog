@@ -1,8 +1,8 @@
 /**
  * Warm the build's lookup caches for a post that has just been written, so
  * the live overlay renders it finished — link cards, Spotify art, a landscape
- * photo at its own shape, a video's grid poster — rather than plain until the
- * rebuild fetches them.
+ * photo at its own shape, a video's grid poster and full-frame still — rather
+ * than plain until the rebuild fetches them.
  *
  * Each entry goes into the same D1 build_cache namespace, under the same key
  * and in the same JSON encoding the build uses (scripts/build.mjs), so the
@@ -13,8 +13,8 @@
 import { CACHE_NAMESPACES } from "../scripts/lib/build-cache-namespaces.mjs";
 import { fetchLinkUnfurlResult, unfurlCacheValue } from "../scripts/lib/link-unfurl.mjs";
 import { imageSizeFromBytes } from "../scripts/lib/image-size.mjs";
-import { singlePhotoUrl, unfurlableUrls } from "../scripts/lib/thinking-html.mjs";
-import { upgradeSpotifyImageUrl, videoPosterKeyFromVideoUrl } from "../scripts/lib/media-url.mjs";
+import { nativeVideoUrl, singlePhotoUrl, unfurlableUrls } from "../scripts/lib/thinking-html.mjs";
+import { upgradeSpotifyImageUrl, videoFrameKeyFromVideoUrl, videoPosterKeyFromVideoUrl } from "../scripts/lib/media-url.mjs";
 import { spotifyEmbedFromHtml, videoSrcFromHtml } from "../scripts/lib/render/thinking.mjs";
 
 const SITE_URL = "https://rommy.blog";
@@ -97,6 +97,17 @@ export async function warmThinkingCaches(env, { text, mediaUrl, mediaType, media
     const posterKey = videoPosterKeyFromVideoUrl(videoSrc, SITE_URL);
     if (videoSrc && posterKey && env.MEDIA) {
       await putCache(db, CACHE_NAMESPACES.VIDEO_POSTERS, videoSrc, Boolean(await env.MEDIA.head(posterKey)));
+    }
+
+    // The full-frame still's shape, which sizes the <video> and makes the
+    // still its poster. Keyed as the build keys it (nativeVideoUrl); a miss is
+    // stored as false and rechecked by the build.
+    const frameSrc = nativeVideoUrl(mediaUrl, mediaType, SITE_URL);
+    const frameKey = videoFrameKeyFromVideoUrl(frameSrc, SITE_URL);
+    if (frameSrc && frameKey && env.MEDIA) {
+      const object = await env.MEDIA.get(frameKey, { range: { offset: 0, length: PHOTO_HEADER_BYTES } });
+      const size = object ? imageSizeFromBytes(new Uint8Array(await object.arrayBuffer())) : null;
+      await putCache(db, CACHE_NAMESPACES.VIDEO_FRAMES, frameSrc, size || false);
     }
   } catch (err) {
     console.error("live warm: Thinking caches", err);

@@ -8,6 +8,8 @@ import {
   toSiteMediaUrl,
   videoPosterKeyFromVideoUrl,
   videoPosterUrlFromVideoUrl,
+  videoFrameKeyFromVideoUrl,
+  videoFrameUrlFromVideoUrl,
   upgradeSpotifyImageUrl,
   thinkingGridThumbUrl,
 } from "./media-url.mjs";
@@ -69,6 +71,18 @@ test("poster public URLs sit next to the video on /media/", () => {
     `${SITE}/media/thinking/video/2026-07-12/clip-poster.jpg`
   );
   assert.equal(videoPosterUrlFromVideoUrl(`${SITE}/media/thinking/photo/a.jpg`, SITE), "");
+});
+
+test("full-frame stills sit next to the video, beside the grid poster", () => {
+  assert.equal(
+    videoFrameKeyFromVideoUrl("https://pub-abc.r2.dev/thinking/video/2026-07-12/clip.MOV", SITE),
+    "thinking/video/2026-07-12/clip-frame.jpg"
+  );
+  assert.equal(
+    videoFrameUrlFromVideoUrl(`${SITE}/media/thinking/video/2026-07-12/clip.mp4`, SITE),
+    `${SITE}/media/thinking/video/2026-07-12/clip-frame.jpg`
+  );
+  assert.equal(videoFrameUrlFromVideoUrl(`${SITE}/media/thinking/photo/a.jpg`, SITE), "");
 });
 
 test("non-video media yields no poster key", () => {
