@@ -1830,20 +1830,31 @@ function setView(v){
   scanGridMedia();
 }
 // List <-> grid as a View Transition on a spring (the easing and timing live
-// in styles.css). Each note on screen before the switch is named; after it,
-// the same note in the other view takes that name, so the browser moves it
-// from one place to the other, and the page scrolls so the first such note
-// stays where the reader's eye was. Unpartnered tiles on screen are named too,
-// so they spring in (or fade out) one by one, staggered outward from that
-// note, instead of only cross-fading with the page. Names come off afterwards.
-// Map, reduced motion and browsers without View Transitions switch instantly.
+// in styles.css). The note the reader is looking at, and the few after it,
+// are named before the switch; after it, the same notes in the other view take
+// those names, so the browser moves each from one place to the other, and the
+// page scrolls so the first stays where the reader's eye was. Going to the
+// grid, a capped number of other tiles near it are named too, so they spring
+// in one by one, nearest first; the rest of the page cross-fades. Names come
+// off afterwards. Map, reduced motion and browsers without View Transitions
+// switch instantly.
+//
+// Two limits keep it working and smooth on phones. The grid's month sections
+// use content-visibility:auto, and Safari decides whether they are on screen
+// a frame after they appear, which is after the new view is captured: tiles
+// it still counts as skipped cannot be animated, and the switch to the grid
+// used to come out instant. .is-switching renders them for the duration. And
+// every named element is a separate snapshot layer, so the counts are capped:
+// naming every tile on screen (sixty-odd) made the return to the list choppy.
 var MORPH_MEDIA='.microblog-body img,.microblog-body video,.microblog-body .thinking-youtube,.microblog-body .thinking-spotify';
+var MORPH_PARTNERS=8,MORPH_EXTRA=20;
 var staggerSheet=null;
 function tileSlug(t){var seg=(t.getAttribute('href')||'').split('/');return seg[1]==='thinking'?seg[2]||'':'';}
+// The element standing for each visible note, in page order (newest first in both views).
 function noteEls(v){
-  var out={};
-  if(v==='list'){listEntries.forEach(function(e){if(e.hidden)return;out[e.getAttribute('data-slug')]=e.querySelector(MORPH_MEDIA)||e.querySelector('.microblog-body')||e;});}
-  else if(v==='grid'){items.forEach(function(t){if(!t.hidden)out[tileSlug(t)]=t;});}
+  var out=[];
+  if(v==='list'){listEntries.forEach(function(e){if(!e.hidden)out.push({slug:e.getAttribute('data-slug'),el:e.querySelector(MORPH_MEDIA)||e.querySelector('.microblog-body')||e});});}
+  else if(v==='grid'){items.forEach(function(t){if(!t.hidden)out.push({slug:tileSlug(t),el:t});});}
   return out;
 }
 function onScreen(el){var r=el.getBoundingClientRect();return r.width>0&&r.bottom>0&&r.top<window.innerHeight;}
@@ -1853,50 +1864,52 @@ function switchView(v){
   if(v===from)return;
   var still=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if(!document.startViewTransition||still||(from!=='list'&&from!=='grid')||(v!=='list'&&v!=='grid')){setView(v);return;}
-  var oldEls=noteEls(from),nameOf={},named=[],anchor=null,n=0;
-  Object.keys(oldEls).forEach(function(slug){
-    var el=oldEls[slug];
-    if(!onScreen(el))return;
-    var top=el.getBoundingClientRect().top;
-    if(!anchor||(anchor.top<0&&top>=0))anchor={slug:slug,top:top};
-    nameOf[slug]='thinking-note-'+(n++);
-    el.style.viewTransitionName=nameOf[slug];
-    named.push(el);
-  });
+  // The anchor is the first note at least partly below the top of the screen;
+  // it and the next few notes (in page order) are the ones that will travel.
+  var oldEls=noteEls(from).filter(function(o){return onScreen(o.el);});
+  var anchorAt=0;
+  for(var i=0;i<oldEls.length;i++){if(oldEls[i].el.getBoundingClientRect().top>=0){anchorAt=i;break;}}
+  var travellers=oldEls.slice(anchorAt,anchorAt+MORPH_PARTNERS);
+  var anchor=travellers.length?{slug:travellers[0].slug,top:travellers[0].el.getBoundingClientRect().top}:null;
+  var nameOf={},named=[],n=0;
+  travellers.forEach(function(o){nameOf[o.slug]='thinking-note-'+(n++);o.el.style.viewTransitionName=nameOf[o.slug];named.push(o.el);});
+  wrap.classList.add('is-switching');
   var t=document.startViewTransition(function(){
     setView(v);
     var newEls=noteEls(v);
-    var a=anchor&&newEls[anchor.slug];
+    var a=null;
+    if(anchor)for(var j=0;j<newEls.length;j++){if(newEls[j].slug===anchor.slug){a=newEls[j].el;break;}}
     if(a)window.scrollBy(0,a.getBoundingClientRect().top-anchor.top);
-    var waits=[],order=[];
-    Object.keys(newEls).forEach(function(slug){
-      var el=newEls[slug];
-      if(!onScreen(el))return;
-      if(!nameOf[slug])nameOf[slug]='thinking-note-'+(n++);
-      el.style.viewTransitionName=nameOf[slug];
-      named.push(el);
-      order.push({name:nameOf[slug],r:el.getBoundingClientRect()});
-      var img=el.querySelector&&el.querySelector('img[data-src]');
-      if(img&&startGridMedia(img))waits.push(imgSettled(img));
-    });
-    // Stagger by distance from the anchor note: nearest first.
     var c=a?a.getBoundingClientRect():{left:0,top:0,width:0,height:0};
     var cx=c.left+c.width/2,cy=c.top+c.height/2;
+    var visible=newEls.filter(function(o){return onScreen(o.el);}).map(function(o){
+      var r=o.el.getBoundingClientRect();
+      return {slug:o.slug,el:o.el,d:Math.hypot(r.left+r.width/2-cx,r.top+r.height/2-cy)};
+    });
+    var partners=visible.filter(function(o){return nameOf[o.slug];});
+    var extras=v==='grid'?visible.filter(function(o){return !nameOf[o.slug];}).sort(function(p,q){return p.d-q.d;}).slice(0,MORPH_EXTRA):[];
+    var waits=[],rules=[];
+    partners.concat(extras).forEach(function(o){
+      if(!nameOf[o.slug]){
+        nameOf[o.slug]='thinking-note-'+(n++);
+        rules.push('::view-transition-new('+nameOf[o.slug]+'):only-child{animation-delay:'+Math.min(Math.round(o.d/6),180)+'ms}');
+      }
+      o.el.style.viewTransitionName=nameOf[o.slug];
+      named.push(o.el);
+      var img=o.el.querySelector&&o.el.querySelector('img[data-src]');
+      if(img&&startGridMedia(img))waits.push(imgSettled(img));
+    });
     try{
       if(!staggerSheet){staggerSheet=new CSSStyleSheet();document.adoptedStyleSheets=document.adoptedStyleSheets.concat(staggerSheet);}
-      var rules=order.map(function(o){
-        var d=Math.hypot(o.r.left+o.r.width/2-cx,o.r.top+o.r.height/2-cy);
-        var ms=Math.min(Math.round(d/6),180);
-        return '::view-transition-new('+o.name+'):only-child{animation-delay:'+ms+'ms}';
-      });
       staggerSheet.replaceSync(rules.join(''));
     }catch(e){}
-    // Give the tiles a moment to have their pictures before the new view is shown.
-    return Promise.race([Promise.all(waits),new Promise(function(res){setTimeout(res,250);})]);
+    // A brief wait for the tiles' pictures, so they arrive with them.
+    return Promise.race([Promise.all(waits),new Promise(function(res){setTimeout(res,120);})]);
   });
   t.finished.finally(function(){
     named.forEach(function(el){el.style.viewTransitionName='';});
     if(staggerSheet)staggerSheet.replaceSync('');
+    wrap.classList.remove('is-switching');
   });
 }
 if(viewBtns.length){

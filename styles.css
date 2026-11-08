@@ -1468,6 +1468,11 @@ a.post-admin-delete:hover {
   content-visibility: auto;
   contain-intrinsic-size: auto 200px;
 }
+/* Rendered in full while the view switches, so a tile Safari has not yet
+   judged on-screen can still be captured and animated (see switchView). */
+.thinking-views.is-switching .thinking-grid-month {
+  content-visibility: visible;
+}
 .thinking-grid-month-label {
   font-size: var(--fs-sm);
   font-weight: 600;
