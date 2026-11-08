@@ -1305,6 +1305,21 @@ a.post-admin-delete:hover {
   overflow: visible;
   border-radius: 0;
 }
+/* The head doesn't cross-fade either: the toolbar's before and after differ
+   only in which view button is pressed, and fading the whole picture out and
+   back in made every icon in it flash. The old picture is dropped at once and
+   the new one shown as it is. */
+::view-transition-old(thinking-head-back),
+::view-transition-old(thinking-head-title),
+::view-transition-old(thinking-head-toolbar) {
+  animation: none;
+  opacity: 0;
+}
+::view-transition-new(thinking-head-back),
+::view-transition-new(thinking-head-title),
+::view-transition-new(thinking-head-toolbar) {
+  animation: none;
+}
 ::view-transition-old(*),
 ::view-transition-new(*) {
   height: 100%;
