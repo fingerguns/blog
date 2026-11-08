@@ -1293,7 +1293,16 @@ a.post-admin-delete:hover {
   overflow: clip;
   border-radius: 4px;
 }
-::view-transition-group(root) {
+/* The page itself, and its head (back arrow, title, toolbar; named only for
+   the switch), never move: no spring, no clip. Springing the page's own box
+   made it drop and bounce whenever its size changed mid-switch, as it does
+   when a phone's address bar shows or hides. */
+::view-transition-group(root),
+::view-transition-group(thinking-head-back),
+::view-transition-group(thinking-head-title),
+::view-transition-group(thinking-head-toolbar) {
+  animation: none;
+  overflow: visible;
   border-radius: 0;
 }
 ::view-transition-old(*),

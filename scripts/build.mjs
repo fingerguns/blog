@@ -1846,8 +1846,14 @@ function setView(v){
 // used to come out instant. .is-switching renders them for the duration. And
 // every named element is a separate snapshot layer, so the counts are capped:
 // naming every tile on screen (sixty-odd) made the return to the list choppy.
+//
+// The page's head (back arrow, title, toolbar) must not move. So the page only
+// scrolls to keep the reader's place once the toolbar is off screen; at the
+// top it stays where it is. And the head is named for the switch, so it is
+// held in place on its own rather than cross-fading with the page around it.
 var MORPH_MEDIA='.microblog-body img,.microblog-body video,.microblog-body .thinking-youtube,.microblog-body .thinking-spotify';
 var MORPH_PARTNERS=8,MORPH_EXTRA=20;
+var HEAD_PARTS=[['.post-back','thinking-head-back'],['.section-head','thinking-head-title'],['.thinking-archive-toolbar','thinking-head-toolbar']];
 var staggerSheet=null;
 function tileSlug(t){var seg=(t.getAttribute('href')||'').split('/');return seg[1]==='thinking'?seg[2]||'':'';}
 // The element standing for each visible note, in page order (newest first in both views).
@@ -1872,6 +1878,9 @@ function switchView(v){
   var travellers=oldEls.slice(anchorAt,anchorAt+MORPH_PARTNERS);
   var anchor=travellers.length?{slug:travellers[0].slug,top:travellers[0].el.getBoundingClientRect().top}:null;
   var nameOf={},named=[],n=0;
+  var toolbar=wrap.querySelector('.thinking-archive-toolbar');
+  var keepPlace=!!(toolbar&&toolbar.getBoundingClientRect().bottom<0);
+  HEAD_PARTS.forEach(function(h){var el=document.querySelector(h[0]);if(el&&onScreen(el)){el.style.viewTransitionName=h[1];named.push(el);}});
   travellers.forEach(function(o){nameOf[o.slug]='thinking-note-'+(n++);o.el.style.viewTransitionName=nameOf[o.slug];named.push(o.el);});
   wrap.classList.add('is-switching');
   var t=document.startViewTransition(function(){
@@ -1879,7 +1888,7 @@ function switchView(v){
     var newEls=noteEls(v);
     var a=null;
     if(anchor)for(var j=0;j<newEls.length;j++){if(newEls[j].slug===anchor.slug){a=newEls[j].el;break;}}
-    if(a)window.scrollBy(0,a.getBoundingClientRect().top-anchor.top);
+    if(a&&keepPlace)window.scrollBy(0,a.getBoundingClientRect().top-anchor.top);
     var c=a?a.getBoundingClientRect():{left:0,top:0,width:0,height:0};
     var cx=c.left+c.width/2,cy=c.top+c.height/2;
     var visible=newEls.filter(function(o){return onScreen(o.el);}).map(function(o){
