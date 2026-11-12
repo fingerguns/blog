@@ -202,6 +202,8 @@
         color: var(--muted);
       }
       .health-empty { font-size: 0.8rem; color: var(--muted); }
+      .bluesky-missing-row .job-row-detail { color: var(--text); }
+      .bluesky-missing-row button { flex: 0 0 auto; font-size: 0.75rem; }
       .job-row {
         display: flex;
         align-items: baseline;
@@ -992,6 +994,11 @@
         </p>
 
         <div id="health-jobs"></div>
+
+        <div id="health-bluesky" hidden>
+          <p class="health-heading">Not on Bluesky</p>
+          <div id="health-bluesky-list"></div>
+        </div>
 
         <p class="health-heading">Recent runs</p>
         <div id="health-recent"></div>
@@ -2071,6 +2078,8 @@
           );
         });
 
+        renderBlueskyMissing(data.blueskyMissing || []);
+
         // The run log the header strip had no room for: every recorded run in
         // the window, newest first, so a job that is failing intermittently
         // reads differently from one that is simply down.
@@ -2096,6 +2105,51 @@
               run.status === "failed" ? "bad" : null
             )
           );
+        });
+      }
+
+      // Recent notes the Worker could not send to Bluesky, each with a Retry
+      // button (the retry-thinking-bluesky action). Hidden when there are none.
+      function renderBlueskyMissing(notes) {
+        var wrap = document.getElementById("health-bluesky");
+        var list = document.getElementById("health-bluesky-list");
+        if (!wrap || !list) return;
+        list.innerHTML = "";
+        wrap.hidden = notes.length === 0;
+        notes.forEach(function (note) {
+          var row = jobRow(
+            note.slug,
+            "missing",
+            jobRelativeTime(note.datetime),
+            note.text || "(no text)",
+            "bad"
+          );
+          row.classList.add("bluesky-missing-row");
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = "Retry";
+          btn.addEventListener("click", async function () {
+            var status = document.getElementById("health-status");
+            btn.disabled = true;
+            btn.textContent = "Sending…";
+            try {
+              var res = await callAPI({ action: "retry-thinking-bluesky", slug: note.slug });
+              showStatus(
+                status,
+                "Posted " + note.slug + " to Bluesky" +
+                  (res.blueskyCompressed ? " (a compressed copy, under 2 MB)." : "."),
+                false,
+                true
+              );
+              loadJobStatus();
+            } catch (err) {
+              showStatus(status, err.message || "Retry failed", true);
+              btn.disabled = false;
+              btn.textContent = "Retry";
+            }
+          });
+          row.appendChild(btn);
+          list.appendChild(row);
         });
       }
 

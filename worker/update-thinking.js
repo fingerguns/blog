@@ -345,7 +345,8 @@ export default {
       try {
         const days = Math.min(Math.max(Number(payload.days) || 7, 1), 90);
         const status = await getJobStatus(db, { days });
-        return json({ ok: true, ...status }, 200, cors);
+        const blueskyMissing = await thinkingNotesMissingFromBluesky(db, env, { days });
+        return json({ ok: true, ...status, blueskyMissing }, 200, cors);
       } catch (err) {
         return json({ error: err.message || "Job status failed" }, 500, cors);
       }
@@ -512,6 +513,10 @@ export default {
 
     if (action === "delete-thinking") {
       return handleDeleteThinking(payload, db, cors, env, ctx);
+    }
+
+    if (action === "retry-thinking-bluesky") {
+      return handleRetryThinkingBluesky(payload, db, cors, env);
     }
 
     return json({ error: "Unknown action" }, 400, cors);
@@ -873,6 +878,195 @@ function blueskySupportsNativeVideo(mimeType) {
   return mimeType === "video/mp4" || mimeType === "video/quicktime";
 }
 
+/** R2 key behind a rommy.blog/media/ URL, or "" for anything else. */
+function thinkingMediaKeyFromUrl(url) {
+  const prefix = `${SITE_URL}/media/`;
+  return String(url || "").startsWith(prefix) ? decodeURIComponent(url.slice(prefix.length)) : "";
+}
+
+/**
+ * Recent notes with no Bluesky post, for the admin Health tab's "Not on
+ * Bluesky" list and its Retry buttons. Empty when Bluesky is not configured.
+ */
+async function thinkingNotesMissingFromBluesky(db, env, { days = 7 } = {}) {
+  if (!env.BLUESKY_HANDLE || !env.BLUESKY_APP_PASSWORD) return [];
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const { results = [] } = await dbAll(
+    db,
+    `SELECT slug, datetime, substr(text, 1, 140) AS text FROM thinking_posts
+     WHERE bluesky_uri IS NULL AND datetime >= ? ORDER BY datetime DESC LIMIT 20`,
+    since
+  );
+  return results;
+}
+
+/**
+ * Send a published note to Bluesky after its first attempt failed: rebuild the
+ * cross-post from the D1 row, reading photos and video back from R2, then
+ * store the new post's URI so deleting the note deletes it too. A note already
+ * on Bluesky is refused, so a double tap cannot post twice.
+ */
+async function handleRetryThinkingBluesky(payload, db, cors, env) {
+  const slug = String(payload.slug || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}-\d{4}$/.test(slug)) return json({ error: "Invalid slug" }, 400, cors);
+  if (!env.BLUESKY_HANDLE || !env.BLUESKY_APP_PASSWORD) {
+    return json({ error: "Bluesky is not configured" }, 400, cors);
+  }
+  const row = await dbFirst(
+    db,
+    "SELECT slug, text, media_url, media_urls, media_alt, media_type, bluesky_uri FROM thinking_posts WHERE slug = ?",
+    slug
+  );
+  if (!row) return json({ error: "Post not found" }, 404, cors);
+  if (row.bluesky_uri) return json({ error: "Already on Bluesky", blueskyUri: row.bluesky_uri }, 409, cors);
+
+  try {
+    const text = String(row.text || "").trim();
+    const mediaType = row.media_type || "";
+    const mediaAlt = row.media_alt || text.slice(0, 1000);
+    const uploadedPhotos = [];
+    let syndicationMedia = null;
+    if (mediaType === "image") {
+      let urls = [];
+      try {
+        urls = JSON.parse(row.media_urls || "[]");
+      } catch {
+        urls = [];
+      }
+      if (!urls.length && row.media_url) urls = [row.media_url];
+      for (const url of urls.slice(0, MAX_THINKING_PHOTOS)) {
+        const obj = await env.MEDIA.get(thinkingMediaKeyFromUrl(url));
+        if (!obj) throw new Error(`Photo missing from storage: ${url}`);
+        const bytes = await obj.arrayBuffer();
+        const mimeType = obj.httpMetadata?.contentType || "image/jpeg";
+        uploadedPhotos.push({ bytes, mimeType, aspectRatio: await imageAspectRatio(bytes, mimeType) });
+      }
+    } else if ((mediaType === "audio" || mediaType === "video") && row.media_url) {
+      const key = thinkingMediaKeyFromUrl(row.media_url);
+      const head = key ? await env.MEDIA.head(key) : null;
+      if (!head) throw new Error("Media file missing from storage");
+      syndicationMedia = {
+        url: row.media_url,
+        bytes: null,
+        mimeType: head.httpMetadata?.contentType || (mediaType === "audio" ? "audio/mp4" : "video/mp4"),
+        key,
+        size: head.size,
+        mediaType,
+        alt: mediaAlt,
+      };
+    }
+    const sent = await syndicateThinkingToBluesky(env, {
+      text,
+      postUrl: `${SITE_URL}/thinking/${slug}/`,
+      mediaType,
+      mediaAlt,
+      uploadedPhotos,
+      syndicationMedia,
+    });
+    await dbRun(db, "UPDATE thinking_posts SET bluesky_uri = ? WHERE slug = ?", sent.uri, slug);
+    await recordSyndicationSuccess(env, "Bluesky", slug);
+    return json({ ok: true, blueskyUri: sent.uri, blueskyCompressed: sent.compressed }, 200, cors);
+  } catch (err) {
+    const warning = await recordServiceFailure(env, "Bluesky", err, slug);
+    return json({ error: warning }, 502, cors);
+  }
+}
+
+/**
+ * Cross-post one Thinking note to Bluesky and return `{ uri, compressed }`.
+ * Used when the note is published and again by the admin's "Retry Bluesky"
+ * (retryThinkingBluesky), which rebuilds these inputs from the D1 row and R2.
+ * `uploadedPhotos` are `{ bytes, mimeType, aspectRatio }`; `syndicationMedia`
+ * is the audio/video upload, with `bytes` null to read it from R2.
+ */
+async function syndicateThinkingToBluesky(
+  env,
+  { text, postUrl, mediaType, mediaAlt, uploadedPhotos = [], photoBlueskyList = [], syndicationMedia = null }
+) {
+  let compressed = false;
+  let blueskyImages = null;
+  if (uploadedPhotos.length) {
+    blueskyImages = [];
+    for (let i = 0; i < uploadedPhotos.length; i++) {
+      const uploaded = uploadedPhotos[i];
+      const prepared = await prepareBlueskyImage(
+        {
+          bytes: uploaded.bytes,
+          mimeType: uploaded.mimeType,
+          alt: mediaAlt,
+          aspectRatio: uploaded.aspectRatio,
+        },
+        photoBlueskyList[i] || null
+      );
+      blueskyImages.push(prepared.image);
+      if (prepared.compressed) compressed = true;
+    }
+  }
+
+  // Try native video for MP4 and MOV — Bluesky's video service transcodes both.
+  let blueskyVideo = null;
+  if (
+    mediaType === "video" &&
+    syndicationMedia &&
+    blueskySupportsNativeVideo(syndicationMedia.mimeType)
+  ) {
+    const videoBytes = await getMediaBytesForSyndication(env, syndicationMedia, MAX_BLUESKY_VIDEO_BYTES);
+    if (videoBytes) {
+      blueskyVideo = { bytes: videoBytes, mimeType: syndicationMedia.mimeType, alt: mediaAlt };
+    }
+  }
+
+  // Always prepare a link card for audio/video so Bluesky still posts when native
+  // upload fails (MOV, Worker timeout, or createRecord rejecting the video embed).
+  // Video cards use the captured still as the thumb — a clickable card, not a
+  // photo attachment with a play icon, which would open the JPEG instead of the post.
+  let blueskyLinkCard = null;
+  if (isLinkOnlyThinkingMedia(mediaType)) {
+    const poster =
+      mediaType === "video" && syndicationMedia?.key
+        ? await loadVideoPosterForSyndication(env, syndicationMedia.key)
+        : null;
+    blueskyLinkCard = thinkingBlueskyLinkCard(postUrl, text, mediaType, poster);
+  } else if (!blueskyImages) {
+    // The Bluesky app builds a link card in its composer; posting through the API
+    // gets none unless we attach one. Any text-only post with a URL carries that
+    // URL's card, not just the long ones that get truncated.
+    const urlMatch = text.match(/https?:\/\/[^\s]+/);
+    if (urlMatch) {
+      const extractedUrl = urlMatch[0].replace(/[.,;:!?)"']+$/, "");
+      const card = await fetchLinkCard(extractedUrl);
+      if (card && (card.title || card.description || card.thumb)) blueskyLinkCard = card;
+    }
+    if (!blueskyLinkCard && [...text].length > 300) {
+      blueskyLinkCard = {
+        uri: postUrl,
+        title: text.slice(0, 100).trim(),
+        description: text.length > 100 ? text.slice(100, 280).trim() : "",
+        thumb: null,
+      };
+    }
+  }
+
+  // Text: link-card fallback for audio (and oversized video); permalink in text when
+  // a native image/video embed is present (Bluesky allows only one embed per post).
+  const blueskyText =
+    isLinkOnlyThinkingMedia(mediaType) && !blueskyVideo
+      ? thinkingBlueskySyndicationText(text, postUrl, mediaType)
+      : mediaType
+        ? thinkingSyndicationTextWithPermalink(text, postUrl)
+        : text;
+
+  const uri = await postToBluesky(
+    env.BLUESKY_HANDLE,
+    env.BLUESKY_APP_PASSWORD,
+    blueskyText,
+    blueskyImages,
+    blueskyLinkCard,
+    blueskyVideo
+  );
+  return { uri, compressed };
+}
+
 async function handleThinking(payload, db, cors, env, ctx) {
   const text = typeof payload.text === "string" ? payload.text.trim() : "";
   const photos = Array.isArray(payload.photos)
@@ -994,89 +1188,20 @@ async function handleThinking(payload, db, cors, env, ctx) {
     let blueskyWarning = null;
     if (env.BLUESKY_HANDLE && env.BLUESKY_APP_PASSWORD) {
       try {
-        let blueskyImages = null;
-        if (uploadedPhotos.length) {
-          blueskyImages = [];
-          for (let i = 0; i < uploadedPhotos.length; i++) {
-            const uploaded = uploadedPhotos[i];
-            const prepared = await prepareBlueskyImage(
-              {
-                bytes: uploaded.bytes,
-                mimeType: uploaded.mimeType,
-                alt: mediaAlt,
-                aspectRatio: uploaded.aspectRatio,
-              },
-              photoBlueskyList[i] || null
-            );
-            blueskyImages.push(prepared.image);
-            if (prepared.compressed) blueskyCompressed = true;
-          }
-        }
-
-        // Try native video for MP4 and MOV — Bluesky's video service transcodes both.
-        let blueskyVideo = null;
-        if (
-          mediaType === "video" &&
-          syndicationMedia &&
-          blueskySupportsNativeVideo(syndicationMedia.mimeType)
-        ) {
-          const videoBytes = await getMediaBytesForSyndication(env, syndicationMedia, MAX_BLUESKY_VIDEO_BYTES);
-          if (videoBytes) {
-            blueskyVideo = { bytes: videoBytes, mimeType: syndicationMedia.mimeType, alt: mediaAlt };
-          }
-        }
-
-        // Always prepare a link card for audio/video so Bluesky still posts when native
-        // upload fails (MOV, Worker timeout, or createRecord rejecting the video embed).
-        // Video cards use the captured still as the thumb — a clickable card, not a
-        // photo attachment with a play icon, which would open the JPEG instead of the post.
-        let blueskyLinkCard = null;
-        if (isLinkOnlyThinkingMedia(mediaType)) {
-          const poster =
-            mediaType === "video" && syndicationMedia?.key
-              ? await loadVideoPosterForSyndication(env, syndicationMedia.key)
-              : null;
-          blueskyLinkCard = thinkingBlueskyLinkCard(postUrl, text, mediaType, poster);
-        } else if (!blueskyImages) {
-          // The Bluesky app builds a link card in its composer; posting through the API
-          // gets none unless we attach one. Any text-only post with a URL carries that
-          // URL's card, not just the long ones that get truncated.
-          const urlMatch = text.match(/https?:\/\/[^\s]+/);
-          if (urlMatch) {
-            const extractedUrl = urlMatch[0].replace(/[.,;:!?)"']+$/, "");
-            const card = await fetchLinkCard(extractedUrl);
-            if (card && (card.title || card.description || card.thumb)) blueskyLinkCard = card;
-          }
-          if (!blueskyLinkCard && [...text].length > 300) {
-            blueskyLinkCard = {
-              uri: postUrl,
-              title: text.slice(0, 100).trim(),
-              description: text.length > 100 ? text.slice(100, 280).trim() : "",
-              thumb: null,
-            };
-          }
-        }
-
-        // Text: link-card fallback for audio (and oversized video); permalink in text when
-        // a native image/video embed is present (Bluesky allows only one embed per post).
-        const blueskyText =
-          isLinkOnlyThinkingMedia(mediaType) && !blueskyVideo
-            ? thinkingBlueskySyndicationText(text, postUrl, mediaType)
-            : mediaType
-              ? thinkingSyndicationTextWithPermalink(text, postUrl)
-              : text;
-
-        blueskyUri = await postToBluesky(
-          env.BLUESKY_HANDLE,
-          env.BLUESKY_APP_PASSWORD,
-          blueskyText,
-          blueskyImages,
-          blueskyLinkCard,
-          blueskyVideo
-        );
-        await recordSyndicationSuccess(env, "Bluesky");
+        const sent = await syndicateThinkingToBluesky(env, {
+          text,
+          postUrl,
+          mediaType,
+          mediaAlt,
+          uploadedPhotos,
+          photoBlueskyList,
+          syndicationMedia,
+        });
+        blueskyUri = sent.uri;
+        blueskyCompressed = sent.compressed;
+        await recordSyndicationSuccess(env, "Bluesky", slug);
       } catch (bsErr) {
-        blueskyWarning = await recordServiceFailure(env, "Bluesky", bsErr);
+        blueskyWarning = await recordServiceFailure(env, "Bluesky", bsErr, slug);
       }
     }
 
@@ -1833,15 +1958,32 @@ function micropubPostUrl(res) {
   return null;
 }
 
+// Waits before each retry of a Bluesky sign-in that failed on Bluesky's side.
+const BLUESKY_SIGN_IN_RETRY_MS = [1000, 3000];
+
+/**
+ * Sign in to Bluesky. A 5xx or a network failure is Bluesky having a bad
+ * moment, not a wrong password, so it is tried again after each wait in
+ * BLUESKY_SIGN_IN_RETRY_MS before giving up. Signing in creates nothing, so a
+ * retry cannot double-post.
+ */
 async function blueskySession(handle, appPassword) {
-  const sessionRes = await fetch(
-    "https://bsky.social/xrpc/com.atproto.server.createSession",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ identifier: handle, password: appPassword }),
+  let sessionRes;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      sessionRes = await fetch("https://bsky.social/xrpc/com.atproto.server.createSession", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier: handle, password: appPassword }),
+      });
+    } catch (err) {
+      if (attempt >= BLUESKY_SIGN_IN_RETRY_MS.length) throw new Error(`Sign-in failed (${err?.message || "network error"})`);
+      await new Promise((r) => setTimeout(r, BLUESKY_SIGN_IN_RETRY_MS[attempt]));
+      continue;
     }
-  );
+    if (sessionRes.status < 500 || attempt >= BLUESKY_SIGN_IN_RETRY_MS.length) break;
+    await new Promise((r) => setTimeout(r, BLUESKY_SIGN_IN_RETRY_MS[attempt]));
+  }
   if (!sessionRes.ok) {
     const err = await sessionRes.text();
     const detail = summarizeApiBody(err);
