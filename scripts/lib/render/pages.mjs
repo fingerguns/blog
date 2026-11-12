@@ -20,6 +20,7 @@ import {
   thinkingSnippet,
   thinkingPostMetaHtml,
   thinkingUnfurlsHtml,
+  thinkingFirstCardTitle,
   videoSrcFromHtml,
 } from "./thinking.mjs";
 
@@ -95,7 +96,8 @@ export function thinkingOgImage(item, ctx, renderCtx = {}) {
 }
 
 export function thinkingOgFromItem(item, ctx, renderCtx = {}) {
-  const description = thinkingSnippet(stripHtml(item.content_html));
+  const description =
+    thinkingSnippet(stripHtml(item.content_html)) || thinkingFirstCardTitle(item._text, renderCtx);
   return { description, image: thinkingOgImage(item, ctx, renderCtx) };
 }
 
@@ -117,7 +119,7 @@ export function thinkingPermalinkParts(item, slug, detailContent, ctx, renderCtx
     microblogUrl: escHtml(item.url || ""),
     crumbIso: escHtml(iso),
     crumbDate: escHtml(formatMbDate(iso)),
-    body: `<div class="microblog-body">${detailContent}</div>${thinkingUnfurlsHtml(item._text, renderCtx)}
+    body: `${detailContent ? `<div class="microblog-body">${detailContent}</div>` : ""}${thinkingUnfurlsHtml(item._text, renderCtx)}
       ${thinkingPostMetaHtml(item, slug)}`,
   };
 }

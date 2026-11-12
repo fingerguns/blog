@@ -1001,9 +1001,6 @@ const videoFrameCache = await loadBuildCache(CACHE_NAMESPACES.VIDEO_FRAMES);
 }
 await saveBuildCache(CACHE_NAMESPACES.VIDEO_FRAMES, videoFrameCache);
 
-// Thinking posts from D1 (populated by the admin Worker on every post/delete)
-const microblogItems = thinkingPosts.map((p) => thinkingItemFromRow(p, renderCtx));
-
 // Thinking link cards: every link in a note (YouTube and Spotify aside, which
 // already render as players) gets an Open Graph preview card beneath the note,
 // on the homepage, the archive, and the permalink. The note's text is rendered
@@ -1013,7 +1010,8 @@ const microblogItems = thinkingPosts.map((p) => thinkingItemFromRow(p, renderCtx
 // as `false` and not retried, as on Sharing — a site that still blocks the
 // preview-crawler UA would otherwise cost a timeout on every build. Changing
 // that UA bumps UNFURL_FETCHER_ID, which drops those misses once so they
-// refetch. The cards are kept out of
+// refetch. A link that ends a line of the note and gets a card is not also
+// printed in the text. The cards are kept out of
 // content_html on purpose: the grid, search, og:image and og:description all
 // read that string, and a linked page's image or blurb must not become the
 // note's own.
@@ -1034,6 +1032,11 @@ invalidateUnfurlMisses(thinkingUnfurlCache);
 await saveBuildCache(CACHE_NAMESPACES.THINKING_UNFURLS, thinkingUnfurlCache);
 
 renderCtx.thinkingUnfurls = thinkingUnfurlCache;
+
+// Thinking posts from D1 (populated by the admin Worker on every post/delete).
+// Rendered after the link cards load: a link that shows as a card is left out
+// of the note's text (stripUnfurledUrls).
+const microblogItems = thinkingPosts.map((p) => thinkingItemFromRow(p, renderCtx));
 
 /** Preview cards for the links in a note's text; "" when there are none. */
 function thinkingUnfurlsHtml(text) {

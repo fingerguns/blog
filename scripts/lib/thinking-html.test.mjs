@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 
 import {
   stripEmbeddableUrls,
+  stripUnfurledUrls,
   inferMediaType,
   renderThinkingContentHtml,
   unfurlableUrls,
@@ -239,4 +240,28 @@ test("singlePhotoUrl resolves only when a note has exactly one photo", () => {
   assert.equal(singlePhotoUrl(url, "image", SITE), url);
   assert.equal(singlePhotoUrl(url, "image", SITE, [url, `${SITE}/media/thinking/photo/b.jpg`]), "");
   assert.equal(singlePhotoUrl(`${SITE}/media/thinking/video/a.mov`, "video", SITE), "");
+});
+
+test("stripUnfurledUrls drops carded links that end a line", () => {
+  const carded = (url) => url === "https://example.com/a" || url === "https://example.com/b";
+  assert.equal(stripUnfurledUrls("Read this https://example.com/a", carded), "Read this");
+  assert.equal(stripUnfurledUrls("Read this https://example.com/a.", carded), "Read this");
+  assert.equal(stripUnfurledUrls("Both https://example.com/a https://example.com/b", carded), "Both");
+  assert.equal(stripUnfurledUrls("https://example.com/a", carded), "");
+  assert.equal(stripUnfurledUrls("Top\nhttps://example.com/a\n\nNext", carded), "Top\n\nNext");
+});
+
+test("stripUnfurledUrls keeps links mid-sentence, without a card, or in brackets", () => {
+  const carded = (url) => url === "https://example.com/a";
+  assert.equal(stripUnfurledUrls("See https://example.com/a today", carded), "See https://example.com/a today");
+  assert.equal(stripUnfurledUrls("See https://example.com/z", carded), "See https://example.com/z");
+  assert.equal(stripUnfurledUrls("(see https://example.com/a)", carded), "(see https://example.com/a)");
+  assert.equal(stripUnfurledUrls("See https://example.com/a", undefined), "See https://example.com/a");
+});
+
+test("renderThinkingContentHtml hides a URL that has a card", () => {
+  const html = renderThinkingContentHtml("Read this https://example.com/a", "", "", "", "", {
+    isUnfurled: (url) => url === "https://example.com/a",
+  });
+  assert.equal(html, "<p>Read this</p>");
 });

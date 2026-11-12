@@ -32,6 +32,33 @@ export function unfurlableUrls(text) {
   return [...seen];
 }
 
+// A URL that ends a line, with any sentence punctuation after it.
+const TRAILING_URL_RE = /(^|\s)(https?:\/\/[^\s<>"]+?)([.,;:!?]*)\s*$/;
+
+/**
+ * Remove the links that already show as a preview card from the end of each
+ * line, so a note does not print a URL above its own card. `isUnfurled(url)`
+ * says whether `url` got a card. Only a run of links at the end of a line
+ * goes: one mid-sentence ("read https://… today") stays, since the sentence
+ * needs it. A line left empty is dropped.
+ */
+export function stripUnfurledUrls(text, isUnfurled) {
+  if (!text || typeof isUnfurled !== "function") return String(text || "");
+  return String(text)
+    .split("\n")
+    .flatMap((line) => {
+      let out = line;
+      for (;;) {
+        const m = out.match(TRAILING_URL_RE);
+        if (!m || !isUnfurled(m[2])) break;
+        out = out.slice(0, m.index + m[1].length).trimEnd();
+      }
+      return out.trim() || !line.trim() ? [out] : [];
+    })
+    .join("\n")
+    .trim();
+}
+
 /** Remove URLs that render as native YouTube/Spotify embeds from plain post text. */
 export function stripEmbeddableUrls(text) {
   if (!text) return "";
@@ -154,7 +181,7 @@ export function renderThinkingContentHtml(
   options = {}
 ) {
   const raw = (text || "").trim();
-  const t = stripEmbeddableUrls(raw);
+  const t = stripEmbeddableUrls(stripUnfurledUrls(raw, options.isUnfurled));
   const type = inferMediaType(mediaUrl, mediaType);
   const photoUrls = type === "image" ? resolvePhotoUrls(mediaUrl, options.mediaUrls, siteUrl) : [];
   const resolvedUrl =

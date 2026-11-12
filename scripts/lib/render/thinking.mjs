@@ -146,9 +146,17 @@ export function thinkingContentHtmlFromRow(p, ctx, options = {}) {
     p.media_alt,
     p.media_type,
     ctx.base,
-    { ...options, mediaUrls: p.media_urls || [], photoSize: ctx.photoSize, videoFrame: ctx.videoFrame }
+    {
+      ...options,
+      mediaUrls: p.media_urls || [],
+      photoSize: ctx.photoSize,
+      videoFrame: ctx.videoFrame,
+      isUnfurled: thinkingUnfurledTest(p.text, ctx),
+    }
   );
-  if (fromSource) return fromSource;
+  // A note that is only a link renders an empty body (its card says it all),
+  // so the stored content_html is the fallback only when there is no text.
+  if (fromSource || String(p.text || "").trim()) return fromSource;
   return p.content_html || "";
 }
 
@@ -163,6 +171,16 @@ export function thinkingItemFromRow(p, ctx) {
     media_type: p.media_type || "",
     location_label: p.location_label || "",
   };
+}
+
+/** The first link card's title, for a note whose only text was that link. */
+export function thinkingFirstCardTitle(text, ctx) {
+  for (const url of unfurlableUrls(text)) {
+    const cached = ctx.thinkingUnfurls?.[url];
+    const unfurl = unfurlHit(cached) || (isUnfurlMiss(cached) ? fallbackUnfurlFromUrl(url) : null);
+    if (unfurl) return unfurl.title || linkDomain(url) || "";
+  }
+  return "";
 }
 
 export const thinkingSlug = (item) => item._slug || thinkingSlugFromIso(item.date_published);
@@ -188,6 +206,15 @@ export function thinkingUnfurlCardHtml(url, ctx) {
   return `<a class="linklog-card" href="${escHtml(url)}" target="_blank" rel="noopener noreferrer">${imageHtml}<span class="linklog-card-body">${metaHtml}<span class="linklog-card-title">${escHtml(title)}</span>${descHtml}</span></a>`;
 }
 
+/**
+ * Whether a URL in `text` shows as a preview card, for stripUnfurledUrls:
+ * a link whose card renders need not also be printed in the note.
+ */
+export function thinkingUnfurledTest(text, ctx) {
+  const withCards = new Set(unfurlableUrls(text).filter((url) => thinkingUnfurlCardHtml(url, ctx)));
+  return (url) => withCards.has(url);
+}
+
 /** Preview cards for the links in a note's text; "" when there are none. */
 export function thinkingUnfurlsHtml(text, ctx) {
   const cards = unfurlableUrls(text).map((url) => thinkingUnfurlCardHtml(url, ctx)).filter(Boolean);
@@ -202,10 +229,16 @@ export function renderThinkingHtml(thinking, ctx) {
     thinking?.media_alt,
     thinking?.media_type,
     ctx.base,
-    { mediaUrls: thinking?.media_urls || [], photoSize: ctx.photoSize, videoFrame: ctx.videoFrame }
+    {
+      mediaUrls: thinking?.media_urls || [],
+      photoSize: ctx.photoSize,
+      videoFrame: ctx.videoFrame,
+      isUnfurled: thinkingUnfurledTest(thinking?.text, ctx),
+    }
   );
-  if (!inner) return "";
-  return `<div class="microblog-body">${inner}</div>${thinkingUnfurlsHtml(thinking?.text, ctx)}`;
+  const cards = thinkingUnfurlsHtml(thinking?.text, ctx);
+  if (!inner && !cards) return "";
+  return `${inner ? `<div class="microblog-body">${inner}</div>` : ""}${cards}`;
 }
 
 export function hasThinking(thinking) {
@@ -237,7 +270,7 @@ export function thinkingListEntryHtml(item, ctx) {
   const slug = thinkingSlug(item);
   const kind = thinkingGridKind(item, ctx.spotifyThumbnails);
   return `        <div class="microblog-entry" data-slug="${escHtml(slug)}" data-kind="${escHtml(kind)}" data-microblog-url="${escHtml(item.url || "")}">
-          <div class="microblog-body">${item.content_html}</div>${thinkingUnfurlsHtml(item._text, ctx)}
+          ${item.content_html ? `<div class="microblog-body">${item.content_html}</div>` : ""}${thinkingUnfurlsHtml(item._text, ctx)}
           ${thinkingPostMetaHtml(item, slug)}
         </div>`;
 }
@@ -291,7 +324,9 @@ export function thinkingGridItemHtml(item, ctx) {
       </a>`;
   }
   const snippet =
-    thinkingSnippet(stripHtml(stripMediaMarkup(item.content_html)), 280) || "(No text)";
+    thinkingSnippet(stripHtml(stripMediaMarkup(item.content_html)), 280) ||
+    thinkingFirstCardTitle(item._text, ctx) ||
+    "(No text)";
   return `          <a class="thinking-grid-item thinking-grid-text" data-kind="${escHtml(kind)}" href="${href}" aria-label="${label}">
             <span class="thinking-grid-text-body">${escHtml(snippet)}</span>${thinkingGridBadgeHtml(kind)}
           </a>`;
