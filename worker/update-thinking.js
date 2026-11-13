@@ -74,6 +74,8 @@ import {
  *
  * Secrets (wrangler secret put):
  *   ADMIN_PASSWORD        — shared password for /admin/
+ *   SHARE_TOKEN           — optional; lets the "Share to rommy.blog" Shortcut add a
+ *                           Sharing link (action "sharing" only) without the password
  *   PAGES_DEPLOY_HOOK     — Cloudflare Pages deploy hook URL
  *   MICROBLOG_TOKEN       — Micropub token (optional)
  *   BLUESKY_HANDLE        — Bluesky handle (optional)
@@ -252,8 +254,12 @@ export default {
     const { password, action } = payload;
     const db = env.DB;
     const clientIp = getClientIp(request);
+    // A share token (SHARE_TOKEN) is the one credential that is not the admin
+    // password: it can add a Sharing link and nothing else, so the "Share to
+    // rommy.blog" Shortcut never has to carry the admin password.
+    const shareToken = typeof payload.share_token === "string" ? payload.share_token : null;
 
-    if (typeof password !== "string") {
+    if (typeof password !== "string" && !shareToken) {
       return json({ error: "Missing password" }, 400, cors);
     }
 
@@ -269,6 +275,19 @@ export default {
         );
       }
       throw err;
+    }
+
+    if (shareToken) {
+      if (
+        action !== "sharing" ||
+        !env.SHARE_TOKEN ||
+        !verifyAdminPassword(shareToken, env.SHARE_TOKEN)
+      ) {
+        await recordAuthFailure(db, clientIp);
+        return json({ error: "Invalid share token" }, 401, cors);
+      }
+      await clearAuthFailures(db, clientIp);
+      return handleSharing(payload, db, cors, env, ctx);
     }
 
     if (!verifyAdminPassword(password, env.ADMIN_PASSWORD)) {
@@ -3209,13 +3228,22 @@ async function handleUpdateReadingCover(payload, db, cors, env) {
 // ─── Sharing ──────────────────────────────────────────────────────────────────
 
 async function handleSharing(body, db, cors, env, ctx) {
-  const { title, url } = body;
+  const { url } = body;
+  let { title } = body;
 
-  if (typeof title !== "string" || !title.trim()) {
-    return json({ error: "Missing title" }, 400, cors);
-  }
-  if (typeof url !== "string" || !url.trim()) {
+  if (typeof url !== "string" || !/^https?:\/\//i.test(url.trim())) {
     return json({ error: "Missing url" }, 400, cors);
+  }
+  // A link shared from an app other than Safari arrives with no page name, so
+  // the title is read from the page itself (handleFetchTitle), falling back to
+  // the address when the page will not say.
+  if (typeof title !== "string" || !title.trim()) {
+    try {
+      const fetched = await (await handleFetchTitle({ url }, cors)).json();
+      title = fetched.title || url;
+    } catch {
+      title = url;
+    }
   }
 
   const now = new Date();

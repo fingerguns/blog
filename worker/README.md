@@ -79,6 +79,7 @@ node scripts/migrate-to-d1.mjs
 cd worker
 wrangler secret put ADMIN_PASSWORD
 wrangler secret put LOCATION_API_TOKEN   # Overland iOS — Bearer token for POST /api/locations
+wrangler secret put SHARE_TOKEN          # optional — Share-menu Shortcut; adds Sharing links only
 wrangler secret put ANTHROPIC_API_KEY   # Reading tab intro copy (Claude Fable)
 wrangler secret put PAGES_DEPLOY_HOOK   # Cloudflare Pages → Settings → Deploy hooks
 wrangler secret put MICROBLOG_TOKEN     # optional
@@ -141,7 +142,7 @@ Output directory: `dist`
 | `list-reading-favorites` | List curated reading favorites |
 | `update-reading-favorite-cover` | Save cover URL and author on a favorite |
 | `delete-reading-favorite` | Delete a curated favorite |
-| `sharing` | Add linklog entry |
+| `sharing` | Add linklog entry (`title` optional; accepts `share_token` in place of `password`) |
 | `list-drafts` | List all writing drafts |
 | `save-draft` | Create/update draft |
 | `load-draft` | Load draft by id |

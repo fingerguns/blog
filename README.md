@@ -211,6 +211,7 @@ See [`worker/README.md`](worker/README.md) for D1 schema, secrets, and deploy st
 | `MASTODON_ACCESS_TOKEN` | No | Mastodon cross-post |
 | `MASTODON_INSTANCE` | No | Mastodon instance URL (default `https://mas.to`) |
 | `LOCATION_API_TOKEN` | No | Overland GPS ingest (`POST /api/locations`) |
+| `SHARE_TOKEN` | No | "Share to rommy.blog" Shortcut: sent as `share_token` in place of `password`, it is accepted for the `sharing` action only |
 | `OURA_ACCESS_TOKEN` | No | Oura Ring Personal Access Token (daily step sync) |
 | `GITHUB_TOKEN` | No | Fallback rebuild trigger |
 
@@ -244,7 +245,7 @@ wrangler deploy
 | `update-reading-cover` | Save chosen cover URL and author on a Reading entry |
 | `delete-reading` | Delete Reading entry |
 | `reading-favorite` / `list-reading-favorites` / `delete-reading-favorite` / `update-reading-favorite-cover` | Must Reads entries and their cover art |
-| `sharing` | Add Sharing (linklog) entry |
+| `sharing` | Add Sharing (linklog) entry. `title` is optional: without one the page's own title is fetched, falling back to the URL. Also accepts `share_token` (`SHARE_TOKEN`) instead of `password`, which is refused for every other action, so a Share-menu Shortcut can add links without holding the admin password |
 | `fetch-title` | Fetch page title for Sharing |
 | `refresh-section-hints` | Regenerate homepage section tooltips with Claude Fable |
 | `refresh-reading-tab-intros` | Regenerate Reading Latest / Must Reads tab intro copy with Claude Fable |
