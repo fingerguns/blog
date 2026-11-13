@@ -142,7 +142,7 @@ Output directory: `dist`
 | `list-reading-favorites` | List curated reading favorites |
 | `update-reading-favorite-cover` | Save cover URL and author on a favorite |
 | `delete-reading-favorite` | Delete a curated favorite |
-| `sharing` | Add linklog entry (`title` optional; accepts `share_token` in place of `password`) |
+| `sharing` | Add linklog entry (`title` optional — fetched from the page, else rebuilt from the URL slug; accepts `share_token` in place of `password`) |
 | `list-drafts` | List all writing drafts |
 | `save-draft` | Create/update draft |
 | `load-draft` | Load draft by id |

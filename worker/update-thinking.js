@@ -14,7 +14,7 @@ import { isLiveRoute, isSitePassthrough, serveLive } from "./live-overlay.mjs";
 import { handleThinkingViews } from "./page-views.mjs";
 import { warmThinkingCaches, warmLinklogCache } from "./live-warm.mjs";
 import { parseYouTubeUrl } from "../scripts/lib/youtube.mjs";
-import { LINK_UNFURL_USER_AGENT } from "../scripts/lib/link-unfurl.mjs";
+import { LINK_UNFURL_USER_AGENT, fallbackUnfurlFromUrl } from "../scripts/lib/link-unfurl.mjs";
 import {
   scheduleSectionHintRefresh,
   refreshSectionHint,
@@ -3235,15 +3235,17 @@ async function handleSharing(body, db, cors, env, ctx) {
     return json({ error: "Missing url" }, 400, cors);
   }
   // A link shared from an app other than Safari arrives with no page name, so
-  // the title is read from the page itself (handleFetchTitle), falling back to
-  // the address when the page will not say.
+  // the title is read from the page itself (handleFetchTitle). A page that
+  // turns the fetch away (Bloomberg answers 403) gets one rebuilt from its
+  // URL (fallbackUnfurlFromUrl), and only an address that reads as no words
+  // is used as its own title.
   if (typeof title !== "string" || !title.trim()) {
     try {
-      const fetched = await (await handleFetchTitle({ url }, cors)).json();
-      title = fetched.title || url;
+      title = (await (await handleFetchTitle({ url }, cors)).json()).title || "";
     } catch {
-      title = url;
+      title = "";
     }
+    title = title || fallbackUnfurlFromUrl(url.trim())?.title || url;
   }
 
   const now = new Date();

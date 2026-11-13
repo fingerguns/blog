@@ -260,3 +260,20 @@ test("a Sharing card for a blocked link keeps its title and names the publicatio
     assert.match(html, /linklog-card-title">DOJ story</);
   }
 });
+
+test("fallbackUnfurlFromUrl rejoins contractions a slug split apart", () => {
+  assert.equal(
+    fallbackUnfurlFromUrl(
+      "https://www.bloomberg.com/news/articles/2026-11-12/microsoft-says-it-s-working-to-fix-outlook-copilot-outage?srnd=homepage-americas"
+    ).title,
+    "Microsoft says it’s working to fix outlook copilot outage"
+  );
+  assert.equal(
+    fallbackUnfurlFromUrl("https://example.com/news/we-don-t-know-why-the-uk-s-plan-failed").title,
+    "We don’t know why the UK’s plan failed"
+  );
+  assert.equal(
+    fallbackUnfurlFromUrl("https://example.com/health/why-vitamin-d-matters-more-now").title,
+    "Why vitamin d matters more now"
+  );
+});

@@ -245,7 +245,7 @@ wrangler deploy
 | `update-reading-cover` | Save chosen cover URL and author on a Reading entry |
 | `delete-reading` | Delete Reading entry |
 | `reading-favorite` / `list-reading-favorites` / `delete-reading-favorite` / `update-reading-favorite-cover` | Must Reads entries and their cover art |
-| `sharing` | Add Sharing (linklog) entry. `title` is optional: without one the page's own title is fetched, falling back to the URL. Also accepts `share_token` (`SHARE_TOKEN`) instead of `password`, which is refused for every other action, so a Share-menu Shortcut can add links without holding the admin password |
+| `sharing` | Add Sharing (linklog) entry. `title` is optional: without one the page's own title is fetched; a page that refuses the fetch (Bloomberg answers 403) gets a title rebuilt from its URL slug (`fallbackUnfurlFromUrl`, which also rejoins split contractions such as `it-s` → it’s), and only a slug that reads as no words leaves the URL as the title. Also accepts `share_token` (`SHARE_TOKEN`) instead of `password`, which is refused for every other action, so a Share-menu Shortcut can add links without holding the admin password |
 | `fetch-title` | Fetch page title for Sharing |
 | `refresh-section-hints` | Regenerate homepage section tooltips with Claude Fable |
 | `refresh-reading-tab-intros` | Regenerate Reading Latest / Must Reads tab intro copy with Claude Fable |

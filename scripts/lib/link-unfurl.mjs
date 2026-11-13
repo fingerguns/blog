@@ -220,6 +220,25 @@ const SLUG_ACRONYMS = new Set([
   "un", "nato", "nyc", "nypd", "la", "dc", "ceo", "cfo", "gdp", "nba", "nfl", "mlb", "nhl", "tv", "uk's", "us's",
 ]);
 
+// The ends of contractions a slug splits off as words of their own, its
+// apostrophe dropped: "it-s", "don-t", "we-ll". "d" is left out on purpose,
+// since "vitamin-d" is far likelier than "i-d".
+const SLUG_CONTRACTION_ENDINGS = new Set(["s", "t", "m", "ll", "re", "ve"]);
+
+/** ["it", "s", "working"] → ["it’s", "working"]: rejoin a slug's contractions. */
+function joinSlugContractions(words) {
+  const out = [];
+  for (const w of words) {
+    const prev = out[out.length - 1];
+    if (prev && SLUG_CONTRACTION_ENDINGS.has(w.toLowerCase()) && /^[\p{L}]+$/u.test(prev)) {
+      out[out.length - 1] = `${prev}’${w}`;
+    } else {
+      out.push(w);
+    }
+  }
+  return out;
+}
+
 /**
  * A minimal card for a link whose page could not be read: the publication
  * and a title rebuilt from the URL's last path segment, with no image or
@@ -253,10 +272,11 @@ export function fallbackUnfurlFromUrl(url) {
   const words = slug.split(/[-_+\s]+/).filter(Boolean);
   const wordy = words.filter((w) => /^[\p{L}'’]+$/u.test(w));
   if (words.length < 3 || wordy.length / words.length < 0.75) return null;
-  const title = words
+  const title = joinSlugContractions(words)
     .map((w, i) => {
       const lower = w.toLowerCase();
-      if (SLUG_ACRONYMS.has(lower)) return lower.toUpperCase();
+      const [stem, ending] = lower.split("’");
+      if (SLUG_ACRONYMS.has(stem)) return ending === undefined ? stem.toUpperCase() : `${stem.toUpperCase()}’${ending}`;
       return i === 0 ? lower.charAt(0).toUpperCase() + lower.slice(1) : lower;
     })
     .join(" ")
