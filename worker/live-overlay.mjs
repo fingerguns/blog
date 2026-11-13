@@ -107,14 +107,47 @@ export function isSitePassthrough(request) {
  * on a permalink — its view count (worker/page-views.mjs), added after the
  * overlay's edge cache so a cached copy never freezes the number.
  */
+// Redirects from the origin are never stored at the edge. On a Worker route
+// the page is fetched with fetch(request), and a plain-http visit made that
+// fetch come back as Pages' 301 to https, which the edge then kept under the
+// same key as the https page: the homepage answered every visitor with a
+// redirect to itself until the stored copy expired.
+const ORIGIN_FETCH = { cf: { cacheTtlByStatus: { "300-399": -1 } } };
+
+/** Is `res` a redirect back to the URL that was asked for? */
+function isSelfRedirect(res, requestUrl) {
+  if (res.status < 300 || res.status > 399) return false;
+  const location = res.headers.get("Location");
+  if (!location) return false;
+  try {
+    return new URL(location, requestUrl).href === new URL(requestUrl).href;
+  } catch {
+    return false;
+  }
+}
+
 export async function serveLive(request, env, ctx) {
+  // Plain http is sent to https here, by the Worker, so the origin is only
+  // ever fetched over https (see ORIGIN_FETCH).
+  const asked = new URL(request.url);
+  if (asked.protocol === "http:") {
+    asked.protocol = "https:";
+    return new Response(null, { status: 301, headers: { Location: asked.href, "Cache-Control": "no-store" } });
+  }
   if (viewPathFor(request)) request = withoutConditionals(request);
   const res = await overlaid(request, env, ctx);
   return withViewCount(request, res, env);
 }
 
 async function overlaid(request, env, ctx) {
-  let origin = await fetch(request);
+  let origin = await fetch(request, ORIGIN_FETCH);
+  // A redirect to this very URL is a stored copy gone bad, not the page:
+  // ask the origin again past it rather than send the visitor in a loop.
+  if (isSelfRedirect(origin, request.url)) {
+    const past = new URL(request.url);
+    past.searchParams.set("__origin", "1");
+    origin = await fetch(new Request(past, request), ORIGIN_FETCH);
+  }
   try {
     // A browser revalidating its copy gets a bodiless 304 from Pages, which
     // would keep it on the stale page. Fetch in full when there is news.
@@ -124,7 +157,7 @@ async function overlaid(request, env, ctx) {
         const headers = new Headers(request.headers);
         headers.delete("If-None-Match");
         headers.delete("If-Modified-Since");
-        origin = await fetch(new Request(request, { headers }));
+        origin = await fetch(new Request(request, { headers }), ORIGIN_FETCH);
       }
     }
     return await overlay(request, origin, env, ctx);
