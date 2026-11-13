@@ -76,7 +76,12 @@ CREATE TABLE IF NOT EXISTS linklog (
   title TEXT NOT NULL,
   date TEXT NOT NULL,
   datetime TEXT NOT NULL,
-  tags TEXT
+  tags TEXT,
+  -- Where the link was cross-posted (migrate-linklog-syndication.sql), so
+  -- delete-sharing can delete those posts too.
+  microblog_url TEXT,
+  bluesky_uri TEXT,
+  mastodon_uri TEXT
 );
 
 CREATE TABLE IF NOT EXISTS thinking_posts (

@@ -61,6 +61,12 @@ Add Sharing (linklog) topic tags (`tags` column, backing the archive's tag-filte
 wrangler d1 execute rommy-blog-db --file=migrate-linklog-tags.sql --remote
 ```
 
+Record where each Sharing link was cross-posted (`microblog_url`, `bluesky_uri`, `mastodon_uri`), so `delete-sharing` can delete those posts too:
+
+```bash
+wrangler d1 execute rommy-blog-db --file=migrate-linklog-syndication.sql --remote
+```
+
 Add permalink view counts (`page_views`, filled by the Worker on each page load and seeded once from Google Analytics with `npm run seed-page-views`):
 
 ```bash
@@ -143,7 +149,7 @@ Output directory: `dist`
 | `update-reading-favorite-cover` | Save cover URL and author on a favorite |
 | `delete-reading-favorite` | Delete a curated favorite |
 | `sharing` | Add linklog entry (`title` optional — fetched from the page, else rebuilt from the URL slug; accepts `share_token` in place of `password`) |
-| `delete-sharing` | Delete a linklog entry by `id` (swipe-to-delete on /sharing/) |
+| `delete-sharing` | Delete a linklog entry by `id` and its Micro.blog, Bluesky and Mastodon cross-posts (swipe-to-delete on /sharing/) |
 | `list-drafts` | List all writing drafts |
 | `save-draft` | Create/update draft |
 | `load-draft` | Load draft by id |

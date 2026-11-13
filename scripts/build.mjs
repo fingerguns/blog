@@ -1958,7 +1958,8 @@ ${archiveFoot(writingViewToggleScript, { backToTop: true })}`;
 // delete links); nobody else's cards move. The card keeps touch-action pan-y,
 // so a vertical drag still scrolls the page, and a swipe swallows the click
 // that would otherwise open the link. The Worker's delete-sharing action does
-// the deleting; the cross-posts stay up, since the linklog never kept them.
+// the deleting, cross-posts included; a cross-post that would not delete is
+// named in a short notice at the foot of the screen.
 const linklogSwipeDeleteScript = `    <script>(function(){
   var API_URL=(function(){var h=location.hostname;if(h==="localhost"||h==="127.0.0.1")return"https://rommy-blog-admin.fingerguns.workers.dev";return"/api/admin";})();
   var SESSION_KEY="admin_session";
@@ -2004,8 +2005,9 @@ const linklogSwipeDeleteScript = `    <script>(function(){
     slide(li,-li.offsetWidth,true);
     openRow=null;
     fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:pw,action:"delete-sharing",id:Number(id)})})
-      .then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||"Could not delete");});})
-      .then(function(){
+      .then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||"Could not delete");return d;});})
+      .then(function(d){
+        if(d&&d.warnings&&d.warnings.length)toast("Deleted here, but not everywhere: "+d.warnings.join(" "));
         li.style.height=li.offsetHeight+"px";
         li.offsetHeight;
         li.classList.add("is-collapsing");
@@ -2019,6 +2021,12 @@ const linklogSwipeDeleteScript = `    <script>(function(){
         li.classList.add("is-delete-failed");
         setTimeout(function(){li.classList.remove("is-delete-failed");},2400);
       });
+  }
+  function toast(msg){
+    var t=document.createElement("p");
+    t.className="linklog-swipe-toast";t.setAttribute("role","status");t.textContent=msg;
+    document.body.appendChild(t);
+    setTimeout(function(){t.remove();},6000);
   }
   var drag=null;
   list.addEventListener("pointerdown",function(e){

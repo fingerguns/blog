@@ -2371,16 +2371,25 @@ async function blueskyCreatePost(accessJwt, did, text, facets, embed) {
   return postRes.json();
 }
 
+/**
+ * Cross-post plain text (Writing, Reading, Sharing) to every configured
+ * service. Returns each service's warning on failure and, on success, the
+ * address of the new post (`microblogUrl`, `blueskyUri`, `mastodonUrl`), which
+ * Sharing stores so deleting a link can delete its cross-posts.
+ */
 async function syndicateText(env, content, linkUrl = null) {
   let microblogWarning = null;
   let blueskyWarning = null;
   let mastodonWarning = null;
+  let microblogUrl = null;
+  let blueskyUri = null;
+  let mastodonUrl = null;
 
   const linkCard = linkUrl ? await fetchLinkCard(linkUrl) : null;
 
   if (env.MICROBLOG_TOKEN) {
     try {
-      await postToMicroblog(env.MICROBLOG_TOKEN, content);
+      microblogUrl = (await postToMicroblog(env.MICROBLOG_TOKEN, content)) || null;
       await recordSyndicationSuccess(env, "micro.blog");
     } catch (mbErr) {
       microblogWarning = await recordServiceFailure(env, "micro.blog", mbErr);
@@ -2389,7 +2398,7 @@ async function syndicateText(env, content, linkUrl = null) {
 
   if (env.BLUESKY_HANDLE && env.BLUESKY_APP_PASSWORD) {
     try {
-      await postToBluesky(env.BLUESKY_HANDLE, env.BLUESKY_APP_PASSWORD, content, null, linkCard);
+      blueskyUri = (await postToBluesky(env.BLUESKY_HANDLE, env.BLUESKY_APP_PASSWORD, content, null, linkCard)) || null;
       await recordSyndicationSuccess(env, "Bluesky");
     } catch (bsErr) {
       blueskyWarning = await recordServiceFailure(env, "Bluesky", bsErr);
@@ -2399,14 +2408,14 @@ async function syndicateText(env, content, linkUrl = null) {
   if (env.MASTODON_ACCESS_TOKEN) {
     const mastodonInstance = (env.MASTODON_INSTANCE || DEFAULT_MASTODON_INSTANCE).replace(/\/$/, "");
     try {
-      await postToMastodon(mastodonInstance, env.MASTODON_ACCESS_TOKEN, content);
+      mastodonUrl = (await postToMastodon(mastodonInstance, env.MASTODON_ACCESS_TOKEN, content)) || null;
       await recordSyndicationSuccess(env, "Mastodon");
     } catch (msErr) {
       mastodonWarning = await recordServiceFailure(env, "Mastodon", msErr);
     }
   }
 
-  return { microblogWarning, blueskyWarning, mastodonWarning };
+  return { microblogWarning, blueskyWarning, mastodonWarning, microblogUrl, blueskyUri, mastodonUrl };
 }
 
 async function deleteFromMicroblog(token, url) {
@@ -2553,22 +2562,60 @@ async function deleteFromMastodon(instanceUrl, accessToken, statusUrl) {
 }
 
 /**
- * Delete one Sharing link (the swipe-to-delete on /sharing/). The live
- * overlay drops it at once from the archive and the homepage, and the rebuild
- * makes that permanent. The linklog keeps no record of its cross-posts, so
- * the Micro.blog, Bluesky and Mastodon copies stay up.
+ * Delete one Sharing link (the swipe-to-delete on /sharing/) and its
+ * Micro.blog, Bluesky and Mastodon cross-posts, whose addresses handleSharing
+ * saved on the row. Links shared before those addresses were kept have none,
+ * so their cross-posts stay up. A cross-post that will not delete is logged
+ * to job_runs (the admin Health tab) and reported, but never keeps the link
+ * on the site. The live overlay drops the link at once from the archive and
+ * the homepage, and the rebuild makes that permanent.
  */
 async function handleDeleteSharing(payload, db, cors, env, ctx) {
   const id = Number(payload.id);
   if (!Number.isInteger(id) || id <= 0) return json({ error: "Invalid id" }, 400, cors);
   try {
-    const row = await dbFirst(db, "SELECT id FROM linklog WHERE id = ?", id);
+    let row;
+    try {
+      row = await dbFirst(db, "SELECT id, microblog_url, bluesky_uri, mastodon_uri FROM linklog WHERE id = ?", id);
+    } catch {
+      // Before migrate-linklog-syndication.sql the columns do not exist.
+      row = await dbFirst(db, "SELECT id FROM linklog WHERE id = ?", id);
+    }
     if (!row) return json({ error: "Link not found" }, 404, cors);
+
+    const warnings = [];
+    const deleted = [];
+    if (row.microblog_url && env.MICROBLOG_TOKEN) {
+      try {
+        await deleteFromMicroblog(env.MICROBLOG_TOKEN, row.microblog_url);
+        deleted.push("micro.blog");
+      } catch (err) {
+        warnings.push(await recordServiceFailure(env, "micro.blog", err, `delete linklog:${id}`));
+      }
+    }
+    if (row.bluesky_uri && env.BLUESKY_HANDLE && env.BLUESKY_APP_PASSWORD) {
+      try {
+        await deleteFromBluesky(env.BLUESKY_HANDLE, env.BLUESKY_APP_PASSWORD, row.bluesky_uri);
+        deleted.push("Bluesky");
+      } catch (err) {
+        warnings.push(await recordServiceFailure(env, "Bluesky", err, `delete linklog:${id}`));
+      }
+    }
+    if (row.mastodon_uri && env.MASTODON_ACCESS_TOKEN) {
+      const mastodonInstance = (env.MASTODON_INSTANCE || DEFAULT_MASTODON_INSTANCE).replace(/\/$/, "");
+      try {
+        await deleteFromMastodon(mastodonInstance, env.MASTODON_ACCESS_TOKEN, row.mastodon_uri);
+        deleted.push("Mastodon");
+      } catch (err) {
+        warnings.push(await recordServiceFailure(env, "Mastodon", err, `delete linklog:${id}`));
+      }
+    }
+
     await dbRun(db, "DELETE FROM linklog WHERE id = ?", id);
     await recordContentChange(db, CONTENT_KIND.LINKLOG, id, "delete");
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Sharing", triggerRebuild);
-    return json({ ok: true }, 200, cors);
+    return json({ ok: true, deleted, warnings }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Delete failed" }, 500, cors);
   }
@@ -3319,11 +3366,25 @@ async function handleSharing(body, db, cors, env, ctx) {
       ? `${entry.title} ${hashtags}\n\n${entry.url}`
       : `${entry.title}\n\n${entry.url}`;
 
-    const { microblogWarning, blueskyWarning, mastodonWarning } = await syndicateText(
-      env,
-      syndicationText,
-      entry.url
-    );
+    const { microblogWarning, blueskyWarning, mastodonWarning, microblogUrl, blueskyUri, mastodonUrl } =
+      await syndicateText(env, syndicationText, entry.url);
+
+    // Kept so deleting the link (delete-sharing) can take its cross-posts
+    // down too. A failure here must not fail a link that is already posted.
+    if (linklogId && (microblogUrl || blueskyUri || mastodonUrl)) {
+      try {
+        await dbRun(
+          db,
+          "UPDATE linklog SET microblog_url = ?, bluesky_uri = ?, mastodon_uri = ? WHERE id = ?",
+          microblogUrl,
+          blueskyUri,
+          mastodonUrl,
+          linklogId
+        );
+      } catch (err) {
+        console.error("linklog syndication addresses not saved:", err?.message || err);
+      }
+    }
 
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Sharing", triggerRebuild);
