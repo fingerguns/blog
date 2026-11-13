@@ -819,6 +819,60 @@ h2 {
   transition: background-color 0.15s ease;
 }
 
+/* Swipe to delete on /sharing/, for a browser signed in to the admin only
+   (linklogSwipeDeleteScript in scripts/build.mjs adds .is-swipeable). The red
+   trash button sits behind the card and shows only once the card moves, so
+   the card's rounded corners never fringe red at rest. */
+.linklog-archive-list.is-swipeable li {
+  position: relative;
+  overflow: hidden;
+  border-radius: 6px;
+}
+.linklog-archive-list.is-swipeable li > .linklog-card {
+  grid-column: 1 / -1;
+  position: relative;
+  z-index: 1;
+  touch-action: pan-y;
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.linklog-archive-list li.is-settling > .linklog-card {
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.15s ease;
+}
+.linklog-swipe-delete {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 31px 0 0;
+  border: 0;
+  border-radius: 6px;
+  background: #e5484d;
+  color: #fff;
+  cursor: pointer;
+  visibility: hidden;
+}
+.linklog-archive-list li.is-swiped > .linklog-swipe-delete,
+.linklog-archive-list li.is-settling > .linklog-swipe-delete {
+  visibility: visible;
+}
+.linklog-archive-list li.is-collapsing {
+  overflow: hidden;
+  margin-block: 0;
+  transition: height 0.3s ease, margin 0.3s ease;
+}
+.linklog-archive-list li.is-delete-failed > .linklog-card {
+  box-shadow: inset 0 0 0 2px #e5484d;
+}
+@media (prefers-reduced-motion: reduce) {
+  .linklog-archive-list li.is-settling > .linklog-card,
+  .linklog-archive-list li.is-collapsing {
+    transition: none;
+  }
+}
+
 .linklog-card:hover {
   background: var(--surface-hover);
 }

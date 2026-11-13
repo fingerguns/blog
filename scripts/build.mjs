@@ -1952,12 +1952,125 @@ ${postListAllHtml}
       </ol>
 ${archiveFoot(writingViewToggleScript, { backToTop: true })}`;
 
+// Swipe a Sharing card left to delete it, the Mail way: a short swipe opens
+// a red trash button behind the card, a long one deletes outright. Only on a
+// browser signed in to the admin (the same session check as the Thinking
+// delete links); nobody else's cards move. The card keeps touch-action pan-y,
+// so a vertical drag still scrolls the page, and a swipe swallows the click
+// that would otherwise open the link. The Worker's delete-sharing action does
+// the deleting; the cross-posts stay up, since the linklog never kept them.
+const linklogSwipeDeleteScript = `    <script>(function(){
+  var API_URL=(function(){var h=location.hostname;if(h==="localhost"||h==="127.0.0.1")return"https://rommy-blog-admin.fingerguns.workers.dev";return"/api/admin";})();
+  var SESSION_KEY="admin_session";
+  var SESSION_TTL=${30 * 24 * 60 * 60 * 1000};
+  var OPEN=84;
+  function loadPw(){
+    try{
+      var raw=localStorage.getItem(SESSION_KEY);
+      if(raw){var s=JSON.parse(raw);if(s&&s.pw&&s.ts&&Date.now()-s.ts<SESSION_TTL)return s.pw;}
+      raw=sessionStorage.getItem(SESSION_KEY);
+      if(raw){var t=JSON.parse(raw);if(t&&t.pw)return t.pw;}
+    }catch(e){}
+    return null;
+  }
+  var list=document.querySelector(".linklog-archive-list");
+  if(!list||!loadPw())return;
+  list.classList.add("is-swipeable");
+  var TRASH='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
+  var openRow=null;
+  function linkId(li){var k=(li.getAttribute("data-live-key")||"").split(":");return k[0]==="linklog"?k[1]:"";}
+  function prep(li){
+    if(li.querySelector(".linklog-swipe-delete"))return;
+    var b=document.createElement("button");
+    b.type="button";b.className="linklog-swipe-delete";b.tabIndex=-1;
+    b.setAttribute("aria-label","Delete this link");
+    b.innerHTML=TRASH;
+    b.addEventListener("click",function(e){e.preventDefault();remove(li);});
+    li.appendChild(b);
+    var a=li.querySelector(".linklog-card");if(a)a.draggable=false;
+  }
+  function slide(li,x,animate){
+    var a=li.querySelector(".linklog-card");if(!a)return;
+    li.classList.toggle("is-settling",!!animate);
+    a.style.transform=x?"translateX("+x+"px)":"";
+    li.classList.toggle("is-swiped",x<0);
+    var b=li.querySelector(".linklog-swipe-delete");if(b)b.tabIndex=x<0?0:-1;
+  }
+  function close(li){if(li){slide(li,0,true);if(openRow===li)openRow=null;}}
+  function remove(li){
+    var id=linkId(li);if(!id||li.classList.contains("is-deleting"))return;
+    var pw=loadPw();if(!pw){close(li);return;}
+    li.classList.add("is-deleting");
+    slide(li,-li.offsetWidth,true);
+    openRow=null;
+    fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:pw,action:"delete-sharing",id:Number(id)})})
+      .then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||"Could not delete");});})
+      .then(function(){
+        li.style.height=li.offsetHeight+"px";
+        li.offsetHeight;
+        li.classList.add("is-collapsing");
+        li.style.height="0px";
+        setTimeout(function(){li.remove();},320);
+      },function(err){
+        li.classList.remove("is-deleting");
+        close(li);
+        var a=li.querySelector(".linklog-card");
+        if(a){a.title=err.message;}
+        li.classList.add("is-delete-failed");
+        setTimeout(function(){li.classList.remove("is-delete-failed");},2400);
+      });
+  }
+  var drag=null;
+  list.addEventListener("pointerdown",function(e){
+    if(e.button!==0)return;
+    var a=e.target.closest(".linklog-card");if(!a||!list.contains(a))return;
+    var li=a.closest("li");if(!li||li.classList.contains("is-deleting"))return;
+    if(openRow&&openRow!==li)close(openRow);
+    prep(li);
+    drag={li:li,a:a,id:e.pointerId,x0:e.clientX,y0:e.clientY,base:li===openRow?-OPEN:0,x:0,mode:"",moved:false};
+  });
+  list.addEventListener("pointermove",function(e){
+    if(!drag||e.pointerId!==drag.id)return;
+    var dx=e.clientX-drag.x0,dy=e.clientY-drag.y0;
+    if(!drag.mode){
+      if(Math.abs(dx)<8&&Math.abs(dy)<8)return;
+      drag.mode=Math.abs(dx)>Math.abs(dy)?"x":"y";
+      if(drag.mode==="y"){drag=null;return;}
+      try{drag.a.setPointerCapture(e.pointerId);}catch(err){}
+    }
+    drag.moved=true;
+    var x=Math.min(0,drag.base+dx);
+    drag.x=x;
+    slide(drag.li,x,false);
+  });
+  function end(e){
+    if(!drag||e.pointerId!==drag.id)return;
+    var d=drag;drag=null;
+    if(!d.moved)return;
+    d.li.dataset.swiped="1";
+    setTimeout(function(){delete d.li.dataset.swiped;},60);
+    var w=d.li.offsetWidth;
+    if(-d.x>w*0.6){remove(d.li);return;}
+    if(-d.x>OPEN/2){slide(d.li,-OPEN,true);openRow=d.li;}else close(d.li);
+  }
+  list.addEventListener("pointerup",end);
+  list.addEventListener("pointercancel",function(e){if(drag&&e.pointerId===drag.id){var li=drag.li;drag=null;close(li);}});
+  list.addEventListener("click",function(e){
+    var a=e.target.closest(".linklog-card");if(!a)return;
+    var li=a.closest("li");
+    if(li&&(li.dataset.swiped||li===openRow)){e.preventDefault();if(li===openRow&&!li.dataset.swiped)close(li);}
+  },true);
+  document.addEventListener("pointerdown",function(e){
+    if(openRow&&!openRow.contains(e.target))close(openRow);
+  });
+}());</script>`;
+
 const sharingPageHtml = `${archiveHead("Sharing", sectionHeading("Sharing", "h1"))}
 ${linklogTagFilterHtml}
       <ol class="post-list linklog-archive-list" reversed${liveListAttrs("linklog")}>
 ${linklogAllHtml}
       </ol>
-${archiveFoot(linklogFilterScript, { infiniteScroll: false, backToTop: true })}`;
+${archiveFoot(linklogFilterScript + "\n" + linklogSwipeDeleteScript, { infiniteScroll: false, backToTop: true })}`;
 
 // /now page
 const nowMonthYear = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "America/New_York" });

@@ -534,6 +534,10 @@ export default {
       return handleDeleteThinking(payload, db, cors, env, ctx);
     }
 
+    if (action === "delete-sharing") {
+      return handleDeleteSharing(payload, db, cors, env, ctx);
+    }
+
     if (action === "retry-thinking-bluesky") {
       return handleRetryThinkingBluesky(payload, db, cors, env);
     }
@@ -2545,6 +2549,28 @@ async function deleteFromMastodon(instanceUrl, accessToken, statusUrl) {
     throw new Error(
       detail ? `Delete failed (${res.status}: ${detail})` : `Delete failed (HTTP ${res.status}).`
     );
+  }
+}
+
+/**
+ * Delete one Sharing link (the swipe-to-delete on /sharing/). The live
+ * overlay drops it at once from the archive and the homepage, and the rebuild
+ * makes that permanent. The linklog keeps no record of its cross-posts, so
+ * the Micro.blog, Bluesky and Mastodon copies stay up.
+ */
+async function handleDeleteSharing(payload, db, cors, env, ctx) {
+  const id = Number(payload.id);
+  if (!Number.isInteger(id) || id <= 0) return json({ error: "Invalid id" }, 400, cors);
+  try {
+    const row = await dbFirst(db, "SELECT id FROM linklog WHERE id = ?", id);
+    if (!row) return json({ error: "Link not found" }, 404, cors);
+    await dbRun(db, "DELETE FROM linklog WHERE id = ?", id);
+    await recordContentChange(db, CONTENT_KIND.LINKLOG, id, "delete");
+    await triggerRebuild(env);
+    scheduleSectionHintRefresh(ctx, env, db, "Sharing", triggerRebuild);
+    return json({ ok: true }, 200, cors);
+  } catch (err) {
+    return json({ error: err.message || "Delete failed" }, 500, cors);
   }
 }
 
