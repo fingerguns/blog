@@ -7,7 +7,11 @@ import { thinkingSlugFromDate } from "../scripts/lib/thinking-slug.mjs";
 import { escHtml } from "../scripts/lib/html.mjs";
 import { coalesceImageParagraphsHtml } from "../scripts/lib/coalesce-images.mjs";
 import { addHashtagFacets } from "../scripts/lib/linkify.mjs";
-import { renderThinkingContentHtml } from "../scripts/lib/thinking-html.mjs";
+import {
+  renderThinkingContentHtml,
+  stripQuoteMarkers,
+  thinkingQuotesForSyndication,
+} from "../scripts/lib/thinking-html.mjs";
 import { CONTENT_KIND } from "../scripts/lib/live-changes.mjs";
 import { pruneContentChanges, recordContentChange } from "./content-changes.mjs";
 import { isLiveRoute, isSitePassthrough, serveLive } from "./live-overlay.mjs";
@@ -944,9 +948,10 @@ async function handleRetryThinkingBluesky(payload, db, cors, env) {
   if (row.bluesky_uri) return json({ error: "Already on Bluesky", blueskyUri: row.bluesky_uri }, 409, cors);
 
   try {
-    const text = String(row.text || "").trim();
+    // Bluesky gets quotes as “curly quotes”, the same as the first post.
+    const text = thinkingQuotesForSyndication(String(row.text || "").trim());
     const mediaType = row.media_type || "";
-    const mediaAlt = row.media_alt || text.slice(0, 1000);
+    const mediaAlt = row.media_alt || stripQuoteMarkers(text).slice(0, 1000);
     const uploadedPhotos = [];
     let syndicationMedia = null;
     if (mediaType === "image") {
@@ -1121,6 +1126,10 @@ async function handleThinking(payload, db, cors, env, ctx) {
     return json({ error: "Text must be 2000 characters or fewer" }, 400, cors);
   }
   // Bluesky cross-post truncates at 300; admin shows a soft 300-char guide.
+  // Quotes ("> " lines) are styled on rommy.blog only; the other platforms
+  // get them as “curly quotes”, and alt text gets the words alone.
+  const outText = thinkingQuotesForSyndication(text);
+  const altText = stripQuoteMarkers(text).slice(0, 1000);
 
   try {
     const now = new Date();
@@ -1130,7 +1139,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
 
     let mediaUrl = null;
     let mediaUrls = [];
-    let mediaAlt = text.slice(0, 1000) || "";
+    let mediaAlt = altText || "";
     let mediaType = "";
     let uploadedPhotos = [];
     let blueskyCompressed = false;
@@ -1146,12 +1155,12 @@ async function handleThinking(payload, db, cors, env, ctx) {
       }
       mediaUrls = uploadedPhotos.map((u) => u.url);
       mediaUrl = mediaUrls[0];
-      mediaAlt = text.slice(0, 1000) || "Photo";
+      mediaAlt = altText || "Photo";
       mediaType = "image";
     } else if (audio) {
       const uploaded = await uploadAudioToR2(env, audio);
       mediaUrl = uploaded.url;
-      mediaAlt = text.slice(0, 1000) || "Audio";
+      mediaAlt = altText || "Audio";
       mediaType = "audio";
       syndicationMedia = { url: mediaUrl, bytes: uploaded.bytes, mimeType: uploaded.mimeType, key: uploaded.key, size: uploaded.bytes?.byteLength ?? 0, mediaType: "audio", alt: mediaAlt };
     } else if (video) {
@@ -1163,13 +1172,13 @@ async function handleThinking(payload, db, cors, env, ctx) {
         await uploadVideoFrameToR2(env, uploaded.key, payload.video_frame);
       }
       mediaUrl = uploaded.url;
-      mediaAlt = text.slice(0, 1000) || "Video";
+      mediaAlt = altText || "Video";
       mediaType = "video";
       syndicationMedia = { url: mediaUrl, bytes: uploaded.bytes, mimeType: uploaded.mimeType, key: uploaded.key, size: uploaded.bytes?.byteLength ?? 0, mediaType: "video", alt: mediaAlt };
     } else if (videoKey) {
       const uploaded = await finalizeVideoFromR2(env, videoKey, payload.video_mime);
       mediaUrl = uploaded.url;
-      mediaAlt = text.slice(0, 1000) || "Video";
+      mediaAlt = altText || "Video";
       mediaType = "video";
       // bytes is null for presigned uploads; we'll fetch from R2 when needed.
       syndicationMedia = { url: mediaUrl, bytes: null, mimeType: uploaded.mimeType, key: uploaded.key, size: uploaded.size ?? 0, mediaType: "video", alt: mediaAlt };
@@ -1180,8 +1189,8 @@ async function handleThinking(payload, db, cors, env, ctx) {
     if (env.MICROBLOG_TOKEN) {
       try {
         const mbText = mediaType
-          ? thinkingSyndicationTextWithPermalink(text, postUrl)
-          : text;
+          ? thinkingSyndicationTextWithPermalink(outText, postUrl)
+          : outText;
         if (mediaType === "audio") {
           // Pass the hosted audio URL via Micropub so micro.blog renders a player.
           microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, mbText, null, mediaUrl, null);
@@ -1190,7 +1199,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
             // A `video[]` URL would make Micro.blog fetch a file it cannot host.
             microblogUrl = await postToMicroblog(
               env.MICROBLOG_TOKEN,
-              thinkingLinkSyndicationText(text, postUrl, "video")
+              thinkingLinkSyndicationText(outText, postUrl, "video")
             );
           } else {
             // Pass the hosted video URL via Micropub so micro.blog renders a player.
@@ -1199,7 +1208,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
         } else if (mediaType === "image") {
           microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, mbText, syndicationPhotos);
         } else {
-          microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, text);
+          microblogUrl = await postToMicroblog(env.MICROBLOG_TOKEN, outText);
         }
         await recordSyndicationSuccess(env, "micro.blog");
       } catch (mbErr) {
@@ -1212,7 +1221,7 @@ async function handleThinking(payload, db, cors, env, ctx) {
     if (env.BLUESKY_HANDLE && env.BLUESKY_APP_PASSWORD) {
       try {
         const sent = await syndicateThinkingToBluesky(env, {
-          text,
+          text: outText,
           postUrl,
           mediaType,
           mediaAlt,
@@ -1243,18 +1252,18 @@ async function handleThinking(payload, db, cors, env, ctx) {
             alt: mediaAlt,
             mediaType: "image",
           }));
-          mastodonText = thinkingSyndicationTextWithPermalink(text, postUrl);
+          mastodonText = thinkingSyndicationTextWithPermalink(outText, postUrl);
         } else if ((mediaType === "audio" || mediaType === "video") && syndicationMedia) {
           const mediaBytes = await getMediaBytesForSyndication(env, syndicationMedia, MAX_MASTODON_MEDIA_BYTES);
           if (mediaBytes) {
             mastodonMedia = { bytes: mediaBytes, mimeType: syndicationMedia.mimeType, alt: mediaAlt, mediaType };
-            mastodonText = thinkingSyndicationTextWithPermalink(text, postUrl);
+            mastodonText = thinkingSyndicationTextWithPermalink(outText, postUrl);
           } else {
             // File too large or unavailable; fall back to link-in-text.
-            mastodonText = thinkingLinkSyndicationText(text, postUrl, mediaType);
+            mastodonText = thinkingLinkSyndicationText(outText, postUrl, mediaType);
           }
         } else {
-          mastodonText = text;
+          mastodonText = outText;
         }
 
         mastodonUrl = await postToMastodon(mastodonInstance, env.MASTODON_ACCESS_TOKEN, mastodonText, mastodonMedia);

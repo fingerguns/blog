@@ -12,6 +12,54 @@ function isEmbeddableUrl(rawUrl) {
   return Boolean(parseYouTubeUrl(clean) || parseSpotifyUrl(clean));
 }
 
+// Quotes: the composer's Quote button stores a quote as its own paragraph
+// with every line starting "> " (plain Markdown), so the D1 text stays text.
+// rommy.blog draws it as a blockquote; cross-posts get “curly quotes”.
+const QUOTE_LINE_RE = /^[ \t]*>[ \t]?/;
+
+/** True when every non-empty line of a paragraph starts with ">". */
+export function isQuoteParagraph(para) {
+  const lines = String(para || "").split("\n").filter((l) => l.trim());
+  return lines.length > 0 && lines.every((l) => QUOTE_LINE_RE.test(l));
+}
+
+/** A quote paragraph's text without its "> " markers. */
+export function unquoteParagraph(para) {
+  return String(para || "")
+    .split("\n")
+    .map((l) => l.replace(QUOTE_LINE_RE, ""))
+    .join("\n")
+    .trim();
+}
+
+function splitParagraphs(text) {
+  return String(text || "").split(/(\n[ \t]*\n+)/);
+}
+
+/** The note's text with quote markers removed (for plain-text snippets). */
+export function stripQuoteMarkers(text) {
+  return splitParagraphs(text)
+    .map((chunk, i) => (i % 2 === 0 && isQuoteParagraph(chunk) ? unquoteParagraph(chunk) : chunk))
+    .join("");
+}
+
+const QUOTE_MARKS_RE = /^["“”«»]/;
+
+/**
+ * The note's text as Bluesky, Mastodon and Micro.blog get it: each quote
+ * paragraph becomes “…”, left alone if the quote already opens with its own quote mark.
+ */
+export function thinkingQuotesForSyndication(text) {
+  return splitParagraphs(text)
+    .map((chunk, i) => {
+      if (i % 2 !== 0 || !isQuoteParagraph(chunk)) return chunk;
+      const body = unquoteParagraph(chunk);
+      if (!body) return "";
+      return QUOTE_MARKS_RE.test(body) ? body : `“${body}”`;
+    })
+    .join("");
+}
+
 /** Most link cards a single note will show; past this the cards outweigh the note. */
 export const MAX_UNFURLS_PER_NOTE = 3;
 
@@ -194,8 +242,11 @@ export function renderThinkingContentHtml(
   const parts = [];
   if (t) {
     for (const para of t.split(/\n\n+/).filter(Boolean)) {
-      const inner = linkifyThinkingEscapedHtml(escHtml(para).replace(/\n/g, "<br>"));
-      parts.push(`<p>${inner}</p>`);
+      const quote = isQuoteParagraph(para);
+      const body = quote ? unquoteParagraph(para) : para;
+      if (!body.trim()) continue;
+      const inner = linkifyThinkingEscapedHtml(escHtml(body).replace(/\n/g, "<br>"));
+      parts.push(quote ? `<blockquote class="thinking-quote"><p>${inner}</p></blockquote>` : `<p>${inner}</p>`);
     }
   }
   if (raw) {

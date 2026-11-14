@@ -30,6 +30,96 @@
   // Worker FormData fallback and native-syndication ceiling (Bluesky's 100 MB).
   var MAX_VIDEO_VIA_WORKER = 100 * 1024 * 1024;
   var THINKING_SOFT_MAX = 300;
+
+  // Quotes: a paragraph whose lines all start with "> " is a quote. rommy.blog
+  // draws it as a blockquote; Bluesky, Mastodon and Micro.blog get “…”. Keep
+  // in sync with thinkingQuotesForSyndication in scripts/lib/thinking-html.mjs.
+  var QUOTE_LINE_RE = /^[ \t]*>[ \t]?/;
+
+  function nonEmptyLines(lines) {
+    return lines.filter(function (l) { return l.trim(); });
+  }
+
+  function isQuoteParagraph(para) {
+    var lines = nonEmptyLines(para.split("\n"));
+    return lines.length > 0 && lines.every(function (l) { return QUOTE_LINE_RE.test(l); });
+  }
+
+  /** The text as the other platforms get it, for the character count. */
+  function quotesForSyndication(text) {
+    return String(text || "")
+      .split(/(\n[ \t]*\n+)/)
+      .map(function (chunk, i) {
+        if (i % 2 !== 0 || !isQuoteParagraph(chunk)) return chunk;
+        var body = chunk.split("\n").map(function (l) { return l.replace(QUOTE_LINE_RE, ""); }).join("\n").trim();
+        if (!body) return "";
+        return /^["“”«»]/.test(body) ? body : "“" + body + "”";
+      })
+      .join("");
+  }
+
+  /**
+   * The Quote button. Highlighted text becomes its own quote paragraph (split
+   * out of the line it was in, if need be); with nothing highlighted, the
+   * current line does. Pressed inside a quote, it turns those lines back into
+   * plain text.
+   */
+  function toggleQuote(textarea) {
+    var v = textarea.value;
+    var s = textarea.selectionStart;
+    var e = textarea.selectionEnd;
+    var lineStart = v.lastIndexOf("\n", s - 1) + 1;
+    var lineEnd = v.indexOf("\n", e > s && v.charAt(e - 1) === "\n" ? e - 1 : e);
+    if (lineEnd < 0) lineEnd = v.length;
+    var touched = v.slice(lineStart, lineEnd).split("\n");
+    var from;
+    var to;
+    var insert;
+    var selFrom;
+    var selTo;
+
+    if (isQuoteParagraph(touched.join("\n"))) {
+      from = lineStart;
+      to = lineEnd;
+      insert = touched.map(function (l) { return l.replace(QUOTE_LINE_RE, ""); }).join("\n");
+      selFrom = 0;
+      selTo = insert.length;
+    } else {
+      if (s === e) {
+        s = lineStart;
+        e = lineEnd;
+      }
+      while (s < e && /\s/.test(v.charAt(s))) s++;
+      while (e > s && /\s/.test(v.charAt(e - 1))) e--;
+      if (s === e) return;
+      var quote = nonEmptyLines(v.slice(s, e).split("\n"))
+        .map(function (l) { return "> " + l.replace(QUOTE_LINE_RE, "").trim(); })
+        .join("\n");
+      from = s;
+      to = e;
+      while (from > 0 && /[ \t\n]/.test(v.charAt(from - 1))) from--;
+      while (to < v.length && /[ \t\n]/.test(v.charAt(to))) to++;
+      var pre = from > 0 ? "\n\n" : "";
+      var post = to < v.length ? "\n\n" : "";
+      insert = pre + quote + post;
+      selFrom = pre.length;
+      selTo = pre.length + quote.length;
+    }
+
+    textarea.focus();
+    textarea.setSelectionRange(from, to);
+    var done = false;
+    try {
+      done = document.execCommand && document.execCommand("insertText", false, insert);
+    } catch (err) {
+      done = false;
+    }
+    if (!done || textarea.value.slice(from, from + insert.length) !== insert) {
+      textarea.value = v.slice(0, from) + insert + v.slice(to);
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    textarea.setSelectionRange(from + selFrom, from + selTo);
+  }
   var MAX_THINKING_PHOTOS = 4;
   var GRID_POSTER_SIZE = 512;
   // Longest side of the full-frame still (<uuid>-frame.jpg) that the feed
@@ -405,6 +495,10 @@
       '<label for="' + p + '-video" class="thinking-photo-icon-btn" title="Add video (MP4 or iPhone MOV)" aria-label="Add video">' +
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"></rect><path fill="currentColor" d="M16 10.5l5-3v9l-5-3v-3z"></path></svg>' +
       '</label><span class="thinking-photo-name" data-role="video-name">No video</span></div></div>' +
+      '<div class="thinking-quote-tool">' +
+      '<button type="button" class="thinking-photo-icon-btn thinking-quote-btn" data-role="quote" title="Quote selected text" aria-label="Quote selected text">' +
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M10 6H6.5A2.5 2.5 0 0 0 4 8.5V13h4.2c0 2-1.1 3.4-3.2 4.1l.7 1.9C9 17.9 10 15.6 10 12.6V6zm10 0h-3.5A2.5 2.5 0 0 0 14 8.5V13h4.2c0 2-1.1 3.4-3.2 4.1l.7 1.9c3.3-1.1 4.3-3.4 4.3-6.4V6z"></path></svg>' +
+      '</button></div>' +
       '</div><p class="thinking-char-count" data-role="count" aria-live="polite">0 / 300</p></div>' +
       '<p class="thinking-photo-warn" data-role="warn" hidden></p>' +
       '<div class="thinking-photo-previews" data-role="previews" hidden></div>' +
@@ -609,12 +703,17 @@
     }
 
     function updateCharCount() {
-      var n = textInput.value.length;
+      var n = quotesForSyndication(textInput.value).length;
       charCount.textContent = n + " / " + THINKING_SOFT_MAX;
       charCount.classList.toggle("over-limit", n > THINKING_SOFT_MAX);
     }
     textInput.addEventListener("input", updateCharCount);
     updateCharCount();
+
+    var quoteBtn = q("quote");
+    // Keep the textarea's selection when the button is pressed.
+    quoteBtn.addEventListener("mousedown", function (e) { e.preventDefault(); });
+    quoteBtn.addEventListener("click", function () { toggleQuote(textInput); });
 
     function setWarn(text) {
       photoWarn.textContent = text || "";

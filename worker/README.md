@@ -130,7 +130,7 @@ Output directory: `dist`
 
 | Action | Description |
 |---|---|
-| `thinking` | Update thinking text in D1 |
+| `thinking` | Update thinking text in D1. Paragraphs whose lines all start `> ` are quotes: stored as-is, styled on rommy.blog, cross-posted as “curly quotes” (`thinkingQuotesForSyndication`) |
 | `thinking-video-upload-url` | Presigned PUT URL for direct video upload to R2 |
 | `list-thinking` | List Thinking archive from D1 |
 | `job-status` | Background job health for the /admin/ Health tab, plus recent notes missing from Bluesky |

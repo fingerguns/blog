@@ -442,6 +442,34 @@ a:hover {
   height: 1rem;
 }
 
+/* Quote button: same look as the photo/audio/video icons, but a <button>. */
+.thinking-quote-tool {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-height: 1rem;
+}
+
+.thinking-composer button.thinking-quote-btn {
+  display: grid;
+  place-items: center;
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  padding: 0;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.thinking-composer button.thinking-quote-btn:hover {
+  color: var(--link-hover);
+  opacity: 0.85;
+}
+
 .thinking-photo-name {
   display: flex;
   align-items: center;
@@ -2084,6 +2112,32 @@ a.post-admin-delete:hover {
 [data-theme="dark"] .thinking-delete-status.err, [data-theme="dark"] .post-delete-status.err { color: #e88; }
 .microblog-body p  { margin: 0 0 0.65rem; line-height: 1.65; overflow-wrap: anywhere; }
 .microblog-body p:last-child { margin-bottom: 0; }
+
+/* A quote in a Thinking note ("> " lines in the composer): a step larger,
+   with a muted curly quote hanging at the left. The mark sits inside the
+   padding so it never pushes past the column on a phone. */
+.microblog-body .thinking-quote {
+  position: relative;
+  margin: 0.9rem 0;
+  padding-left: 1.6em;
+  font-size: 1.2em;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+}
+.microblog-body .thinking-quote:first-child { margin-top: 0.15rem; }
+.microblog-body .thinking-quote:last-child { margin-bottom: 0; }
+.microblog-body .thinking-quote::before {
+  content: "\201C";
+  position: absolute;
+  left: -0.04em;
+  top: -0.16em;
+  font-size: 3.2em;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--muted);
+  pointer-events: none;
+}
+.microblog-body .thinking-quote p { margin: 0; line-height: inherit; }
 .microblog-entry .post-meta { margin-top: 0.75rem; }
 .microblog-body img {
   max-width: 100%;

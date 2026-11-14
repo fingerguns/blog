@@ -14,6 +14,9 @@ import {
   unfurlableUrls,
   MAX_UNFURLS_PER_NOTE,
   singlePhotoUrl,
+  isQuoteParagraph,
+  stripQuoteMarkers,
+  thinkingQuotesForSyndication,
 } from "./thinking-html.mjs";
 
 const SITE = "https://rommy.blog";
@@ -264,4 +267,58 @@ test("renderThinkingContentHtml hides a URL that has a card", () => {
     isUnfurled: (url) => url === "https://example.com/a",
   });
   assert.equal(html, "<p>Read this</p>");
+});
+
+// ---- Quotes ("> " paragraphs from the composer's Quote button) ----
+
+test("a quote paragraph renders as a blockquote between normal paragraphs", () => {
+  const html = renderThinkingContentHtml("Before.\n\n> To be, or not\n> to be.\n\nAfter.");
+  assert.equal(
+    html,
+    '<p>Before.</p>\n<blockquote class="thinking-quote"><p>To be, or not<br>to be.</p></blockquote>\n<p>After.</p>'
+  );
+});
+
+test("a paragraph with only some quoted lines stays plain text", () => {
+  const html = renderThinkingContentHtml("> one\ntwo");
+  assert.equal(html, "<p>&gt; one<br>two</p>");
+});
+
+test("links inside a quote are still linkified", () => {
+  const html = renderThinkingContentHtml("> See https://example.com/a now");
+  assert.match(html, /^<blockquote class="thinking-quote"><p>See <a [^>]*href="https:\/\/example\.com\/a"/);
+});
+
+test("a bare > with no words renders nothing", () => {
+  assert.equal(renderThinkingContentHtml("Hi\n\n>"), "<p>Hi</p>");
+});
+
+test("isQuoteParagraph needs every non-empty line quoted", () => {
+  assert.equal(isQuoteParagraph("> a\n> b"), true);
+  assert.equal(isQuoteParagraph("> a\nb"), false);
+  assert.equal(isQuoteParagraph("a > b"), false);
+});
+
+test("thinkingQuotesForSyndication wraps each quote in curly quotes", () => {
+  assert.equal(
+    thinkingQuotesForSyndication("So true:\n\n> Less, but better.\n\nDieter Rams"),
+    "So true:\n\n“Less, but better.”\n\nDieter Rams"
+  );
+  assert.equal(thinkingQuotesForSyndication("> one\n\n> two"), "“one”\n\n“two”");
+  assert.equal(thinkingQuotesForSyndication("> a\n> b"), "“a\nb”");
+});
+
+test("thinkingQuotesForSyndication leaves quotes that already open with a mark", () => {
+  assert.equal(thinkingQuotesForSyndication("> “Already quoted.”"), "“Already quoted.”");
+  assert.equal(thinkingQuotesForSyndication('> "Straight."'), '"Straight."');
+});
+
+test("text with no quote passes through unchanged", () => {
+  const t = "Just a thought.\n\nWith a 2 > 1 aside.";
+  assert.equal(thinkingQuotesForSyndication(t), t);
+  assert.equal(stripQuoteMarkers(t), t);
+});
+
+test("stripQuoteMarkers leaves the quoted words", () => {
+  assert.equal(stripQuoteMarkers("Hi\n\n> a\n> b"), "Hi\n\na\nb");
 });
