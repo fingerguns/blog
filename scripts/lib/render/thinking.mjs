@@ -114,9 +114,10 @@ export const THINKING_MEDIA_ICONS = {
   youtube: `<svg viewBox="0 0 28 20" aria-hidden="true"><rect width="28" height="20" rx="5" fill="#FF0000"/><path d="M11 6.2 19 10l-8 3.8V6.2z" fill="#fff"/></svg>`,
   spotify: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#1DB954"/><path d="M6.5 9.7c3.4-1 7.2-.8 10.1.9M7.3 12.6c2.8-.8 6-.6 8.4.7M8.1 15.4c2.3-.6 4.9-.5 6.8.6" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>`,
   text: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" style="fill:var(--text)"/><text x="12" y="16" text-anchor="middle" font-size="11" font-weight="700" font-family="Georgia,'Times New Roman',serif" style="fill:var(--bg)">Tt</text></svg>`,
+  quote: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" style="fill:var(--text)"/><path transform="translate(6.25 6.6) scale(0.48)" d="M10 6H6.5A2.5 2.5 0 0 0 4 8.5V13h4.2c0 2-1.1 3.4-3.2 4.1l.7 1.9C9 17.9 10 15.6 10 12.6V6zm10 0h-3.5A2.5 2.5 0 0 0 14 8.5V13h4.2c0 2-1.1 3.4-3.2 4.1l.7 1.9c3.3-1.1 4.3-3.4 4.3-6.4V6z" style="fill:var(--bg)"/></svg>`,
 };
 
-export const THINKING_GRID_KINDS = ["photo", "video", "youtube", "spotify", "audio", "text"];
+export const THINKING_GRID_KINDS = ["photo", "video", "youtube", "spotify", "audio", "text", "quote"];
 
 export function thinkingGridKind(item, spotifyThumbnails = {}) {
   if (imageSrcAltFromHtml(item.content_html).src) return "photo";
@@ -129,6 +130,9 @@ export function thinkingGridKind(item, spotifyThumbnails = {}) {
   if (youtubeIdFromHtml(item.content_html)) return "youtube";
   const mediaKind = thinkingMediaKind(item.content_html);
   if (mediaKind) return mediaKind;
+  // A note carrying a quote (the composer's Quote button) has its own filter;
+  // with a photo, video or player it still files under that medium.
+  if (/<blockquote class="thinking-quote"/.test(item.content_html || "")) return "quote";
   return "text";
 }
 

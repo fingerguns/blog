@@ -834,6 +834,7 @@ const THINKING_FILTER_PATH = {
   youtube: "youtube",
   spotify: "music",
   text: "text",
+  quote: "quotes",
 };
 const THINKING_PATH_FILTER = Object.fromEntries(
   Object.entries(THINKING_FILTER_PATH).map(([kind, segment]) => [segment, kind])
@@ -2786,6 +2787,7 @@ const THINKING_FILTER_LABELS = {
   spotify: "Spotify",
   audio: "Audio",
   text: "Text",
+  quote: "Quotes",
 };
 
 const thinkingGridFiltersHtml = `        <div class="thinking-grid-filters" role="group" aria-label="Filter by type">

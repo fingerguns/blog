@@ -82,7 +82,7 @@ import { viewPathFor, withoutConditionals, withViewCount } from "./page-views.mj
 
 const SITE_HOST = "rommy.blog";
 const HOME_LIST_SIZE = 5; // MAX_PER_SECTION in scripts/build.mjs
-const THINKING_FILTER_SEGMENTS = new Set(["images", "videos", "audio", "youtube", "music", "text"]);
+const THINKING_FILTER_SEGMENTS = new Set(["images", "videos", "audio", "youtube", "music", "text", "quotes"]);
 
 /** Whether this request is one the overlay may need to touch. */
 export function isLiveRoute(request) {

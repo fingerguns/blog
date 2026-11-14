@@ -322,3 +322,13 @@ test("text with no quote passes through unchanged", () => {
 test("stripQuoteMarkers leaves the quoted words", () => {
   assert.equal(stripQuoteMarkers("Hi\n\n> a\n> b"), "Hi\n\na\nb");
 });
+
+test("a text note with a quote files under the quote filter; media still wins", async () => {
+  const { thinkingGridKind } = await import("./render/thinking.mjs");
+  assert.equal(thinkingGridKind({ content_html: renderThinkingContentHtml("> Words.\n\nAuthor") }), "quote");
+  assert.equal(thinkingGridKind({ content_html: renderThinkingContentHtml("Just words.") }), "text");
+  assert.equal(
+    thinkingGridKind({ content_html: renderThinkingContentHtml("> Words.", "https://rommy.blog/media/thinking/a.jpg", "", "image", "https://rommy.blog") }),
+    "photo"
+  );
+});
