@@ -277,3 +277,28 @@ test("fallbackUnfurlFromUrl rejoins contractions a slug split apart", () => {
     "Why vitamin d matters more now"
   );
 });
+
+// ---- Sharing: YouTube links always get a picture ----
+import { youtubeLinkThumbnail } from "./render/lists.mjs";
+
+const ytLink = { id: 79, url: "https://youtube.com/watch?v=UsmyL3K7Uvk&is=x", title: "A video", datetime: "2026-11-14T15:00:00Z", tags: [] };
+
+test("youtubeLinkThumbnail builds the 16:9 thumbnail from the video id", () => {
+  assert.equal(youtubeLinkThumbnail(ytLink.url), "https://i.ytimg.com/vi/UsmyL3K7Uvk/mqdefault.jpg");
+  assert.equal(youtubeLinkThumbnail("https://youtu.be/7bkK-7ETMLc"), "https://i.ytimg.com/vi/7bkK-7ETMLc/mqdefault.jpg");
+  assert.equal(youtubeLinkThumbnail("https://example.com/watch?v=UsmyL3K7Uvk"), "");
+});
+
+test("a YouTube link whose preview fetch missed still renders its thumbnail", () => {
+  const html = renderLinklogArchiveItem(ytLink, { miss: "http-429" });
+  assert.match(html, /<img src="https:\/\/i\.ytimg\.com\/vi\/UsmyL3K7Uvk\/mqdefault\.jpg"/);
+});
+
+test("a YouTube preview image falls back to the id thumbnail if it fails", () => {
+  const html = renderLinklogArchiveItem(ytLink, { image: "https://i.ytimg.com/vi/UsmyL3K7Uvk/maxresdefault.jpg", title: "A video" });
+  assert.match(html, /src="https:\/\/i\.ytimg\.com\/vi\/UsmyL3K7Uvk\/maxresdefault\.jpg" data-fallback="https:\/\/i\.ytimg\.com\/vi\/UsmyL3K7Uvk\/mqdefault\.jpg"/);
+});
+
+test("a non-YouTube link with no preview gets no picture", () => {
+  assert.doesNotMatch(renderLinklogArchiveItem({ ...ytLink, url: "https://example.com/a" }, null), /<img/);
+});

@@ -7,6 +7,18 @@
 import { escHtml } from "../html.mjs";
 import { safeSlug, stripHashtags, toETDate, linkDomain, readingMins } from "./format.mjs";
 import { knownSiteName, unfurlHit } from "../link-unfurl.mjs";
+import { parseYouTubeUrl } from "../youtube.mjs";
+
+/**
+ * A YouTube video's thumbnail, built from its id — YouTube serves one for
+ * every video, so a link whose preview fetch failed (YouTube rate-limits
+ * scrapers with 429s) still gets its picture. mqdefault is 16:9 with no
+ * letterbox bars, unlike hqdefault.
+ */
+export function youtubeLinkThumbnail(url) {
+  const yt = parseYouTubeUrl(url);
+  return yt ? `https://i.ytimg.com/vi/${yt.id}/mqdefault.jpg` : "";
+}
 
 /**
  * `withBody` is for the /writing/ archive: the post rides along in a
@@ -116,8 +128,13 @@ export const renderLinklogArchiveItem = (l, cached) => {
   // Grid view gives a card with no picture its source's name, set large in
   // the picture's place (.linklog-card-name, hidden in list view). With a
   // picture it waits hidden, and takes over if the picture fails to load.
-  const imageHtml = unfurl?.image
-    ? `<span class="linklog-card-thumb"><img src="${escHtml(unfurl.image)}" alt="" loading="lazy" onerror="var t=this.parentElement;t.hidden=true;if(t.nextElementSibling)t.nextElementSibling.hidden=false" /></span>`
+  // A YouTube link always has a picture: the preview's, else (or if that one
+  // fails to load) the thumbnail built from the video id.
+  const ytThumb = youtubeLinkThumbnail(l.url);
+  const image = unfurl?.image || ytThumb;
+  const fallbackAttr = ytThumb && image !== ytThumb ? ` data-fallback="${escHtml(ytThumb)}"` : "";
+  const imageHtml = image
+    ? `<span class="linklog-card-thumb"><img src="${escHtml(image)}"${fallbackAttr} alt="" loading="lazy" onerror="var f=this.getAttribute('data-fallback');if(f){this.removeAttribute('data-fallback');this.src=f;return;}var t=this.parentElement;t.hidden=true;if(t.nextElementSibling)t.nextElementSibling.hidden=false" /></span>`
     : "";
   const nameHtml = sourceLabel
     ? `<span class="linklog-card-name" aria-hidden="true"${imageHtml ? " hidden" : ""}><span>${escHtml(sourceLabel)}</span></span>`
