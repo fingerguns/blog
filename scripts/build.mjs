@@ -2106,7 +2106,7 @@ const nowMovingHtml = (() => {
 })();
 const nowMapHead = `    <link
       rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css"
+      href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.1/dist/maplibre-gl.css"
       crossorigin="anonymous"
     />`;
 const nowLocationHtml = `        <h2>Current Location</h2>
@@ -2119,7 +2119,7 @@ const nowLocationMapScript = `    <script>(function(){
   var statusEl=document.getElementById('now-location-status');
   var labelEl=document.getElementById('now-location-label');
   var apiUrl=(function(){var h=location.hostname;if(h==='localhost'||h==='127.0.0.1')return'https://rommy-blog-admin.fingerguns.workers.dev/api/locations/now';return'/api/locations/now';})();
-  var maplibreSrc='https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js';
+  var maplibreSrc='https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.1/dist/maplibre-gl.js';
   function isDark(){return document.documentElement.getAttribute('data-theme')==='dark';}
   ${DARK_MAP_RECOLOR_JS}
   function escLabel(label){
@@ -2527,8 +2527,8 @@ var ICONS=${jsonForScript(THINKING_MEDIA_ICONS)};
 var BOUNDS=${jsonForScript(placesBounds(thinkingMapPlaces))};
 if(!PLACES.length)return;
 var STYLES={light:'https://tiles.openfreemap.org/styles/liberty',dark:'https://tiles.openfreemap.org/styles/dark'};
-var MAPLIBRE_SRC='https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js';
-var MAPLIBRE_CSS='https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css';
+var MAPLIBRE_SRC='https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.1/dist/maplibre-gl.js';
+var MAPLIBRE_CSS='https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.1/dist/maplibre-gl.css';
 var map=null,ready=false,starting=false,markers=[],overlay=null,openPlace=null;
 function isDark(){return document.documentElement.getAttribute('data-theme')==='dark';}
 ${DARK_MAP_RECOLOR_JS}
