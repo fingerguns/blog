@@ -1,0 +1,84 @@
+/* rommy.blog's paper and ink (styles.css), light and dark. */
+:root {
+  --bg: #f5f0e8;
+  --text: #1a1a1a;
+  --muted: #666666;
+  --rule: #d5cfc4;
+  --surface: #ece6db;
+  --ok: #2f7d4f;
+  --bad: #c2383d;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16130f;
+    --text: #ece7dc;
+    --muted: #8f8579;
+    --rule: #332e26;
+    --surface: #221e18;
+    --ok: #5cbf86;
+    --bad: #ef6b70;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Helvetica Neue", sans-serif;
+}
+
+.label {
+  display: block;
+  margin: 0 0 0.3rem;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+input[type="text"],
+input[type="password"],
+textarea {
+  width: 100%;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.45rem 0.6rem;
+}
+textarea { resize: vertical; min-height: 3.4rem; }
+input:focus,
+textarea:focus,
+button:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
+}
+
+button {
+  font: inherit;
+  font-weight: 600;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  color: var(--bg);
+  background: var(--text);
+  cursor: pointer;
+}
+button:disabled { opacity: 0.5; cursor: default; }
+button.secondary {
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--rule);
+}
+
+.status { margin: 0.6rem 0 0; font-size: 13px; }
+.status.ok { color: var(--ok); }
+.status.bad { color: var(--bad); }
+.status ul { margin: 0.3rem 0 0; padding-left: 1.1rem; color: var(--muted); }
+
+a { color: inherit; }

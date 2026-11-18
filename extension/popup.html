@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Share to rommy.blog</title>
+    <link rel="stylesheet" href="common.css" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="icons/icon-32.png" alt="" width="20" height="20" />
+        <h1>Share to rommy.blog</h1>
+      </header>
+
+      <form id="form" hidden>
+        <label class="label" for="title">Title</label>
+        <textarea id="title" rows="2" placeholder="Leave blank to use the page's own title"></textarea>
+        <p class="url" id="url"></p>
+        <div class="actions">
+          <button type="submit" id="share">Share</button>
+          <span class="hint">⌥⇧S</span>
+        </div>
+      </form>
+
+      <p class="status" id="status" role="status" hidden></p>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
