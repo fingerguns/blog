@@ -135,6 +135,17 @@ gitleaks git --log-opts="--all" --redact .
 
 `git commit --no-verify` bypasses the hook for a false positive. A secret that has already been pushed must be **revoked**, not merely deleted — removing it from `HEAD` leaves it readable in history, and this repo is public.
 
+## Vulnerability (CVE) scanning
+
+`npm run cve-scan` (`scripts/cve-scan.mjs`, helpers in `scripts/lib/cve-scan.mjs`) checks two things:
+
+- **npm packages:** `npm audit` for the site and for the Worker, from their lockfiles, marking which findings are dev-only (the linter and other tools that never ship).
+- **Browser libraries loaded from a CDN:** every library pinned by version in a jsDelivr, unpkg, cdnjs or Quill CDN URL (MapLibre GL and Quill today), looked up in the [OSV](https://osv.dev) database. For each hit it reports the newest release in the same major version, the likely patch bump. These are invisible to `npm audit` and Dependabot, and are where the critical MapLibre attribution XSS (GHSA-jrc7-96c5-q579) turned up.
+
+Findings that have been reviewed and accepted live in `scripts/cve-scan-ignore.json`, each with its reason. An entry names the advisory and package, and optionally a version, so bumping the package brings the finding back for a fresh look. `-- --all` shows reviewed findings too; `-- --json` prints machine-readable output. Exit code 0 means nothing new, 1 new findings, 2 the scan itself failed.
+
+A Claude Code cloud routine, **rommy.blog daily CVE scan**, runs it every day at 12:00 UTC (7am Eastern in winter, 8am in summer). On a clean day it does nothing. For something new it opens a GitHub issue on `fingerguns/blog`, labelled `security`, unless an open issue already covers the advisory. Where a patch release in the same major version fixes it, it also opens a pull request with the bump, after `npm test` and a build pass. It never merges: a push to `main` deploys the site. Manage it at [claude.ai/code/routines](https://claude.ai/code/routines).
+
 ## Local build
 
 ```bash
