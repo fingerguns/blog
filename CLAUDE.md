@@ -61,7 +61,7 @@ npm run migrate-build-cache          # seed D1 build_cache from the legacy data/
 npm test                             # node --test over scripts/lib/*.test.mjs
 npm run lint:md                      # markdownlint-cli2
 npm run lint:citations               # fail on line-number citations in tracked .md files (also CI: docs-check.yml)
-npm run cve-scan                     # npm audit (site + Worker) + OSV check of CDN-pinned browser libs; reviewed findings in scripts/cve-scan-ignore.json
+npm run cve-scan                     # npm audit (site + Worker) + advisory check of CDN-pinned browser libs; reviewed findings in scripts/cve-scan-ignore.json
 ```
 
 `npm test` runs `node --test` over `scripts/lib/*.test.mjs` (no test framework, no config). Markdown is linted by `npm run lint:md` (`markdownlint-cli2`); there is no JS linter.
