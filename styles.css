@@ -1026,6 +1026,37 @@ h2 {
 .linklog-archive.is-grid .linklog-card-thumb[hidden] {
   display: none;
 }
+/* A card with no picture (or one that failed) shows its source's name, set
+   large on the picture's panel, so every tile keeps the same shape. */
+.linklog-card-name {
+  display: none;
+}
+.linklog-archive.is-grid .linklog-card-name:not([hidden]) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1.91 / 1;
+  padding: 0.75rem;
+  background: var(--thinking-delete-bg);
+  color: var(--text);
+  text-align: center;
+}
+.linklog-archive.is-grid .linklog-card-name > span {
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+@media (max-width: 30rem) {
+  .linklog-archive.is-grid .linklog-card-name > span {
+    font-size: 1rem;
+  }
+}
 .linklog-archive.is-grid .linklog-card-body {
   justify-content: flex-start;
   padding: 0.55rem 0.65rem 0.7rem;

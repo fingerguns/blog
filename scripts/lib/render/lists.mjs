@@ -113,15 +113,21 @@ export const renderLinklogArchiveItem = (l, cached) => {
   // and cache them into R2 at build time like other site media, but that
   // needs R2 write credentials the build environment doesn't have today
   // (only D1 access does) — worth revisiting if breakage becomes common.
+  // Grid view gives a card with no picture its source's name, set large in
+  // the picture's place (.linklog-card-name, hidden in list view). With a
+  // picture it waits hidden, and takes over if the picture fails to load.
   const imageHtml = unfurl?.image
-    ? `<span class="linklog-card-thumb"><img src="${escHtml(unfurl.image)}" alt="" loading="lazy" onerror="this.parentElement.hidden=true" /></span>`
+    ? `<span class="linklog-card-thumb"><img src="${escHtml(unfurl.image)}" alt="" loading="lazy" onerror="var t=this.parentElement;t.hidden=true;if(t.nextElementSibling)t.nextElementSibling.hidden=false" /></span>`
+    : "";
+  const nameHtml = sourceLabel
+    ? `<span class="linklog-card-name" aria-hidden="true"${imageHtml ? " hidden" : ""}><span>${escHtml(sourceLabel)}</span></span>`
     : "";
   const descHtml = unfurl?.description
     ? `<span class="linklog-card-desc">${escHtml(unfurl.description)}</span>`
     : "";
   return `          <li${tagAttr}>
             <a class="linklog-card" href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer">
-              ${imageHtml}
+              ${imageHtml}${nameHtml}
               <span class="linklog-card-body">
                 <span class="linklog-card-meta"><span class="post-date">${escHtml(toETDate(l))}</span>${sourceLabel ? ` · ${escHtml(sourceLabel)}` : ""}</span>
                 <span class="linklog-card-title">${escHtml(title)}</span>
