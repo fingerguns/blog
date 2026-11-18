@@ -130,3 +130,43 @@ export const renderLinklogArchiveItem = (l, cached) => {
             </a>
           </li>`;
 };
+
+// Sharing archive months. A link's month comes from its datetime (else noon
+// on its date), in US Eastern time like every other date on the site.
+function linklogMoment(l) {
+  const d = l?.datetime ? new Date(l.datetime) : new Date(`${l?.date}T12:00:00.000Z`);
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+
+/** "November 2026": the heading a link files under on /sharing/. */
+export function linklogMonthLabel(l) {
+  const d = linklogMoment(l);
+  if (!d) return "";
+  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "America/New_York" }).format(d);
+}
+
+/** "2026-11": the month's place among months, for the live overlay. */
+export function linklogMonthKey(l) {
+  const d = linklogMoment(l);
+  if (!d) return "";
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit" }).format(d);
+}
+
+/**
+ * One month of the Sharing archive: a heading over that month's cards. The
+ * same markup serves list and grid view (the grid is CSS on the wrapper), and
+ * `groupSort`, when given, marks the month for the live overlay as the grids
+ * do, so a link shared in a new month grows its own section.
+ */
+export function linklogMonthHtml(label, itemsHtml, groupSort = null) {
+  const sectionAttrs =
+    groupSort == null ? "" : ` data-live-group="${escHtml(label)}" data-live-group-sort="${escHtml(groupSort)}"`;
+  const listAttrs =
+    groupSort == null ? "" : ` data-live-list="linklog" data-live-group="${escHtml(label)}"`;
+  return `      <section class="linklog-month"${sectionAttrs}>
+        <h2 class="linklog-month-label">${escHtml(label)}</h2>
+        <ol class="post-list linklog-archive-list"${listAttrs}>
+${itemsHtml}
+        </ol>
+      </section>`;
+}

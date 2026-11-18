@@ -983,6 +983,70 @@ h2 {
   font-size: inherit;
 }
 
+/* /sharing/ months: a small uppercase label over each month's cards, like
+   the Thinking and Reading grids. A month with nothing showing (the tag
+   filter, or links not yet scrolled in) is hidden by the archive script. */
+.linklog-month + .linklog-month {
+  margin-top: 1.75rem;
+}
+.linklog-month[hidden] {
+  display: none;
+}
+.linklog-month-label {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 0 0 0.6rem;
+}
+
+/* Grid view: the same cards side by side, picture on top at the Open Graph
+   shape (1.91:1), then source, date and title; the description is left out
+   so the tiles stay even. Three across, two on a phone. */
+.linklog-archive.is-grid .linklog-archive-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+.linklog-archive.is-grid .linklog-archive-list li {
+  display: block;
+  margin: 0;
+}
+.linklog-archive.is-grid .linklog-card {
+  flex-direction: column;
+  height: 100%;
+}
+.linklog-archive.is-grid .linklog-card-thumb {
+  display: block;
+  flex: none;
+  min-height: 0;
+  aspect-ratio: 1.91 / 1;
+}
+.linklog-archive.is-grid .linklog-card-thumb[hidden] {
+  display: none;
+}
+.linklog-archive.is-grid .linklog-card-body {
+  justify-content: flex-start;
+  padding: 0.55rem 0.65rem 0.7rem;
+}
+.linklog-archive.is-grid .linklog-card-title {
+  font-size: var(--fs-sm);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}
+.linklog-archive.is-grid .linklog-card-desc {
+  display: none;
+}
+@media (max-width: 30rem) {
+  .linklog-archive.is-grid .linklog-archive-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* Thinking: the same cards, one per link, stacked beneath the note. */
 .thinking-unfurls {
   display: flex;

@@ -65,6 +65,9 @@ import {
   readingGridItemHtml,
   readingGridMonthHtml,
   readingMonthLabel,
+  linklogMonthHtml,
+  linklogMonthKey,
+  linklogMonthLabel,
   renderLinklogArchiveItem,
   renderLinklogItem,
   renderPostItem,
@@ -467,7 +470,10 @@ function listRenderers(ctx, linkFor, coverFor, linklogUnfurls) {
     linklog: {
       kind: CONTENT_KIND.LINKLOG,
       sort: (l) => datedItemSort(l),
+      group: (l) => linklogMonthLabel(l),
+      groupSort: (l) => linklogMonthKey(l),
       html: (l) => renderLinklogArchiveItem(l, linklogUnfurls[l.url] ?? null),
+      groupHtml: (label, items, groupSort) => linklogMonthHtml(label, items, groupSort),
     },
     reading: {
       kind: CONTENT_KIND.READING,

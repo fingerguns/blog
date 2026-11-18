@@ -55,6 +55,9 @@ import {
   readingGridItemHtml as readingGridItemHtmlShared,
   readingGridMonthHtml,
   readingMonthLabel,
+  linklogMonthHtml,
+  linklogMonthKey,
+  linklogMonthLabel,
   renderLinklogArchiveItem as renderLinklogArchiveItemShared,
   renderLinklogItem,
   renderPostItem,
@@ -1299,22 +1302,29 @@ ${linklogTagOptions
 // items that match the filter, so loading a batch never reveals other tags.
 // The page opts out of archiveFoot's generic scroll, which knows no filter.
 const linklogFilterScript = `    <script>(function(){
-var list=document.querySelector('.post-list');
-if(!list)return;
+var wrap=document.querySelector('.linklog-archive');
+if(!wrap)return;
 var sel=document.querySelector('.linklog-tag-select');
-var items=[].slice.call(list.querySelectorAll('li'));
+var items=[].slice.call(wrap.querySelectorAll('.linklog-archive-list li'));
+var months=[].slice.call(wrap.querySelectorAll('.linklog-month'));
 var BATCH=10;var matches=[];var shown=0;
 var sentinel=document.createElement('div');
-list.parentNode.insertBefore(sentinel,list.nextSibling);
+wrap.parentNode.insertBefore(sentinel,wrap.nextSibling);
 function matchesTag(li,v){
   if(!v)return true;
   var tags=(li.getAttribute('data-tags')||'').split(/\\s+/).filter(Boolean);
   return tags.indexOf(v)!==-1;
 }
+// A month heading shows only once one of its links is showing.
+function syncMonths(){
+  months.forEach(function(m){m.hidden=!m.querySelector('li:not([hidden])');});
+}
+window.linklogSyncMonths=syncMonths;
 function reveal(){
   var next=Math.min(shown+BATCH,matches.length);
   for(var i=shown;i<next;i++)matches[i].hidden=false;
   shown=next;
+  syncMonths();
 }
 var obs=new IntersectionObserver(function(e){
   if(!e[0].isIntersecting||shown>=matches.length)return;
@@ -1331,6 +1341,20 @@ function apply(){
 }
 if(sel)sel.addEventListener('change',apply);
 apply();
+// List or grid: the same cards, laid out by a class on the wrapper.
+var toggle=document.querySelector('.linklog-view-toggle');
+if(toggle){
+  var KEY='sharing-view';
+  var set=function(v,save){
+    wrap.classList.toggle('is-grid',v==='grid');
+    toggle.querySelectorAll('.view-toggle-btn').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.view===v?'true':'false');});
+    if(save){try{localStorage.setItem(KEY,v);}catch(e){}}
+  };
+  toggle.hidden=false;
+  toggle.addEventListener('click',function(e){var b=e.target.closest('.view-toggle-btn');if(b)set(b.dataset.view,true);});
+  var v='list';try{v=localStorage.getItem(KEY)||'list';}catch(e){}
+  set(v==='grid'?'grid':'list',false);
+}
 }());</script>`;
 
 // The tooltip sits beside the heading, not inside it, so the heading's text
@@ -1390,8 +1414,26 @@ const renderLinklogArchiveItem = (l) => renderLinklogArchiveItemShared(l, linklo
 
 const linklogHtml = orderedLinklog.slice(0, MAX_PER_SECTION).map(renderLinklogItem).join("\n");
 const hasMoreLinklog = orderedLinklog.length > MAX_PER_SECTION;
-const linklogAllHtml = orderedLinklog
-  .map((l) => withLiveAttrs(renderLinklogArchiveItem(l), liveKey(CONTENT_KIND.LINKLOG, l.id), datedItemSort(l)))
+// /sharing/ groups links under month headings ("November 2026"), newest
+// first. Each month is its own live list, as in the Thinking grid, so the
+// overlay can add a link to its month or grow a section for a new month.
+const linklogMonths = [];
+for (const l of orderedLinklog) {
+  const label = linklogMonthLabel(l);
+  const last = linklogMonths[linklogMonths.length - 1];
+  if (last && last.label === label) last.items.push(l);
+  else linklogMonths.push({ label, sort: linklogMonthKey(l), items: [l] });
+}
+const linklogAllHtml = linklogMonths
+  .map((m) =>
+    linklogMonthHtml(
+      m.label,
+      m.items
+        .map((l) => withLiveAttrs(renderLinklogArchiveItem(l), liveKey(CONTENT_KIND.LINKLOG, l.id), datedItemSort(l)))
+        .join("\n"),
+      m.sort
+    )
+  )
   .join("\n");
 
 const linksHtml = (links || [])
@@ -1975,9 +2017,11 @@ const linklogSwipeDeleteScript = `    <script>(function(){
     }catch(e){}
     return null;
   }
-  var list=document.querySelector(".linklog-archive-list");
+  // Events are delegated to the archive wrapper, which holds every month's
+  // list; swiping is off in grid view, where cards sit side by side.
+  var list=document.querySelector(".linklog-archive");
   if(!list||!loadPw())return;
-  list.classList.add("is-swipeable");
+  list.querySelectorAll(".linklog-archive-list").forEach(function(ol){ol.classList.add("is-swipeable");});
   var TRASH='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
   var openRow=null;
   function linkId(li){var k=(li.getAttribute("data-live-key")||"").split(":");return k[0]==="linklog"?k[1]:"";}
@@ -2013,7 +2057,7 @@ const linklogSwipeDeleteScript = `    <script>(function(){
         li.offsetHeight;
         li.classList.add("is-collapsing");
         li.style.height="0px";
-        setTimeout(function(){li.remove();},320);
+        setTimeout(function(){li.remove();if(window.linklogSyncMonths)window.linklogSyncMonths();},320);
       },function(err){
         li.classList.remove("is-deleting");
         close(li);
@@ -2031,7 +2075,7 @@ const linklogSwipeDeleteScript = `    <script>(function(){
   }
   var drag=null;
   list.addEventListener("pointerdown",function(e){
-    if(e.button!==0)return;
+    if(e.button!==0||list.classList.contains("is-grid"))return;
     var a=e.target.closest(".linklog-card");if(!a||!list.contains(a))return;
     var li=a.closest("li");if(!li||li.classList.contains("is-deleting"))return;
     if(openRow&&openRow!==li)close(openRow);
@@ -2074,11 +2118,16 @@ const linklogSwipeDeleteScript = `    <script>(function(){
   });
 }());</script>`;
 
-const sharingPageHtml = `${archiveHead("Sharing", sectionHeading("Sharing", "h1"))}
+// /sharing/ view toggle, beside the heading as on /writing/: list (cards
+// stacked, the default) or grid (cards side by side, picture on top).
+// Hidden until the script runs; the choice is kept under "sharing-view".
+const sharingViewToggleHtml = `<div class="view-toggle linklog-view-toggle" role="group" aria-label="Sharing view" hidden><button type="button" class="view-toggle-btn" data-view="list" aria-pressed="true" aria-label="List view" title="List view"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h.01M3 12h.01M3 18h.01M8 6h13M8 12h13M8 18h13"/></svg></button><button type="button" class="view-toggle-btn" data-view="grid" aria-pressed="false" aria-label="Grid view" title="Grid view"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1.5"/><rect width="7" height="7" x="14" y="3" rx="1.5"/><rect width="7" height="7" x="3" y="14" rx="1.5"/><rect width="7" height="7" x="14" y="14" rx="1.5"/></svg></button></div>`;
+
+const sharingPageHtml = `${archiveHead("Sharing", sectionHeading("Sharing", "h1", undefined, sharingViewToggleHtml))}
 ${linklogTagFilterHtml}
-      <ol class="post-list linklog-archive-list" reversed${liveListAttrs("linklog")}>
+      <div class="linklog-archive" data-live-groups="linklog">
 ${linklogAllHtml}
-      </ol>
+      </div>
 ${archiveFoot(linklogFilterScript + "\n" + linklogSwipeDeleteScript, { infiniteScroll: false, backToTop: true })}`;
 
 // /now page
