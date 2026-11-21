@@ -616,6 +616,9 @@ h2 {
   opacity: 1;
 }
 
+/* Rules on .post-list rows use the child combinator (> li): in the Writing
+   feed a post's own bulleted lists sit inside a row, and must keep their
+   ordinary list styling and links. */
 .post-list,
 .link-list {
   list-style: none;
@@ -623,7 +626,7 @@ h2 {
   padding: 0;
 }
 
-.post-list li {
+.post-list > li {
   margin: 0.35rem 0;
   padding: 0;
   display: grid;
@@ -633,11 +636,11 @@ h2 {
 }
 
 /* Items with only a single child (e.g. NOW/THINKING section) span both columns */
-.post-list li > :only-child {
+.post-list > li > :only-child {
   grid-column: 1 / -1;
 }
 
-.post-list li[hidden] {
+.post-list > li[hidden] {
   display: none !important;
 }
 
@@ -686,13 +689,13 @@ h2 {
   display: none;
 }
 
-.post-list.is-feed li {
+.post-list.is-feed > li {
   margin: 0 0 2.5rem;
   padding-bottom: 2.5rem;
   border-bottom: 1px solid var(--rule);
 }
 
-.post-list.is-feed li:last-child {
+.post-list.is-feed > li:last-child {
   border-bottom: none;
 }
 
@@ -704,13 +707,19 @@ h2 {
 
 /* The feed entry brings its own permalink-style header, so the collapsed
    row's date and title step aside. */
-.post-list.is-feed li > .post-date,
-.post-list.is-feed li > a {
+.post-list.is-feed > li > .post-date,
+.post-list.is-feed > li > a {
   display: none;
 }
 
-.post-list.is-feed li {
+.post-list.is-feed > li {
   display: block;
+}
+
+/* A post's own lists, inside a feed row, start with discs as on the
+   permalink (nested in the row's list they would default to circles). */
+.post-list .post-feed-entry .body > ul {
+  list-style-type: disc;
 }
 
 .post-list.is-feed .post-feed-entry {
