@@ -716,10 +716,15 @@ h2 {
   display: block;
 }
 
-/* A post's own lists, inside a feed row, start with discs as on the
-   permalink (nested in the row's list they would default to circles). */
+/* A post's own lists, inside a feed row, look as on the permalink: nested
+   in the row's list, browsers would give them circles and no space above
+   or below. */
 .post-list .post-feed-entry .body > ul {
   list-style-type: disc;
+}
+.post-list .post-feed-entry .body > ul,
+.post-list .post-feed-entry .body > ol {
+  margin-block: 1em;
 }
 
 .post-list.is-feed .post-feed-entry {
