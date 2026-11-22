@@ -290,7 +290,7 @@ Private GPS ingest from the [Overland](https://github.com/aaronpk/Overland-iOS) 
 
 Admin API: `action: "list-locations"` with optional `from`, `to`, `limit` (max 1000, default 1000; password auth) returns the most recent points, newest first.
 
-Public API: `GET /api/locations/now` (no auth) returns the current neighborhood label, bounding box, and OpenStreetMap search URL — no exact coordinates.
+Public API: `GET /api/locations/now` (no auth) returns the current neighborhood label, bounding box, the neighborhood's `outline` (GeoJSON Polygon or MultiPolygon) when one is known, and OpenStreetMap search URL — no exact coordinates.
 
 ### Oura Ring (daily steps)
 

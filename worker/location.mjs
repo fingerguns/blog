@@ -1,5 +1,7 @@
 import { CONTENT_KIND } from "../scripts/lib/live-changes.mjs";
 import { recordContentChange } from "./content-changes.mjs";
+import { CACHE_NAMESPACES } from "../scripts/lib/build-cache-namespaces.mjs";
+import { cleanOutline, outlineMatchesBbox } from "../scripts/lib/neighborhood-outline.mjs";
 
 const LOCATION_LOOKUP_WINDOW_MS = 15 * 60 * 1000;
 const LOCATION_LOOKUP_FALLBACK_WINDOW_MS = 6 * 60 * 60 * 1000;
@@ -118,7 +120,65 @@ async function reverseGeocodeNycNeighborhood(lat, lon) {
   const bbox = normalizeGeoBbox(feature.bbox || data.bbox);
   if (!bbox) return null;
 
-  return { label, bbox };
+  // NYC Planning's geosearch is built on Who's On First, and names the record:
+  // its id fetches the neighborhood's outline (neighborhoodOutline).
+  const wofId =
+    props.source === "whosonfirst" && /^\d+$/.test(String(props.source_id || "")) ? String(props.source_id) : "";
+  return { label, bbox, wofId };
+}
+
+const OUTLINE_FETCH_TIMEOUT_MS = 5000;
+
+/**
+ * A Who's On First neighborhood's outline: { ok, geometry }. ok is false only
+ * when the answer is unknown (network trouble, a 5xx), so that is retried
+ * next time instead of being cached.
+ */
+async function fetchWofOutline(id) {
+  try {
+    const res = await fetch(`https://data.whosonfirst.org/geojson/${id}`, {
+      headers: { Accept: "application/geo+json, application/json" },
+      signal: AbortSignal.timeout(OUTLINE_FETCH_TIMEOUT_MS),
+    });
+    if (res.status === 404) return { ok: true, geometry: null };
+    if (!res.ok) return { ok: false };
+    const data = await res.json();
+    return { ok: true, geometry: cleanOutline(data?.geometry) };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
+ * The outline for a Who's On First id, from the build_cache table when it has
+ * been looked up before (a neighborhood's shape practically never changes),
+ * else fetched once and kept. Null when there is none; never throws, so the
+ * map still gets its box.
+ */
+async function neighborhoodOutline(db, wofId) {
+  if (!wofId) return null;
+  const ns = CACHE_NAMESPACES.NEIGHBORHOOD_OUTLINES;
+  const key = `wof:${wofId}`;
+  try {
+    const row = await db.prepare("SELECT value FROM build_cache WHERE namespace = ? AND key = ?").bind(ns, key).first();
+    if (row) return cleanOutline(JSON.parse(row.value)) || null;
+  } catch {
+    // An unreadable cache row is fetched again below.
+  }
+  const result = await fetchWofOutline(wofId);
+  if (!result.ok) return null;
+  try {
+    await db
+      .prepare(
+        `INSERT INTO build_cache (namespace, key, value, updated_at) VALUES (?, ?, ?, ?)
+         ON CONFLICT(namespace, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+      )
+      .bind(ns, key, JSON.stringify(result.geometry || false), new Date().toISOString())
+      .run();
+  } catch (err) {
+    console.error("neighborhood outline cache write failed", err);
+  }
+  return result.geometry;
 }
 
 async function reverseGeocodeNycLabel(lat, lon) {
@@ -126,7 +186,13 @@ async function reverseGeocodeNycLabel(lat, lon) {
   return result?.label || "";
 }
 
-async function nominatimNeighborhoodBbox(label, env) {
+/**
+ * The neighborhood's box from Nominatim, and its outline when OpenStreetMap
+ * maps it as an area (polygon_geojson; many neighborhoods are only a point,
+ * and then the map keeps the box). polygon_threshold simplifies the outline
+ * on Nominatim's side to about 5 m, plenty for a neighborhood edge.
+ */
+async function nominatimNeighborhoodArea(label, env) {
   const userAgent =
     env.NOMINATIM_USER_AGENT ||
     "rommy.blog-location/1.0 (private location tracking; contact: rommy@gha.ly)";
@@ -134,6 +200,8 @@ async function nominatimNeighborhoodBbox(label, env) {
   url.searchParams.set("q", label);
   url.searchParams.set("format", "json");
   url.searchParams.set("limit", "1");
+  url.searchParams.set("polygon_geojson", "1");
+  url.searchParams.set("polygon_threshold", "0.00005");
 
   const res = await fetch(url.toString(), {
     headers: {
@@ -145,7 +213,10 @@ async function nominatimNeighborhoodBbox(label, env) {
   const data = await res.json();
   const bb = data?.[0]?.boundingbox;
   if (!Array.isArray(bb) || bb.length !== 4) return null;
-  return normalizeGeoBbox([Number(bb[2]), Number(bb[0]), Number(bb[3]), Number(bb[1])]);
+  const bbox = normalizeGeoBbox([Number(bb[2]), Number(bb[0]), Number(bb[3]), Number(bb[1])]);
+  if (!bbox) return null;
+  const outline = cleanOutline(data[0].geojson);
+  return { bbox, outline: outline && outlineMatchesBbox(outline, bbox) ? outline : null };
 }
 
 async function reverseGeocodeLabel(lat, lon, env) {
@@ -398,9 +469,11 @@ export async function resolveCurrentNeighborhood(db, env) {
   if (isNycArea(lat, lon)) {
     const nyc = await reverseGeocodeNycNeighborhood(lat, lon);
     if (nyc) {
+      const outline = await neighborhoodOutline(db, nyc.wofId);
       return {
         label: nyc.label,
         bbox: nyc.bbox,
+        ...(outline && outlineMatchesBbox(outline, nyc.bbox) ? { outline } : {}),
         osmUrl: openStreetMapNeighborhoodUrl(nyc.label),
       };
     }
@@ -409,12 +482,13 @@ export async function resolveCurrentNeighborhood(db, env) {
   const label = await getGeocodeLabel(db, lat, lon, env);
   if (!label) return null;
 
-  const bbox = await nominatimNeighborhoodBbox(label, env);
-  if (!bbox) return null;
+  const area = await nominatimNeighborhoodArea(label, env);
+  if (!area) return null;
 
   return {
     label,
-    bbox,
+    bbox: area.bbox,
+    ...(area.outline ? { outline: area.outline } : {}),
     osmUrl: openStreetMapNeighborhoodUrl(label),
   };
 }

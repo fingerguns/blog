@@ -11,5 +11,8 @@ export const CACHE_NAMESPACES = {
   LINKLOG_UNFURLS: "linklog-unfurls",
   THINKING_UNFURLS: "thinking-unfurls",
   NEIGHBORHOOD_PLACES: "neighborhood-places",
+  // Who's On First neighborhood outlines for the /now/ map, keyed "wof:<id>";
+  // false = looked up, no usable outline (worker/location.mjs).
+  NEIGHBORHOOD_OUTLINES: "neighborhood-outlines",
   THINKING_PHOTO_SIZES: "thinking-photo-sizes",
 };

@@ -2196,16 +2196,20 @@ const nowLocationMapScript = `    <script>(function(){
     mapEl.textContent=message;
     mapEl.classList.add('now-location-map--error');
   }
-  function initMap(west,south,east,north){
+  // outline: the neighborhood's real shape (GeoJSON Polygon/MultiPolygon)
+  // when the Worker found one, else the box is drawn as before.
+  function initMap(west,south,east,north,outline){
     return loadMapLibre().then(function(){
       if(typeof maplibregl==='undefined')throw new Error('MapLibre unavailable');
       var mlStyles={
         light:'https://tiles.openfreemap.org/styles/liberty',
         dark:'https://tiles.openfreemap.org/styles/dark'
       };
+      var hasOutline=!!(outline&&(outline.type==='Polygon'||outline.type==='MultiPolygon')&&Array.isArray(outline.coordinates));
       var neighborhoodGeojson={
         type:'Feature',
-        geometry:{
+        properties:{},
+        geometry:hasOutline?outline:{
           type:'Polygon',
           coordinates:[[
             [west,south],
@@ -2249,6 +2253,7 @@ const nowLocationMapScript = `    <script>(function(){
             id:'now-neighborhood-line',
             type:'line',
             source:'now-neighborhood',
+            layout:{'line-join':'round'},
             paint:{'line-color':'#2563eb','line-width':2}
           });
         }catch(err){
@@ -2292,7 +2297,7 @@ const nowLocationMapScript = `    <script>(function(){
       var href=data.osmUrl||'https://www.openstreetmap.org/search?query='+encodeURIComponent(data.label);
       labelEl.innerHTML='<a href="'+href.replace(/"/g,'&quot;')+'" target="_blank" rel="noopener">'+escLabel(data.label)+'</a>';
     }
-    initMap(west,south,east,north);
+    initMap(west,south,east,north,data.outline);
     new MutationObserver(function(){
       if(window.__nowSetMapBasemap)window.__nowSetMapBasemap();
     }).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
