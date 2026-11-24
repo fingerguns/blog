@@ -43,6 +43,38 @@
         color: var(--text);
         border-bottom-color: var(--text);
       }
+      .admin-tab:hover { color: var(--text); }
+      .admin-title-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+      .admin-tabs-spacer { flex: 1 1 auto; }
+      /* Inbox, Location, Health: an icon each, with the unread count or the
+         health dot pinned to its top-right corner. */
+      .admin-tab-icon {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        font-size: 1.05rem;
+        letter-spacing: 0;
+        padding-left: 0.65rem;
+        padding-right: 0.65rem;
+      }
+      .admin-tab-icon .tab-count {
+        position: absolute;
+        top: 0.05rem;
+        right: -0.2rem;
+        margin: 0;
+      }
+      .admin-tab-icon .tab-dot {
+        position: absolute;
+        top: 0.4rem;
+        right: 0.35rem;
+        margin: 0;
+        box-shadow: 0 0 0 2px var(--bg);
+      }
       .admin-section {
         display: none;
       }
@@ -566,6 +598,7 @@
         }
         .admin-tabs::-webkit-scrollbar { display: none; }
         .admin-tab { padding-left: 0.7rem; padding-right: 0.7rem; }
+        .admin-tab-icon { padding-left: 0.5rem; padding-right: 0.5rem; }
 
         /* Quill toolbar wraps gracefully on small screens */
         .ql-toolbar.ql-snow {
@@ -871,17 +904,23 @@
   <body>
     <main>
       <a class="post-back" href="/">←</a>
-      <h1 class="site-title">Admin</h1>
+      <div class="admin-title-row">
+        <h1 class="site-title">Admin</h1>
+        <button type="button" class="admin-signout-btn admin-header-signout auth-only" id="header-sign-out" hidden>Sign out</button>
+      </div>
 
+      <!-- Content tabs as words on the left; Inbox, Location and Health as
+           icons on the right. Login is a tab only while signed out. -->
       <div class="admin-tabs">
-        <button class="admin-tab active" data-tab="login">Login</button>
+        <button class="admin-tab signed-out-only active" data-tab="login">Login</button>
         <button class="admin-tab auth-only" data-tab="thinking" hidden>Thinking</button>
         <button class="admin-tab auth-only" data-tab="post" hidden>Writing</button>
         <button class="admin-tab auth-only" data-tab="reading" hidden>Reading</button>
         <button class="admin-tab auth-only" data-tab="sharing" hidden>Sharing</button>
-        <button class="admin-tab auth-only" data-tab="inbox" hidden>Inbox<span class="tab-count" id="inbox-tab-count" hidden></span></button>
-        <button class="admin-tab auth-only" data-tab="location" hidden>Location</button>
-        <button class="admin-tab auth-only" data-tab="health" hidden><span class="tab-dot" id="health-tab-dot"></span>Health</button>
+        <span class="admin-tabs-spacer" aria-hidden="true"></span>
+        <button class="admin-tab admin-tab-icon auth-only" data-tab="inbox" aria-label="Inbox" title="Inbox" hidden><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg><span class="tab-count" id="inbox-tab-count" hidden></span></button>
+        <button class="admin-tab admin-tab-icon auth-only" data-tab="location" aria-label="Location" title="Location" hidden><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg></button>
+        <button class="admin-tab admin-tab-icon auth-only" data-tab="health" aria-label="Health" title="Health" hidden><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg><span class="tab-dot" id="health-tab-dot"></span></button>
       </div>
 
       <!-- ── LOGIN ────────────────────────────────── -->
@@ -1245,6 +1284,9 @@
         document.querySelectorAll(".auth-only").forEach(function (el) {
           el.hidden = !signedIn;
         });
+        document.querySelectorAll(".signed-out-only").forEach(function (el) {
+          el.hidden = signedIn;
+        });
         var msg = document.getElementById("login-in-msg");
         if (msg && signedIn) {
           msg.innerHTML = sessionIsRemembered()
@@ -1273,6 +1315,9 @@
         if (loadSession()) setLoginState(true);
 
         document.getElementById("sign-out").addEventListener("click", function () {
+          clearSession();
+        });
+        document.getElementById("header-sign-out").addEventListener("click", function () {
           clearSession();
         });
       })();
@@ -1417,10 +1462,13 @@
 
         window.addEventListener("popstate", function () {
           var tab = guardTab(tabFromPath());
+          if (tab === "login" && loadSession()) { activateTab("thinking", "replace"); return; }
           if (tab) activateTab(tab, "none");
         });
 
         var initial = guardTab(tabFromPath());
+        // Signed in, Login isn't a tab any more: /admin/ opens Thinking.
+        if (initial === "login" && loadSession()) initial = "thinking";
         if (initial) {
           // /admin/ is a legitimate URL for the Login tab, so don't rewrite it
           // to /admin/login; any other tab arrived at by its own URL is already
@@ -2627,6 +2675,7 @@
             status.hidden = true;
             document.getElementById("login-password").value = "";
             if (_editSlug) setTimeout(enterEditMode, 50);
+            else activateTab("thinking", "replace");
           } catch (err) {
             showStatus(status, err.message || "Something went wrong.", true);
           } finally {
