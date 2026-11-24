@@ -1358,6 +1358,7 @@ a.post-admin-delete:hover {
 .contact-sent { margin-top: 1.5rem; font-size: var(--fs-md); line-height: 1.55; overflow-wrap: anywhere; }
 .contact-sent:focus { outline: none; }
 .contact-sent p { margin: 0 0 0.75rem; }
+.contact-sent a { color: var(--link); text-decoration: underline; text-underline-offset: 0.15em; }
 .contact-sent .contact-sent-title { font-size: var(--fs-xl); font-weight: 600; color: var(--text); }
 
 /* Thinking archive toolbar — type filters (left) + view toggle (right) */
