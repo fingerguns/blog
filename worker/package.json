@@ -9,6 +9,7 @@
     "anthropic-usage": "node --env-file=../.env ../scripts/anthropic-usage.mjs"
   },
   "dependencies": {
-    "aws4fetch": "^1.0.20"
+    "aws4fetch": "^1.0.20",
+    "postal-mime": "4.2.0"
   }
 }

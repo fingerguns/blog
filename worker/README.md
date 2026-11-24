@@ -94,7 +94,20 @@ wrangler secret put BLUESKY_APP_PASSWORD  # optional
 wrangler secret put MASTODON_ACCESS_TOKEN # optional
 wrangler secret put MASTODON_INSTANCE     # optional, defaults to https://mas.to
 wrangler secret put GITHUB_TOKEN          # optional fallback for rebuild trigger
+wrangler secret put CONTACT_NOTIFY_TO     # optional — where "new Contact message" alerts are emailed
 ```
+
+Contact inbox email (`worker/contact.mjs`). Replies go out from `me@rommy.blog` and answers come back to the Worker, so rommy.blog needs both halves of Cloudflare Email Service, once:
+
+```bash
+npx wrangler email sending enable rommy.blog    # adds the SPF/DKIM records; replies can be sent
+npx wrangler email routing enable rommy.blog    # adds MX records; mail to rommy.blog can arrive
+npx wrangler email routing rules create rommy.blog --name "Contact inbox" \
+  --match-type literal --match-field to --match-value me@rommy.blog \
+  --action-type worker --action-value rommy-blog-admin      # me@rommy.blog → this Worker's email()
+```
+
+Sending to any address needs the Workers Paid plan; on Free, only verified destination addresses work. The tables create themselves on first use; `migrate-contact.sql` is the same schema for a fresh database.
 
 Direct video upload (browser PUTs to R2, up to 1 GB, URL valid 1 hour; optional — multipart fallback through the Worker is 100 MB):
 
@@ -133,6 +146,7 @@ Output directory: `dist`
 | `thinking` | Update thinking text in D1. Paragraphs whose lines all start with `>` and a space are quotes: stored as-is, styled on rommy.blog, cross-posted as “curly quotes” (`thinkingQuotesForSyndication`) |
 | `thinking-video-upload-url` | Presigned PUT URL for direct video upload to R2 |
 | `list-thinking` | List Thinking archive from D1 |
+| `contact-list` / `contact-thread` / `contact-reply` / `contact-status` / `contact-delete` | The admin Inbox: list a folder, open a conversation (marks it read), reply by email from `me@rommy.blog`, move to inbox/archived/spam or mark unread, delete. The public form posts to `POST /api/contact` (no password) |
 | `job-status` | Background job health for the /admin/ Health tab, plus recent notes missing from Bluesky |
 | `retry-thinking-bluesky` | Retry the Bluesky cross-post of one Thinking note (`slug`) |
 | `post` | Publish new writing post |

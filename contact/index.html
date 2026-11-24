@@ -35,6 +35,11 @@
           <label for="message">Message</label>
           <textarea id="message" name="message" rows="7" required></textarea>
         </div>
+        <!-- Left empty by people; bots fill it in (worker/contact.mjs drops those). -->
+        <div class="field contact-hp" aria-hidden="true">
+          <label for="website">Website</label>
+          <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" />
+        </div>
         <button type="submit" id="submit-btn">Send</button>
         <p id="form-status" class="form-status" aria-live="polite"></p>
       </form>
@@ -45,10 +50,19 @@
     </article>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);var l=t==='dark'?'Switch to light mode':'Switch to dark mode';b.innerHTML=t==='dark'?'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>':'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';b.setAttribute('aria-label',l);b.title=l;localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'dark');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
     <script>
-      var FORMSPREE_ID = "YOUR_FORM_ID"; // Replace with your Formspree form ID
+      // Messages go to the site's own Worker (/api/contact) and land in the
+      // admin inbox; replies come from me@rommy.blog.
       var form = document.getElementById("contact-form");
       var status = document.getElementById("form-status");
       var btn = document.getElementById("submit-btn");
+      var openedAt = Date.now();
+
+      function fail(msg) {
+        status.textContent = msg;
+        status.className = "form-status form-error";
+        btn.disabled = false;
+        btn.textContent = "Send";
+      }
 
       form.addEventListener("submit", async function (e) {
         e.preventDefault();
@@ -58,30 +72,29 @@
         status.textContent = "";
         status.className = "form-status";
         try {
-          var res = await fetch("https://formspree.io/f/" + FORMSPREE_ID, {
+          var res = await fetch("/api/contact", {
             method: "POST",
-            headers: { Accept: "application/json" },
-            body: new FormData(form),
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: form.elements.name.value,
+              email: form.elements.email.value,
+              message: form.elements.message.value,
+              website: form.elements.website.value,
+              elapsed_ms: Date.now() - openedAt,
+            }),
           });
-          if (res.ok) {
+          var data = {};
+          try { data = await res.json(); } catch (_) {}
+          if (res.ok && data.ok) {
             form.reset();
             form.hidden = true;
             status.textContent = "Message sent. Thank you!";
             status.className = "form-status form-success";
           } else {
-            var data = await res.json();
-            status.textContent = data.errors
-              ? data.errors.map(function (e) { return e.message; }).join(" ")
-              : "Something went wrong. Please try again.";
-            status.className = "form-status form-error";
-            btn.disabled = false;
-            btn.textContent = "Send";
+            fail(data.error || "Something went wrong. Please try again.");
           }
         } catch (err) {
-          status.textContent = "Network error. Please try again.";
-          status.className = "form-status form-error";
-          btn.disabled = false;
-          btn.textContent = "Send";
+          fail("Network error. Please try again.");
         }
       });
     </script>

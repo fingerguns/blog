@@ -63,8 +63,9 @@ test("the admin can load the Quill editor", () => {
 
 test("webmentions, the contact form and analytics still reach their endpoints", () => {
   assert.ok(allows("connect-src", "https://webmention.io/api/mentions.jf2"));
-  assert.ok(allows("connect-src", "https://formspree.io/f/abc"));
-  assert.ok(allows("form-action", "https://formspree.io/f/abc"));
+  // The contact form posts to the site's own Worker; nothing else needs to.
+  assert.ok(allows("connect-src", "https://rommy.blog/api/contact"));
+  assert.ok(!allows("connect-src", "https://formspree.io/f/abc"));
   assert.ok(allows("connect-src", "https://region1.google-analytics.com/g/collect"));
 });
 

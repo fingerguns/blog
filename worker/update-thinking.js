@@ -41,6 +41,7 @@ import { backfillLinklogTags, refreshLinklogTags } from "./linklog-tags.mjs";
 import { hashtagWordsForTags } from "../scripts/lib/linklog-tags.mjs";
 import { getAnthropicUsageSummary } from "./anthropic-usage.mjs";
 import { serveMedia } from "./media.mjs";
+import { CONTACT_ACTIONS, handleContactAdmin, handleContactSubmit, handleInboundEmail } from "./contact.mjs";
 import { createR2PresignedPutUrl } from "./r2-presign.mjs";
 import {
   isValidThinkingVideoPosterKey,
@@ -208,6 +209,12 @@ export default {
         return handleThinkingViews(env, url.searchParams.get("kind") === "posts" ? "posts" : "thinking");
       }
       return json({ error: "Method not allowed" }, 405);
+    }
+
+    // The /contact/ form (worker/contact.mjs). Same-origin and public, so it
+    // sits ahead of the admin password check.
+    if (url.pathname === "/api/contact") {
+      return handleContactSubmit(request, env, ctx, getClientIp(request));
     }
 
     if (url.pathname === "/api/now-location") {
@@ -546,7 +553,26 @@ export default {
       return handleRetryThinkingBluesky(payload, db, cors, env);
     }
 
+    if (CONTACT_ACTIONS.has(action)) {
+      try {
+        const { status, data } = await handleContactAdmin(action, payload, env);
+        return json(data, status, cors);
+      } catch (err) {
+        return json({ error: err.message || "Inbox request failed" }, 500, cors);
+      }
+    }
+
     return json({ error: "Unknown action" }, 400, cors);
+  },
+
+  // Email Routing delivers mail for me@rommy.blog here: replies to the
+  // Contact inbox's emails join their conversation (worker/contact.mjs).
+  async email(message, env, ctx) {
+    if (!env.DB) {
+      message.setReject("Not configured");
+      return;
+    }
+    await handleInboundEmail(message, env, ctx);
   },
 
   async scheduled(event, env, ctx) {

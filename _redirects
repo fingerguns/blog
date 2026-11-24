@@ -16,6 +16,8 @@
 /admin/reading/     /admin/           200
 /admin/sharing      /admin/           200
 /admin/sharing/     /admin/           200
+/admin/inbox        /admin/           200
+/admin/inbox/       /admin/           200
 /admin/location     /admin/           200
 /admin/location/    /admin/           200
 /admin/health       /admin/           200

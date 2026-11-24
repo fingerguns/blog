@@ -1313,6 +1313,8 @@ a.post-admin-delete:hover {
 /* Contact form */
 .contact-form { margin-top: 1.5rem; }
 .contact-form .field { margin-bottom: 1.25rem; }
+/* The honeypot: off-screen rather than display:none, which some bots skip. */
+.contact-form .contact-hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 .contact-form label {
   display: block;
   margin-bottom: 0.35rem;
