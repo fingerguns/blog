@@ -597,8 +597,17 @@
           scrollbar-width: none;
         }
         .admin-tabs::-webkit-scrollbar { display: none; }
-        .admin-tab { padding-left: 0.7rem; padding-right: 0.7rem; }
-        .admin-tab-icon { padding-left: 0.5rem; padding-right: 0.5rem; }
+        /* Sized so the four words and three icons fit a 375px phone in one
+           row; the scroll above is only a fallback for narrower screens. */
+        .admin-tab {
+          font-size: 0.62rem;
+          letter-spacing: 0.05em;
+          padding-left: 0.35rem;
+          padding-right: 0.35rem;
+        }
+        .admin-tab[data-tab="login"],
+        .admin-tab[data-tab="thinking"] { padding-left: 0; }
+        .admin-tab-icon { font-size: 1rem; padding-left: 0.3rem; padding-right: 0.3rem; }
 
         /* Quill toolbar wraps gracefully on small screens */
         .ql-toolbar.ql-snow {
