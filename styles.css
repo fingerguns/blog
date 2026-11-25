@@ -590,8 +590,8 @@ h2 {
 /* Homepage section headings show an icon in place of the word
    (sectionLabelHtml in scripts/lib/section-icons.mjs). The word is still the
    heading's text for screen readers, and the tooltip leads with it. The
-   icons are in the full text colour at --fs-xl: they carry the page's
-   structure now, so they are not as quiet as the small-caps labels were. */
+   icons are in the full text colour: they carry the page's structure now,
+   so they are not as quiet as the small-caps labels were. */
 .section-hint-icon {
   display: inline-flex;
   align-items: center;
@@ -600,8 +600,8 @@ h2 {
 }
 
 .section-hint-icon .section-icon {
-  width: var(--fs-xl);
-  height: var(--fs-xl);
+  width: var(--fs-lg);
+  height: var(--fs-lg);
 }
 
 .section-hint-icon:hover,
@@ -619,10 +619,6 @@ h2 {
   color: var(--muted);
 }
 
-/* Elsewhere has no blurb, so its tooltip is the name alone. */
-.section-hint-name:last-child {
-  margin-bottom: 0;
-}
 
 .section-hint-tip {
   position: absolute;

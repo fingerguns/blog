@@ -13,6 +13,16 @@ export const DEFAULT_SECTION_HINTS = {
 
 export const SECTION_NAMES = ["Thinking", "Writing", "Reading", "Sharing"];
 
+// Hand-written tooltips for sections whose contents are a fixed set of links
+// rather than a stream of posts, so there is nothing for Claude Fable to
+// refresh them from. Not in SECTION_NAMES (never regenerated), and applied
+// last in mergeSectionHints so a copy saved into D1 alongside the generated
+// hints can never shadow an edit made here.
+export const STATIC_SECTION_HINTS = {
+  Elsewhere:
+    "Where to find me past this page: Now for what I'm up to lately, About for who I am, LinkedIn for work, and GitHub, where this site's source lives in the open. Open Feeds to follow along on Bluesky, Mastodon, or micro.blog, where much of what's posted here is cross-posted.",
+};
+
 export const SECTION_CONTEXT = {
   Thinking:
     "Informal microblog: short text, photos, native video, audio (Voice Memos), Spotify embeds, and YouTube links. Archive has list and grid views with filters by media type. Updated often.",
@@ -23,8 +33,8 @@ export const SECTION_CONTEXT = {
 };
 
 export function mergeSectionHints(stored) {
-  if (!stored || typeof stored !== "object") return { ...DEFAULT_SECTION_HINTS };
-  return { ...DEFAULT_SECTION_HINTS, ...stored };
+  if (!stored || typeof stored !== "object") return { ...DEFAULT_SECTION_HINTS, ...STATIC_SECTION_HINTS };
+  return { ...DEFAULT_SECTION_HINTS, ...stored, ...STATIC_SECTION_HINTS };
 }
 
 export function buildSectionHintPrompt(section, samples, currentHint) {

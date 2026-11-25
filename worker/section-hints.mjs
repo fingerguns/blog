@@ -1,5 +1,4 @@
 import {
-  DEFAULT_SECTION_HINTS,
   SECTION_NAMES,
   buildSectionHintPrompt,
   mergeSectionHints,
@@ -56,11 +55,11 @@ function stripHtml(html) {
 
 export async function loadSectionHints(db) {
   const row = await dbFirst(db, "SELECT value FROM site_config WHERE key = ?", "section_hints");
-  if (!row?.value) return { ...DEFAULT_SECTION_HINTS };
+  if (!row?.value) return mergeSectionHints(null);
   try {
     return mergeSectionHints(JSON.parse(row.value));
   } catch {
-    return { ...DEFAULT_SECTION_HINTS };
+    return mergeSectionHints(null);
   }
 }
 
