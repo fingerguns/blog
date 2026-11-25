@@ -967,13 +967,6 @@
         <p class="lead">Update the THINKING section on the homepage.</p>
 
         <div id="thinking-composer"></div>
-
-        <div id="thinking-archive-admin" hidden>
-          <h3 class="thinking-archive-heading">Archive</h3>
-          <p class="admin-hint">Tap Delete to open the post and confirm on the page (no pop-up).</p>
-          <ul class="drafts-list" id="thinking-archive-list"></ul>
-          <p class="admin-status" id="thinking-archive-status" hidden></p>
-        </div>
       </div>
 
       <!-- ── WRITING ───────────────────────────────── -->
@@ -1303,7 +1296,6 @@
             : "<strong>Signed in.</strong> Until you sign out or close this tab.";
         }
         if (signedIn) {
-          loadThinkingArchive();
           loadReadingArchive();
           loadJobStatus();
           // Deferred: the inbox's state is set up further down this script.
@@ -1311,8 +1303,6 @@
         } else {
           setHealthDot(null);
           setInboxCount(0);
-          var archiveWrap = document.getElementById("thinking-archive-admin");
-          if (archiveWrap) archiveWrap.hidden = true;
           var readingLatestWrap = document.getElementById("reading-latest-archive");
           if (readingLatestWrap) readingLatestWrap.hidden = true;
           var readingFavoritesWrap = document.getElementById("reading-favorites-archive");
@@ -1425,7 +1415,6 @@
       }
 
       function runTabLoader(tab) {
-        if (tab === "thinking") loadThinkingArchive();
         if (tab === "reading") loadReadingArchive();
         if (tab === "location") loadLocationViewer();
         if (tab === "health") loadJobStatus();
@@ -2695,74 +2684,11 @@
 
       // ── Thinking form ──────────────────────────────────────────────────────
 
-      function formatThinkingDate(iso) {
-        var d = new Date(iso);
-        return (
-          new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(d) +
-          " // " +
-          new Intl.DateTimeFormat("en-US", {
-            timeZone: "America/New_York",
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-          }).format(d)
-        );
-      }
-
-      async function loadThinkingArchive() {
-        var wrap = document.getElementById("thinking-archive-admin");
-        var list = document.getElementById("thinking-archive-list");
-        var status = document.getElementById("thinking-archive-status");
-        if (!wrap || !list) return;
-        if (!loadSession()) {
-          wrap.hidden = true;
-          return;
-        }
-        wrap.hidden = false;
-        list.innerHTML = '<li><span class="admin-hint">Loading…</span></li>';
-        if (status) status.hidden = true;
-        try {
-          var data = await callAPI({ action: "list-thinking" });
-          var items = data.items || [];
-          list.innerHTML = "";
-          if (!items.length) {
-            list.innerHTML = '<li><span class="admin-hint">No posts yet.</span></li>';
-            return;
-          }
-          items.forEach(function (item) {
-            var slug = item.slug;
-            var label = item.label || slug;
-            var li = document.createElement("li");
-            var main = document.createElement("div");
-            main.className = "draft-item-main";
-            var titleEl = document.createElement("div");
-            titleEl.className = "draft-item-title";
-            titleEl.textContent = label;
-            var dateEl = document.createElement("div");
-            dateEl.className = "draft-item-date";
-            dateEl.textContent = formatThinkingDate(item.datetime);
-            main.appendChild(titleEl);
-            main.appendChild(dateEl);
-            var del = document.createElement("a");
-            del.className = "draft-item-delete";
-            del.textContent = "Delete";
-            del.href = "/thinking/" + slug + "/?delete";
-            li.appendChild(main);
-            li.appendChild(del);
-            list.appendChild(li);
-          });
-        } catch (err) {
-          list.innerHTML = "";
-          showStatus(status, err.message || "Could not load archive", true);
-        }
-      }
-
       ThinkingComposer.mount(document.getElementById("thinking-composer"), {
         apiUrl: API_URL,
         getPassword: loadSession,
         idPrefix: "t",
         signedOutMessage: "You need to be signed in. Go to the Login tab.",
-        onSaved: loadThinkingArchive,
       });
 
       // ── Quill editor ───────────────────────────────────────────────────────
