@@ -103,14 +103,17 @@ async function reverseGeocodeNycNeighborhood(lat, lon) {
   const url = new URL("https://geosearch.planninglabs.nyc/v2/reverse");
   url.searchParams.set("point.lat", String(lat));
   url.searchParams.set("point.lon", String(lon));
-  url.searchParams.set("layers", "neighbourhood");
+  // "coarse" (admin areas, neighbourhoods among them): geosearch stopped
+  // accepting layers=neighbourhood in late 2026 and now answers it with an
+  // error and no features.
+  url.searchParams.set("layers", "coarse");
 
   const res = await fetch(url.toString(), {
     headers: { Accept: "application/json" },
   });
   if (!res.ok) return null;
   const data = await res.json();
-  const feature = data.features?.[0];
+  const feature = (data.features || []).find((f) => f?.properties?.layer === "neighbourhood");
   const props = feature?.properties;
   if (!props) return null;
 
