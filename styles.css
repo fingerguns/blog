@@ -600,8 +600,8 @@ h2 {
 }
 
 .section-hint-icon .section-icon {
-  width: var(--fs-lg);
-  height: var(--fs-lg);
+  width: var(--fs-xl);
+  height: var(--fs-xl);
 }
 
 .section-hint-icon:hover,
