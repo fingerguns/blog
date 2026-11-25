@@ -1364,13 +1364,22 @@ if(toggle){
 // homepage's sections show an icon in place of the word — the admin tab's
 // for the four content sections, a globe for Elsewhere (sectionLabelHtml in
 // scripts/lib/section-icons.mjs): the word stays as visually hidden heading
-// text, and the tooltip leads with it.
-const sectionHeading = (label, tag, id, actionsHtml = "", { icon = false } = {}) => {
+// text, and the tooltip leads with it. With `archive` (a path), the label
+// becomes a link to that section's archive, and a small "All →" link to the
+// same place sits on the right of the heading's row.
+const sectionHeading = (label, tag, id, actionsHtml = "", { icon = false, archive = "" } = {}) => {
   const hint = SECTION_HINTS[label];
   const idAttr = id ? ` id="${id}"` : "";
   const tipId = `hint-${String(label).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
   const hintClass = icon ? "section-hint section-hint-icon" : "section-hint";
-  return `<div class="section-head"><${tag}${idAttr}><span class="${hintClass}" tabindex="0" aria-describedby="${tipId}">${sectionLabelHtml(label, { icon })}</span></${tag}><div class="section-hint-tip" id="${tipId}" role="tooltip">${sectionTipHtml(label, hint, { icon })}</div>${actionsHtml}</div>`;
+  const labelHtml = sectionLabelHtml(label, { icon });
+  const hintHtml = archive
+    ? `<a class="${hintClass}" href="${archive}" aria-describedby="${tipId}">${labelHtml}</a>`
+    : `<span class="${hintClass}" tabindex="0" aria-describedby="${tipId}">${labelHtml}</span>`;
+  const moreHtml = archive
+    ? `<a class="section-more" href="${archive}" aria-label="All ${escHtml(String(label).toLowerCase())}">All<span class="section-more-arrow" aria-hidden="true">→</span></a>`
+    : "";
+  return `<div class="section-head"><${tag}${idAttr}>${hintHtml}</${tag}><div class="section-hint-tip" id="${tipId}" role="tooltip">${sectionTipHtml(label, hint, { icon })}</div>${actionsHtml}${moreHtml}</div>`;
 };
 
 // /writing/ view toggle: collapsed (date + title, the default) or expanded
@@ -1557,7 +1566,7 @@ const homeComposerScript = `    <script>(function(){
 const latestThinkingItem = microblogItems[0];
 const thinkingSection = hasThinking(thinking)
   ? `      <section aria-labelledby="now-heading">
-        ${sectionHeading("Thinking", "h2", "now-heading", "", { icon: true })}
+        ${sectionHeading("Thinking", "h2", "now-heading", "", { icon: true, archive: "/thinking/" })}
         <ol class="post-list"${liveListAttrs("home-thinking")}>
           <li>
             <div class="microblog-entry">
@@ -1566,7 +1575,6 @@ const thinkingSection = hasThinking(thinking)
             </div>
           </li>
         </ol>
-        <a class="see-more" href="/thinking/" aria-label="All thinking">→</a>
       </section>
 `
   : "";
@@ -1616,27 +1624,24 @@ ${homeComposerHtml}
 ${thinkingSection}
 
       <section aria-labelledby="posts-heading">
-        ${sectionHeading("Writing", "h2", "posts-heading", "", { icon: true })}
+        ${sectionHeading("Writing", "h2", "posts-heading", "", { icon: true, archive: hasMorePosts ? "/writing/" : "" })}
         <ol class="post-list" reversed${liveListAttrs("home-writing")}>
 ${postListHtml}
         </ol>
-        ${hasMorePosts ? '<a class="see-more" href="/writing/" aria-label="All writing">→</a>' : ""}
       </section>
 
       <section aria-labelledby="reading-heading">
-        ${sectionHeading("Reading", "h2", "reading-heading", "", { icon: true })}
+        ${sectionHeading("Reading", "h2", "reading-heading", "", { icon: true, archive: hasMoreReading ? "/reading/latest/" : "" })}
         <ol class="post-list" reversed${liveListAttrs("home-reading")}>
 ${readingHtml}
         </ol>
-        ${hasMoreReading ? '<a class="see-more" href="/reading/latest/" aria-label="All reading">→</a>' : ""}
       </section>
 
       <section aria-labelledby="linklog-heading">
-        ${sectionHeading("Sharing", "h2", "linklog-heading", "", { icon: true })}
+        ${sectionHeading("Sharing", "h2", "linklog-heading", "", { icon: true, archive: hasMoreLinklog ? "/sharing/" : "" })}
         <ol class="post-list" reversed${liveListAttrs("home-linklog")}>
 ${linklogHtml}
         </ol>
-        ${hasMoreLinklog ? '<a class="see-more" href="/sharing/" aria-label="All sharing">→</a>' : ""}
       </section>
 
       <section aria-labelledby="links-heading">

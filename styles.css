@@ -604,9 +604,55 @@ h2 {
   height: var(--fs-xl);
 }
 
+a.section-hint-icon {
+  text-decoration: none;
+}
+
 .section-hint-icon:hover,
 .section-hint-icon:focus-visible {
   color: var(--link-hover);
+}
+
+/* Homepage: the link to a section's archive, on the right of the heading's
+   row and level with its icon, in the same small capitals as the tooltip's
+   name. The arrow nudges right on hover or focus. */
+.section-head:has(.section-more) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.section-more {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.section-more-arrow {
+  display: inline-block;
+  margin-left: 0.35em;
+  letter-spacing: 0;
+  transition: transform 0.15s ease;
+}
+
+.section-more:hover,
+.section-more:focus-visible {
+  color: var(--link-hover);
+}
+
+.section-more:hover .section-more-arrow,
+.section-more:focus-visible .section-more-arrow {
+  transform: translateX(2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .section-more-arrow {
+    transition: none;
+  }
 }
 
 .section-hint-name {
@@ -864,22 +910,6 @@ h2 {
 }
 
 /* See more link */
-.see-more {
-  display: block;
-  text-align: right;
-  margin-top: 0.5rem;
-  font-size: var(--fs-lg);
-  line-height: 1;
-  color: var(--muted);
-  font-weight: 500;
-  text-decoration: none;
-  letter-spacing: 0.04em;
-}
-
-.see-more:hover {
-  color: var(--link-hover);
-}
-
 /* Sharing archive: rich unfurl cards (image + description). The homepage
    Sharing section keeps rendering plain links via renderLinklogItem and
    never gets this class. */
