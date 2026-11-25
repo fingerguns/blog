@@ -130,7 +130,7 @@ Deploy:
 wrangler deploy
 ```
 
-Media at `/media/*` is edge-cached via Workers Cache (`[cache] enabled` in `wrangler.toml`). Responses use long-lived `Cache-Control` headers; admin API responses use `no-store` so they are never cached.
+Media at `/media/*` is edge-cached via Workers Cache (`[cache] enabled` in `wrangler.toml`). `/media/map/*` is the exception to R2: OpenFreeMap's map styles, tiles, fonts and sprites, fetched on demand and kept in the edge cache under OpenFreeMap's own `Cache-Control` (`serveMapTile` in `map-tiles.mjs`; README → Map tiles from rommy.blog). Responses use long-lived `Cache-Control` headers; admin API responses use `no-store` so they are never cached.
 
 ### Cloudflare Pages build env
 

@@ -53,7 +53,12 @@ test("the Now and admin Location maps can load MapLibre and its tiles", () => {
   assert.ok(allows("script-src", "https://cdn.jsdelivr.net/npm/maplibre-gl/dist/maplibre-gl.js"));
   assert.ok(allows("connect-src", "https://cdn.jsdelivr.net/npm/maplibre-gl/dist/maplibre-gl.js"));
   assert.ok(allows("worker-src", "blob:https://rommy.blog/3d1e-77"));
-  assert.ok(allows("connect-src", "https://tiles.openfreemap.org/styles/liberty"));
+  // Basemap files come from the site's own Worker (scripts/lib/map-tiles.mjs),
+  // so content blockers that refuse OpenFreeMap's host can't blank the map —
+  // and nothing should quietly go back to loading them directly.
+  assert.ok(allows("connect-src", "https://rommy.blog/media/map/styles/liberty"));
+  assert.ok(allows("connect-src", "https://rommy.blog/media/map/tiles/20261122_124456_pt/14/4826/6161.pbf"));
+  assert.ok(!allows("connect-src", "https://tiles.openfreemap.org/styles/liberty"));
 });
 
 test("the admin can load the Quill editor", () => {

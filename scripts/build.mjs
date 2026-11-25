@@ -101,6 +101,7 @@ import { jsonForScript } from "./lib/script-json.mjs";
 import { findBrokenImages, formatBrokenImages } from "./lib/validate-images.mjs";
 import { fetchImageSize } from "./lib/image-size.mjs";
 import { DARK_MAP_RECOLOR_JS } from "./lib/map-dark.mjs";
+import { MAP_TILE_REQUEST_JS } from "./lib/map-tiles.mjs";
 import {
   CONTENT_KIND,
   datedItemSort,
@@ -2182,6 +2183,7 @@ const nowLocationMapScript = `    <script>(function(){
   var maplibreSrc='https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.1/dist/maplibre-gl.js';
   function isDark(){return document.documentElement.getAttribute('data-theme')==='dark';}
   ${DARK_MAP_RECOLOR_JS}
+  ${MAP_TILE_REQUEST_JS}
   function escLabel(label){
     return String(label).replace(/&/g,'&amp;').replace(/</g,'&lt;');
   }
@@ -2237,7 +2239,9 @@ const nowLocationMapScript = `    <script>(function(){
         bounds:[[west,south],[east,north]],
         fitBoundsOptions:{padding:20,maxZoom:15},
         scrollZoom:false,
-        attributionControl:false
+        attributionControl:false,
+        // Basemap files load from rommy.blog/media/map/ (lib/map-tiles.mjs).
+        transformRequest:mapTileRequest
       });
       mlMap.addControl(new maplibregl.NavigationControl({showCompass:false}),'top-left');
       mlMap.addControl(new maplibregl.AttributionControl({compact:true}),'bottom-right');
@@ -2597,6 +2601,7 @@ var MAPLIBRE_CSS='https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.1/dist/maplibre-
 var map=null,ready=false,starting=false,markers=[],overlay=null,openPlace=null;
 function isDark(){return document.documentElement.getAttribute('data-theme')==='dark';}
 ${DARK_MAP_RECOLOR_JS}
+${MAP_TILE_REQUEST_JS}
 // The stylesheet is not optional decoration: without it .maplibregl-marker
 // never gets position:absolute, and every pin stacks in normal document flow
 // below the map instead of sitting on it. It is loaded here rather than in the
@@ -2742,7 +2747,7 @@ function start(){
   starting=true;
   load().then(function(){
     if(typeof maplibregl==='undefined')throw new Error('MapLibre unavailable');
-    var opts={container:mapEl,style:STYLES[isDark()?'dark':'light'],scrollZoom:true,attributionControl:false};
+    var opts={container:mapEl,style:STYLES[isDark()?'dark':'light'],scrollZoom:true,attributionControl:false,transformRequest:mapTileRequest};
     if(BOUNDS){opts.bounds=[[BOUNDS[0],BOUNDS[1]],[BOUNDS[2],BOUNDS[3]]];opts.fitBoundsOptions={padding:48,maxZoom:13};}
     else{opts.center=[PLACES[0].lon,PLACES[0].lat];opts.zoom=12;}
     map=new maplibregl.Map(opts);

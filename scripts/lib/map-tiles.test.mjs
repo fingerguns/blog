@@ -57,6 +57,14 @@ test("the client rewrite agrees with proxyUrlFor", () => {
   }
 });
 
+test("every map on the site routes its requests through the rewrite", () => {
+  const admin = read("../../admin/index.html");
+  assert.ok(admin.includes(MAP_TILE_REQUEST_JS), "admin/index.html's inline mapTileRequest has drifted from MAP_TILE_REQUEST_JS");
+  assert.equal(admin.match(/transformRequest: ?mapTileRequest/g)?.length, 2, "both admin Location maps");
+  const build = read("../build.mjs");
+  assert.equal(build.match(/transformRequest:mapTileRequest/g)?.length, 2, "/now/ and the Thinking map view");
+});
+
 test("the Worker refuses what it should not forward, and passes nothing of the visitor's on", async () => {
   const fetched = [];
   const stored = [];
