@@ -587,6 +587,43 @@ h2 {
   display: inline;
 }
 
+/* Homepage section headings show an icon in place of the word
+   (sectionLabelHtml in scripts/lib/section-icons.mjs). The word is still the
+   heading's text for screen readers, and the tooltip leads with it. The
+   icons are in the full text colour at --fs-xl: they carry the page's
+   structure now, so they are not as quiet as the small-caps labels were. */
+.section-hint-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text);
+  border-radius: 4px;
+}
+
+.section-hint-icon .section-icon {
+  width: var(--fs-xl);
+  height: var(--fs-xl);
+}
+
+.section-hint-icon:hover,
+.section-hint-icon:focus-visible {
+  color: var(--link-hover);
+}
+
+.section-hint-name {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Elsewhere has no blurb, so its tooltip is the name alone. */
+.section-hint-name:last-child {
+  margin-bottom: 0;
+}
+
 .section-hint-tip {
   position: absolute;
   left: 0;

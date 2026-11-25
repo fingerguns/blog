@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { d1Configured, d1Query, loadBlogDataFromD1 } from "./d1-client.mjs";
 import { escHtml, escXml } from "./lib/html.mjs";
 import { mergeSectionHints } from "./lib/section-hints.mjs";
+import { sectionLabelHtml, sectionTipHtml } from "./lib/section-icons.mjs";
 import { mergeReadingTabIntros } from "./lib/reading-tab-intros.mjs";
 import { thinkingGridThumbUrl, upgradeSpotifyImageUrl, videoFrameUrlFromVideoUrl, videoPosterKeyFromVideoUrl } from "./lib/media-url.mjs";
 import { fetchLinkUnfurlResult, invalidateUnfurlMisses, unfurlCacheValue } from "./lib/link-unfurl.mjs";
@@ -1359,12 +1360,17 @@ if(toggle){
 
 // The tooltip sits beside the heading, not inside it, so the heading's text
 // (and the accessible name of any section labelled by it) stays just the
-// label; the hint is attached as a description instead.
-const sectionHeading = (label, tag, id, actionsHtml = "") => {
+// label; the hint is attached as a description instead. With `icon`, the
+// homepage's sections show an icon in place of the word — the admin tab's
+// for the four content sections, a globe for Elsewhere (sectionLabelHtml in
+// scripts/lib/section-icons.mjs): the word stays as visually hidden heading
+// text, and the tooltip leads with it.
+const sectionHeading = (label, tag, id, actionsHtml = "", { icon = false } = {}) => {
   const hint = SECTION_HINTS[label];
   const idAttr = id ? ` id="${id}"` : "";
   const tipId = `hint-${String(label).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
-  return `<div class="section-head"><${tag}${idAttr}><span class="section-hint" tabindex="0" aria-describedby="${tipId}">${escHtml(label)}</span></${tag}><div class="section-hint-tip" id="${tipId}" role="tooltip">${escHtml(hint)}</div>${actionsHtml}</div>`;
+  const hintClass = icon ? "section-hint section-hint-icon" : "section-hint";
+  return `<div class="section-head"><${tag}${idAttr}><span class="${hintClass}" tabindex="0" aria-describedby="${tipId}">${sectionLabelHtml(label, { icon })}</span></${tag}><div class="section-hint-tip" id="${tipId}" role="tooltip">${sectionTipHtml(label, hint, { icon })}</div>${actionsHtml}</div>`;
 };
 
 // /writing/ view toggle: collapsed (date + title, the default) or expanded
@@ -1551,7 +1557,7 @@ const homeComposerScript = `    <script>(function(){
 const latestThinkingItem = microblogItems[0];
 const thinkingSection = hasThinking(thinking)
   ? `      <section aria-labelledby="now-heading">
-        ${sectionHeading("Thinking", "h2", "now-heading")}
+        ${sectionHeading("Thinking", "h2", "now-heading", "", { icon: true })}
         <ol class="post-list"${liveListAttrs("home-thinking")}>
           <li>
             <div class="microblog-entry">
@@ -1610,7 +1616,7 @@ ${homeComposerHtml}
 ${thinkingSection}
 
       <section aria-labelledby="posts-heading">
-        ${sectionHeading("Writing", "h2", "posts-heading")}
+        ${sectionHeading("Writing", "h2", "posts-heading", "", { icon: true })}
         <ol class="post-list" reversed${liveListAttrs("home-writing")}>
 ${postListHtml}
         </ol>
@@ -1618,7 +1624,7 @@ ${postListHtml}
       </section>
 
       <section aria-labelledby="reading-heading">
-        ${sectionHeading("Reading", "h2", "reading-heading")}
+        ${sectionHeading("Reading", "h2", "reading-heading", "", { icon: true })}
         <ol class="post-list" reversed${liveListAttrs("home-reading")}>
 ${readingHtml}
         </ol>
@@ -1626,7 +1632,7 @@ ${readingHtml}
       </section>
 
       <section aria-labelledby="linklog-heading">
-        ${sectionHeading("Sharing", "h2", "linklog-heading")}
+        ${sectionHeading("Sharing", "h2", "linklog-heading", "", { icon: true })}
         <ol class="post-list" reversed${liveListAttrs("home-linklog")}>
 ${linklogHtml}
         </ol>
@@ -1634,7 +1640,7 @@ ${linklogHtml}
       </section>
 
       <section aria-labelledby="links-heading">
-        <h2 id="links-heading">Elsewhere</h2>
+        ${sectionHeading("Elsewhere", "h2", "links-heading", "", { icon: true })}
         <ul class="link-list">
 ${linksHtml}
 ${socialsHtml}
