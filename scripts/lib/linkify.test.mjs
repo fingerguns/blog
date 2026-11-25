@@ -77,6 +77,14 @@ test("hashtags link to Bluesky search", () => {
   assert.ok(out.includes(">#brooklyn</a>"));
 });
 
+test("hashtag links carry the hashtag class, URL links carry none", () => {
+  // styles.css shows a.hashtag muted and unclassed links in running text with
+  // a visible underline; a class on a URL link would drop that underline.
+  const out = linkifyThinkingEscapedHtml("see https://example.com and #tag");
+  assert.ok(out.includes('<a class="hashtag" href="'));
+  assert.equal((out.match(/class=/g) || []).length, 1);
+});
+
 test("hashtags inside existing links are left alone", () => {
   // A URL fragment like #section must not become a hashtag link.
   const html = '<a href="https://example.com/#section">https://example.com/#section</a>';

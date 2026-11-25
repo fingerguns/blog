@@ -47,6 +47,9 @@
   --rule: #d5cfc4;
   --link: #1a1a1a;
   --link-hover: #444444;
+  /* Underline for links in running text (post bodies, notes, the colophon):
+     about 3.3:1 against the page, where --rule (1.4:1) all but vanished. */
+  --link-underline: #8a8276;
   --max: 40rem;
   --space: 1.5rem;
   /* Type scale: every fixed font-size in this file is one of these steps
@@ -75,6 +78,7 @@
   --rule: #332e26;
   --link: #ece7dc;
   --link-hover: #b3ab9e;
+  --link-underline: #6f675c;
   --thinking-delete-bg: #1e1a14;
   --surface: #221e18;
   --surface-hover: #2b261f;
@@ -2736,6 +2740,36 @@ html.thinking-lightbox-open {
 .post-list .microblog-body a:hover,
 .microblog-body a:hover {
   color: var(--link-hover);
+  text-decoration-color: currentColor;
+}
+
+/* Links in running text get an underline you can see: Writing bodies, Thinking
+   notes and the colophon. Classed links inside them (cards, photo tiles,
+   hashtags) keep their own look. Lists, navigation and titles keep the hairline,
+   since where they sit already says they are links. */
+.body a:not([class]),
+.post-list .microblog-body a:not([class]),
+.microblog-body a:not([class]) {
+  text-decoration-color: var(--link-underline);
+  text-decoration-thickness: 1.5px;
+}
+.body a:not([class]):hover,
+.post-list .microblog-body a:not([class]):hover,
+.microblog-body a:not([class]):hover {
+  text-decoration-color: currentColor;
+}
+
+/* #hashtags read as tags, not as links in the sentence: muted, no underline
+   until hovered. Muted is 5:1 against the page in both themes. */
+.post-list .microblog-body a.hashtag,
+.microblog-body a.hashtag {
+  color: var(--muted);
+  text-decoration: none;
+}
+.post-list .microblog-body a.hashtag:hover,
+.microblog-body a.hashtag:hover {
+  color: var(--text);
+  text-decoration: underline;
   text-decoration-color: currentColor;
 }
 

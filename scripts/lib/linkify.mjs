@@ -54,7 +54,7 @@ export function linkifyHashtags(html) {
       if (i % 2 === 1) return part;
       return part.replace(HASHTAG_BODY, (match, tag) => {
         const href = blueskyHashtagUrl(tag);
-        return `<a href="${href}" rel="noopener" target="_blank">${match}</a>`;
+        return `<a class="hashtag" href="${href}" rel="noopener" target="_blank">${match}</a>`;
       });
     })
     .join("");
