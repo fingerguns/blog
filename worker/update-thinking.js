@@ -40,6 +40,7 @@ import {
 import { backfillLinklogTags, refreshLinklogTags } from "./linklog-tags.mjs";
 import { getAnthropicUsageSummary } from "./anthropic-usage.mjs";
 import { serveMedia } from "./media.mjs";
+import { serveMapTile } from "./map-tiles.mjs";
 import { CONTACT_ACTIONS, handleContactAdmin, handleContactSubmit, handleInboundEmail } from "./contact.mjs";
 import { createR2PresignedPutUrl } from "./r2-presign.mjs";
 import {
@@ -176,6 +177,10 @@ export default {
     }
 
     const url = new URL(request.url);
+    // Map basemaps ride the /media/* route but come from OpenFreeMap, not R2.
+    if (url.pathname.startsWith("/media/map/")) {
+      return serveMapTile(request, ctx);
+    }
     if (url.pathname.startsWith("/media/")) {
       return serveMedia(request, env);
     }
