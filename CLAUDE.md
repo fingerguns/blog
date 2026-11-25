@@ -10,17 +10,18 @@ Full feature list and Worker action reference: `README.md`. D1 schema, migration
 
 ## Documentation is part of the change, not a follow-up
 
-**Every commit that changes what the site or the admin does also updates the docs that describe it, in the same commit.** Three places, and they drift independently:
+**Every commit that changes what the site or the admin does also updates the docs that describe it, in the same commit.** Four places, and they drift independently:
 
 - `README.md` — the feature list and the architecture notes.
-- `colophon/index.html`, **plain prose** — what a reader is told the site does.
-- `colophon/index.html`, **Whitman version** — the same facts retold in voice, in the numbered sections. Both versions live in one file, so a diff that touches the file proves nothing; check that you edited both.
+- `colophon/index.html`, **short-form** (`#colophon-short`, the version a reader sees by default) — the whole site in **under 500 words**, every update. A new feature earns a clause here only if it is among the things a reader most needs to know; when it does, cut something to make room rather than letting the count creep. `npm run lint:colophon` prints the count, and `npm test`, the docs-check workflow and the docs-guard hook all fail at 500.
+- `colophon/index.html`, **long-form** (`#colophon-long`) — the full plain-prose account, every detail; updated as it always has been.
+- `colophon/index.html`, **Whitman version** (`#colophon-whitman`) — the same facts retold in voice, in the numbered sections. All three versions live in one file, so a diff that touches the file proves nothing; check that you edited each one the change affects.
 
 Read the existing text for what the change makes *wrong*, not only for something to add — a renamed tab, a changed default, a number that moved. Past drift has all been of that kind: the colophon said Inter for four days after the font became Hanken Grotesk, and quoted a thumbnail size that had doubled.
 
 **Cite code by name, never by line number** — a function, constant, section heading or link text (`changelogListHtml` in `scripts/build.mjs`, not `scripts/build.mjs:1994`), and no line counts or branch counts that the next commit changes. A line number is wrong after the next edit to that file; a name stays right until the thing itself is renamed or removed, which is a real change the docs should follow anyway. This applies most to the migration plans (`ORIGIN-MIGRATION.md`, `FORGEJO-MIGRATION.md`, `GIT-COMPARISON.md`), which used to cite line numbers and needed a fix-up PR nearly every week. `.github/workflows/docs-check.yml` (`npm run lint:citations` locally) fails a push or PR that adds one to any tracked Markdown file; a line that must show the pattern, like the example above, opts out with an HTML comment containing `citation-ok`. <!-- citation-ok -->
 
-`.claude/hooks/docs-guard.sh` (wired up in `.claude/settings.json`) refuses a `git commit` that stages `scripts/`, `worker/`, `admin/`, `styles.css`, `_headers`, `build-pages.mjs`, `about/`, or `contact/` without both `README.md` and `colophon/index.html`. It is a backstop for forgetting, not the trigger — write the docs as part of the work. For a change that genuinely needs none (a refactor, a chore, a fix with no visible effect), put `skip-docs` in the commit command; tests-only and docs-only commits pass without it.
+`.claude/hooks/docs-guard.sh` (wired up in `.claude/settings.json`) refuses a `git commit` that stages `scripts/`, `worker/`, `admin/`, `styles.css`, `_headers`, `build-pages.mjs`, `about/`, or `contact/` without both `README.md` and `colophon/index.html`, and refuses any commit that stages a short-form colophon of 500 words or more (no escape hatch for that one). It is a backstop for forgetting, not the trigger — write the docs as part of the work. For a change that genuinely needs none (a refactor, a chore, a fix with no visible effect), put `skip-docs` in the commit command; tests-only and docs-only commits pass without it.
 
 ## Secrets
 
@@ -61,6 +62,7 @@ npm run migrate-build-cache          # seed D1 build_cache from the legacy data/
 npm test                             # node --test over scripts/lib/*.test.mjs
 npm run lint:md                      # markdownlint-cli2
 npm run lint:citations               # fail on line-number citations in tracked .md files (also CI: docs-check.yml)
+npm run lint:colophon                # short-form colophon word count; fails at 500 (also npm test, CI, docs-guard hook)
 npm run cve-scan                     # npm audit (site + Worker) + advisory check of CDN-pinned browser libs; reviewed findings in scripts/cve-scan-ignore.json
 ```
 

@@ -2622,13 +2622,14 @@ article.post {
   color: var(--link-hover);
 }
 
-/* Colophon: normal / Walt Whitman style toggle */
+/* Colophon: short-form (default) / long-form / Walt Whitman switcher */
 .colophon-style-toggle {
   margin: -0.35rem 0 1.5rem;
+  font-size: var(--fs-sm);
+  color: var(--muted);
 }
 
 .colophon-style-toggle a {
-  font-size: var(--fs-sm);
   color: var(--muted);
   text-decoration: underline;
   text-decoration-color: var(--rule);
@@ -2640,14 +2641,24 @@ article.post {
   text-decoration-color: currentColor;
 }
 
+/* The version being read is named, not offered. */
+.colophon-style-toggle a[aria-current] {
+  color: var(--text);
+  text-decoration: none;
+  cursor: default;
+}
+
+#colophon-long,
 #colophon-whitman {
   display: none;
 }
 
-html[data-colophon="whitman"] #colophon-prose {
+html[data-colophon="long"] #colophon-short,
+html[data-colophon="whitman"] #colophon-short {
   display: none;
 }
 
+html[data-colophon="long"] #colophon-long,
 html[data-colophon="whitman"] #colophon-whitman {
   display: block;
 }

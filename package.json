@@ -18,6 +18,7 @@
     "lint:md": "markdownlint-cli2",
     "seed-page-views": "node --env-file=.env scripts/seed-page-views.mjs",
     "lint:citations": "node scripts/check-doc-citations.mjs",
+    "lint:colophon": "node scripts/check-colophon-length.mjs",
     "cve-scan": "node scripts/cve-scan.mjs"
   },
   "devDependencies": {

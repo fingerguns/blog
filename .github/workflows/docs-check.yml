@@ -3,6 +3,9 @@ name: Docs check
 # Docs cite code by name, never by line number (CLAUDE.md → "Cite code by
 # name"). A line number goes stale with the next edit to its file; this keeps
 # new ones out so no recurring sweep is needed to chase them.
+#
+# It also holds the short-form colophon to its word budget (CLAUDE.md →
+# "Documentation is part of the change"): under 500 words, every update.
 on:
   push:
     branches:
@@ -11,12 +14,18 @@ on:
       - '**.md'
       - 'scripts/check-doc-citations.mjs'
       - 'scripts/lib/doc-citations.mjs'
+      - 'colophon/index.html'
+      - 'scripts/check-colophon-length.mjs'
+      - 'scripts/lib/colophon.mjs'
       - '.github/workflows/docs-check.yml'
   pull_request:
     paths:
       - '**.md'
       - 'scripts/check-doc-citations.mjs'
       - 'scripts/lib/doc-citations.mjs'
+      - 'colophon/index.html'
+      - 'scripts/check-colophon-length.mjs'
+      - 'scripts/lib/colophon.mjs'
       - '.github/workflows/docs-check.yml'
 
 jobs:
@@ -29,3 +38,13 @@ jobs:
         with:
           node-version: 20
       - run: node scripts/check-doc-citations.mjs
+
+  colophon:
+    runs-on: ubuntu-latest
+    name: Short-form colophon under 500 words
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/check-colophon-length.mjs
