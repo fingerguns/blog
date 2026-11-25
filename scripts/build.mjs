@@ -1707,7 +1707,9 @@ Sitemap: ${base}/sitemap.xml
 `;
 
 // Archive pages
-const archiveHead = (title, headingHtml, extraHead = "") => `<!DOCTYPE html>
+// `ogPath` is the page's path for og:url (its title, lowercased, by default);
+// null leaves og:url out, for a page with no address of its own (404.html).
+const archiveHead = (title, headingHtml, extraHead = "", { ogPath = title.toLowerCase() } = {}) => `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -1716,8 +1718,7 @@ ${liveWatermarkMeta}
     <title>${escHtml(title)} — ${escHtml(site.title)}</title>
     <meta property="og:type" content="website" />
     <meta property="og:title" content="${escHtml(title)} — ${escHtml(site.title)}" />
-    <meta property="og:url" content="${escHtml(site.url)}/${escHtml(title.toLowerCase())}/" />
-    <meta property="og:site_name" content="${escHtml(site.title)}" />
+${ogPath === null ? "" : `    <meta property="og:url" content="${escHtml(site.url)}/${escHtml(ogPath)}/" />\n`}    <meta property="og:site_name" content="${escHtml(site.title)}" />
     <meta property="og:image" content="${escHtml(site.url)}/favicon.png" />
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
@@ -3112,6 +3113,31 @@ const searchPageHtml = `${archiveHead("Search", null)}
       <ul class="search-results" id="search-results"></ul>
 ${archiveFoot(`    <script type="module" src="/search.js?v=${cssV}"></script>`)}`;
 
+// Not found. Pages serves 404.html, with a 404 status, for any path that has
+// no file; without it, every such path got the homepage with a 200, unstyled
+// because the homepage's stylesheet link is relative. Served at every missing
+// path, so every link here is absolute. The search box is pre-filled with the
+// words of the broken link's last segment (/posts/on-intenton/ → "on
+// intenton"), and submits to /search/, which reads ?q=. A permalink published
+// since the build is not affected: the live overlay answers its 404 with the
+// note or post (worker/live-overlay.mjs).
+const notFoundPageHtml = `${archiveHead("Not found", null, '    <meta name="robots" content="noindex" />', { ogPath: null })}
+      <p>Nothing lives at this address. It may have moved, or the link may have a typo.</p>
+      <form class="search-form" action="/search/" method="get" role="search">
+        <label class="visually-hidden" for="search-input">Search this site</label>
+        <input
+          id="search-input"
+          type="search"
+          name="q"
+          placeholder="Search writing, thinking, reading, sharing…"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+        />
+      </form>
+      <p>Or start from <a href="/">the homepage</a>, or one of the archives: <a href="/thinking/">Thinking</a>, <a href="/writing/">Writing</a>, <a href="/reading/latest/">Reading</a>, <a href="/sharing/">Sharing</a>.</p>
+${archiveFoot(`    <script>(function(){var i=document.getElementById('search-input');if(!i)return;var s=location.pathname.split('/').filter(Boolean).pop()||'';try{s=decodeURIComponent(s);}catch(e){}s=s.replace(/\\.[a-z0-9]+$/i,'').replace(/[-_+.]+/g,' ').trim();if(s)i.value=s;}());</script>`, { infiniteScroll: false })}`;
+
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 
@@ -3119,6 +3145,7 @@ writeFileSync(join(outDir, "index.html"), indexHtml, "utf8");
 writeFileSync(join(outDir, "feed.xml"), feedXml, "utf8");
 writeFileSync(join(outDir, "robots.txt"), robotsTxt, "utf8");
 writeFileSync(join(outDir, "sitemap.xml"), sitemapXml, "utf8");
+writeFileSync(join(outDir, "404.html"), notFoundPageHtml, "utf8");
 
 // Archive pages: written when section exceeds MAX_PER_SECTION, removed when it doesn't
 const manageArchive = (needed, dir, html) => {
