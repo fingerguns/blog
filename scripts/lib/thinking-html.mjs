@@ -1,6 +1,6 @@
 import { escHtml } from "./html.mjs";
 import { linkifyThinkingEscapedHtml } from "./linkify.mjs";
-import { toSiteMediaUrl, videoFrameUrlFromVideoUrl } from "./media-url.mjs";
+import { siteThumbUrl, toSiteMediaUrl, videoFrameUrlFromVideoUrl } from "./media-url.mjs";
 import { extractYouTubeEmbeds, parseYouTubeUrl } from "./youtube.mjs";
 import { extractSpotifyEmbeds, parseSpotifyUrl } from "./spotify.mjs";
 
@@ -167,13 +167,54 @@ function isLandscape(size) {
   return Boolean(size && size.width > 0 && size.height > 0 && size.width > size.height);
 }
 
-function renderPhotoGallery(urls, mediaAlt, photoSize) {
+/**
+ * How a single portrait or square photo (or one whose size is unknown) sits in
+ * a note. Change this one word to switch; styles.css keeps the rules for all
+ * four (`.thinking-photo-tile--fit-*`), and a test fails if one goes missing.
+ *
+ *   "blur"     — full width, height capped; the whole photo, uncropped, with a
+ *                blurred, darkened copy of itself filling the sides (current)
+ *   "crop-top" — the same box, filled by cropping, the crop on the upper third
+ *   "crop"     — the same, cropped from the centre
+ *   "square"   — a square crop at two-thirds width (the original treatment)
+ *
+ * Every one of them opens the full photo in the lightbox when tapped.
+ */
+export const SINGLE_PORTRAIT_FIT = "blur";
+export const SINGLE_PORTRAIT_FITS = ["blur", "crop-top", "crop", "square"];
+
+/**
+ * The same for a portrait or square native video, in the same box as the
+ * photos. Only a video whose still has been measured (the "video-frames" build
+ * cache) is known to be portrait, so one without stays as it was.
+ *
+ *   "blur"     — the whole video, uncropped, the blurred still at its sides (current)
+ *   "crop-top" — the box filled by cropping, the crop on the upper third
+ *   "crop"     — the same, cropped from the centre
+ *   "natural"  — full width at the video's own shape (the original treatment)
+ */
+export const SINGLE_PORTRAIT_VIDEO_FIT = "blur";
+export const SINGLE_PORTRAIT_VIDEO_FITS = ["blur", "crop-top", "crop", "natural"];
+
+// The blurred backdrop is a 64px edge thumbnail: blurred that hard, nobody can
+// tell, and it costs about 2 KB. A photo the thumbnailer can't resize uses
+// itself, which the browser has already fetched for the <img>.
+const BLUR_THUMB_WIDTH = 64;
+const cssUrl = (url) => `url("${String(url).replace(/["\\\n\r]/g, encodeURIComponent)}")`;
+
+/** ` style="--photo-blur:url(…)"` for a blurred backdrop of `imageUrl`. */
+function blurBackdropAttr(imageUrl, siteUrl) {
+  const src = siteThumbUrl(imageUrl, BLUR_THUMB_WIDTH, siteUrl) || imageUrl;
+  return ` style="${escHtml(`--photo-blur:${cssUrl(src)}`)}"`;
+}
+
+function renderPhotoGallery(urls, mediaAlt, photoSize, siteUrl = "", fit = SINGLE_PORTRAIT_FIT) {
   const alt = escHtml(mediaAlt || "Photo");
   if (urls.length === 1) {
     // A landscape photo fills the column at its own aspect ratio; portrait and
-    // square photos (and any whose size is unknown) keep the square crop at
-    // two-thirds width. width/height on the <img> let the browser reserve the
-    // box before the file arrives.
+    // square photos (and any whose size is unknown) get SINGLE_PORTRAIT_FIT.
+    // width/height on the <img> let the browser reserve the box before the
+    // file arrives.
     const size = typeof photoSize === "function" ? photoSize(urls[0]) : null;
     if (isLandscape(size)) {
       return (
@@ -182,8 +223,9 @@ function renderPhotoGallery(urls, mediaAlt, photoSize) {
         `</button>`
       );
     }
+    const backdrop = fit === "blur" ? blurBackdropAttr(urls[0], siteUrl) : "";
     return (
-      `<button type="button" class="thinking-photo-tile thinking-photo-tile--single" data-gallery-index="0" aria-label="View photo">` +
+      `<button type="button" class="thinking-photo-tile thinking-photo-tile--single thinking-photo-tile--fit-${fit}" data-gallery-index="0" aria-label="View photo"${backdrop}>` +
         `<img class="thinking-photo" src="${escHtml(urls[0])}" alt="${alt}" loading="lazy" decoding="async" />` +
       `</button>`
     );
@@ -277,11 +319,18 @@ export function renderThinkingContentHtml(
     const stillAttrs = frameUrl
       ? ` poster="${escHtml(frameUrl)}" width="${frame.width}" height="${frame.height}"`
       : "";
-    parts.push(
-      `<video class="thinking-video" controls preload="${frameUrl ? "none" : videoPreload}" playsinline${stillAttrs} src="${escHtml(resolvedUrl)}#t=0.001">${escHtml(mediaAlt || "Video")}</video>`
-    );
+    const video = `<video class="thinking-video" controls preload="${frameUrl ? "none" : videoPreload}" playsinline${stillAttrs} src="${escHtml(resolvedUrl)}#t=0.001">${escHtml(mediaAlt || "Video")}</video>`;
+    // A portrait or square video gets SINGLE_PORTRAIT_VIDEO_FIT's box, with the
+    // still's blurred thumbnail behind it for "blur".
+    const fit = options.singlePortraitVideoFit || SINGLE_PORTRAIT_VIDEO_FIT;
+    if (frameUrl && !isLandscape(frame) && fit !== "natural") {
+      const backdrop = fit === "blur" ? blurBackdropAttr(frameUrl, siteUrl) : "";
+      parts.push(`<div class="thinking-video-frame thinking-video-frame--fit-${fit}"${backdrop}>${video}</div>`);
+    } else {
+      parts.push(video);
+    }
   } else if (photoUrls.length) {
-    parts.push(renderPhotoGallery(photoUrls, mediaAlt, options.photoSize));
+    parts.push(renderPhotoGallery(photoUrls, mediaAlt, options.photoSize, siteUrl, options.singlePortraitFit));
   }
   return parts.join("\n");
 }

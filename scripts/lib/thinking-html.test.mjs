@@ -5,8 +5,14 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import {
+  SINGLE_PORTRAIT_FIT,
+  SINGLE_PORTRAIT_FITS,
+  SINGLE_PORTRAIT_VIDEO_FIT,
+  SINGLE_PORTRAIT_VIDEO_FITS,
   stripEmbeddableUrls,
   stripUnfurledUrls,
   inferMediaType,
@@ -141,6 +147,36 @@ test("a video without a still keeps the first-frame fallback", () => {
   assert.ok(out.includes('preload="metadata"'));
 });
 
+test("a portrait or square video gets the single-portrait box; a landscape one or an unmeasured one doesn't", () => {
+  const src = `${SITE}/media/thinking/video/2026-07-12/a.mov`;
+  const render = (size, opts = {}) =>
+    renderThinkingContentHtml("", src, "", "video", SITE, { videoFrame: () => size, ...opts });
+
+  for (const size of [{ width: 720, height: 1280 }, { width: 1080, height: 1080 }]) {
+    const out = render(size);
+    assert.ok(out.startsWith(`<div class="thinking-video-frame thinking-video-frame--fit-${SINGLE_PORTRAIT_VIDEO_FIT}"`));
+    assert.ok(out.includes('<video class="thinking-video"'), "the video itself is unchanged inside");
+  }
+  // The blurred backdrop is the still's 64px thumbnail.
+  assert.ok(
+    render({ width: 720, height: 1280 }, { singlePortraitVideoFit: "blur" }).includes(
+      `style="--photo-blur:url(&quot;${SITE}/media/thumb/64/thinking/video/2026-07-12/a-frame.jpg&quot;)"`
+    )
+  );
+  assert.ok(!render({ width: 720, height: 1280 }, { singlePortraitVideoFit: "crop-top" }).includes("--photo-blur"));
+  assert.ok(!render({ width: 1920, height: 1080 }).includes("thinking-video-frame"), "landscape: as before");
+  assert.ok(!render(null).includes("thinking-video-frame"), "no still, shape unknown: as before");
+  assert.ok(!render({ width: 720, height: 1280 }, { singlePortraitVideoFit: "natural" }).includes("thinking-video-frame"));
+});
+
+test("every saved single-video treatment still has its CSS", () => {
+  const css = readFileSync(fileURLToPath(new URL("../../styles.css", import.meta.url)), "utf8");
+  assert.ok(SINGLE_PORTRAIT_VIDEO_FITS.includes(SINGLE_PORTRAIT_VIDEO_FIT));
+  for (const fit of SINGLE_PORTRAIT_VIDEO_FITS.filter((f) => f !== "natural")) {
+    assert.ok(css.includes(`.thinking-video-frame--fit-${fit}`), `styles.css has no rule for video "${fit}"`);
+  }
+});
+
 test("eager video preload is opt-in, not the permalink default", () => {
   // Permalinks used to pass videoPreload: "auto"; a 1 GB clip would start
   // downloading on page open. The renderer still accepts the option.
@@ -218,14 +254,46 @@ test("a single landscape photo renders at its own aspect ratio", () => {
   assert.ok(out.includes('width="4032" height="3024"'));
 });
 
-test("portrait, square, and unmeasured single photos stay square", () => {
+test("portrait, square, and unmeasured single photos get the single-portrait treatment", () => {
   const url = `${SITE}/media/thinking/photo/a.jpg`;
   for (const size of [{ width: 3024, height: 4032 }, { width: 2000, height: 2000 }, null]) {
     const out = renderThinkingContentHtml("", url, "", "image", SITE, { photoSize: () => size });
     assert.ok(out.includes("thinking-photo-tile--single"));
+    assert.ok(out.includes(`thinking-photo-tile--fit-${SINGLE_PORTRAIT_FIT}`));
     assert.ok(!out.includes("thinking-photo-tile--landscape"));
     assert.ok(!out.includes("width="));
   }
+});
+
+test("the blurred backdrop is a 64px thumbnail of the photo, or the photo itself", () => {
+  const own = renderThinkingContentHtml("", `${SITE}/media/thinking/photo/a.jpg`, "", "image", SITE, {
+    singlePortraitFit: "blur",
+  });
+  assert.ok(own.includes(`style="--photo-blur:url(&quot;${SITE}/media/thumb/64/thinking/photo/a.jpg&quot;)"`));
+
+  // Not a photo the thumbnailer can resize: the photo itself, already loaded
+  // for the <img>. A quote in the URL can't break out of the CSS string.
+  const other = renderThinkingContentHtml("", 'https://cdn.example/x".jpg', "", "image", SITE, {
+    singlePortraitFit: "blur",
+  });
+  assert.ok(other.includes("--photo-blur:url(&quot;https://cdn.example/x%22.jpg&quot;)"));
+
+  // Only "blur" carries a backdrop.
+  const crop = renderThinkingContentHtml("", `${SITE}/media/thinking/photo/a.jpg`, "", "image", SITE, {
+    singlePortraitFit: "crop-top",
+  });
+  assert.ok(crop.includes("thinking-photo-tile--fit-crop-top"));
+  assert.ok(!crop.includes("--photo-blur"));
+});
+
+test("every saved single-photo treatment still has its CSS, so switching is one word", () => {
+  const css = readFileSync(fileURLToPath(new URL("../../styles.css", import.meta.url)), "utf8");
+  assert.ok(SINGLE_PORTRAIT_FITS.includes(SINGLE_PORTRAIT_FIT));
+  for (const fit of SINGLE_PORTRAIT_FITS.filter((f) => f !== "square")) {
+    assert.ok(css.includes(`.thinking-photo-tile--fit-${fit}`), `styles.css has no rule for "${fit}"`);
+  }
+  // "square" is the base .thinking-photo-tile--single rule.
+  assert.match(css, /\.thinking-photo-tile--single \{[^}]*aspect-ratio: 1 \/ 1/);
 });
 
 test("landscape photos in a multi-photo grid stay square tiles", () => {

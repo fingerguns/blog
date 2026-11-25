@@ -2380,8 +2380,10 @@ a.post-admin-delete:hover {
   width: calc((100% - 0.5rem) / 2);
 }
 
-/* One photo: a square crop at two-thirds of the column, like the grid tiles;
-   the lightbox still opens the full, uncropped photo. */
+/* One photo. The base rule is the "square" treatment — a square crop at
+   two-thirds of the column, like the grid tiles; the --fit-* rules below
+   reshape it (SINGLE_PORTRAIT_FIT in scripts/lib/thinking-html.mjs picks one).
+   Whichever is used, the lightbox opens the full, uncropped photo. */
 .thinking-photo-tile--single {
   display: block;
   width: calc(200% / 3);
@@ -2434,6 +2436,81 @@ a.post-admin-delete:hover {
 .microblog-body .thinking-photo-tile--landscape img,
 .post .body .thinking-photo-tile--landscape img {
   height: auto;
+}
+
+/* One portrait or square photo: every treatment but "square" fills the column
+   in a 4:5 box whose height is capped at 28rem. On a phone the cap is never
+   reached, so the box is 4:5; on desktop it turns the box into a wide band, so
+   a tall photo costs barely more height than the old two-thirds square. */
+.thinking-photo-tile--fit-blur,
+.thinking-photo-tile--fit-crop,
+.thinking-photo-tile--fit-crop-top,
+.thinking-video-frame--fit-blur,
+.thinking-video-frame--fit-crop,
+.thinking-video-frame--fit-crop-top {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  max-height: 28rem;
+}
+
+/* "crop-top": filled by cropping, the crop on the upper third, where a face
+   or a subject usually is. ("crop" keeps the centre crop of the base rule.) */
+.thinking-photo-tile--fit-crop-top img.thinking-photo,
+.microblog-body .thinking-photo-tile--fit-crop-top img,
+.post .body .thinking-photo-tile--fit-crop-top img,
+.microblog-body .thinking-video-frame--fit-crop-top video.thinking-video,
+.post .body .thinking-video-frame--fit-crop-top video.thinking-video {
+  object-position: 50% 30%;
+}
+
+/* "blur": the whole photo, uncropped, centred in the box, with a blurred and
+   darkened copy of itself (a 64px thumbnail, --photo-blur, set by the renderer)
+   filling the sides. The copy overhangs the box so the blur has no pale edge;
+   the base rule's overflow:hidden trims it. */
+.thinking-photo-tile--fit-blur,
+.thinking-video-frame--fit-blur {
+  position: relative;
+  isolation: isolate;
+  background: #000;
+}
+.thinking-photo-tile--fit-blur::before,
+.thinking-video-frame--fit-blur::before {
+  content: "";
+  position: absolute;
+  inset: -40px;
+  z-index: -1;
+  background: var(--photo-blur) center / cover no-repeat;
+  filter: blur(28px) brightness(0.5) saturate(1.15);
+}
+.thinking-photo-tile--fit-blur img.thinking-photo,
+.microblog-body .thinking-photo-tile--fit-blur img,
+.post .body .thinking-photo-tile--fit-blur img {
+  object-fit: contain;
+}
+
+/* One portrait or square native video (SINGLE_PORTRAIT_VIDEO_FIT): the same
+   box as a photo, the <video> filling it. Its controls span the box. For
+   "blur" the video's own background is clear, so the blurred still shows at
+   its sides; the crops fill the box with cover. */
+.microblog-body .thinking-video-frame,
+.post .body .thinking-video-frame {
+  display: block;
+  overflow: hidden;
+  border-radius: 4px;
+  margin: 0.75rem 0 0;
+}
+.microblog-body .thinking-video-frame video.thinking-video,
+.post .body .thinking-video-frame video.thinking-video {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border-radius: 0;
+  object-fit: cover;
+}
+.microblog-body .thinking-video-frame--fit-blur video.thinking-video,
+.post .body .thinking-video-frame--fit-blur video.thinking-video {
+  object-fit: contain;
+  background: transparent;
 }
 
 html.thinking-lightbox-open {

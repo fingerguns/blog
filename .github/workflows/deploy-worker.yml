@@ -6,6 +6,11 @@ on:
       - main
     paths:
       - 'worker/**'
+      # The Worker bundles the shared renderers and helpers it imports from
+      # scripts/lib/ (the live overlay renders with the same functions as the
+      # build), so a change there has to reach it too. Tests don't ship.
+      - 'scripts/lib/**'
+      - '!scripts/lib/**/*.test.mjs'
 
 jobs:
   deploy:

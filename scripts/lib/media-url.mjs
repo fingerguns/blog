@@ -74,23 +74,32 @@ export function upgradeSpotifyImageUrl(url) {
   return url;
 }
 
-/** Small square thumb for Thinking grid tiles (Worker-resized for rommy.blog media). */
-export function thinkingGridThumbUrl(url, siteUrl = "https://rommy.blog") {
-  if (!url) return "";
-  const normalized = toSiteMediaUrl(url, siteUrl);
+/**
+ * A Worker-resized square JPEG of a rommy.blog photo at `width` (one of the
+ * widths worker/image-thumb.mjs allows), or "" for any other image.
+ */
+export function siteThumbUrl(url, width, siteUrl = "https://rommy.blog") {
+  if (!url || !siteUrl) return "";
   try {
     const base = siteUrl.replace(/\/$/, "");
-    const u = new URL(normalized);
-    const origin = new URL(base).origin;
-    if (u.origin === origin) {
+    const u = new URL(toSiteMediaUrl(url, siteUrl));
+    if (u.origin === new URL(base).origin) {
       const key = u.pathname.replace(/^\/media\//, "");
       if (/^(thinking|reading)\/.+\.(jpe?g|png|webp|gif)$/i.test(key)) {
-        return `${base}/media/thumb/${GRID_THUMB_WIDTH}/${key}`;
+        return `${base}/media/thumb/${width}/${key}`;
       }
     }
   } catch {
     /* ignore invalid URLs */
   }
+  return "";
+}
+
+/** Small square thumb for Thinking grid tiles (Worker-resized for rommy.blog media). */
+export function thinkingGridThumbUrl(url, siteUrl = "https://rommy.blog") {
+  if (!url) return "";
+  const thumb = siteThumbUrl(url, GRID_THUMB_WIDTH, siteUrl);
+  if (thumb) return thumb;
   if (/spotifycdn\.com\/image\//i.test(url)) {
     return upgradeSpotifyImageUrl(url);
   }
