@@ -3,7 +3,7 @@ import {
   buildLatestCoverLookup,
   inheritLatestCover,
 } from "../scripts/lib/reading-cover-inherit.mjs";
-import { thinkingSlugFromDate } from "../scripts/lib/thinking-slug.mjs";
+import { sharingPostText, thinkingSlugCandidates } from "../scripts/lib/sharing-thinking.mjs";
 import { escHtml } from "../scripts/lib/html.mjs";
 import { coalesceImageParagraphsHtml } from "../scripts/lib/coalesce-images.mjs";
 import { addHashtagFacets } from "../scripts/lib/linkify.mjs";
@@ -38,7 +38,6 @@ import {
   scheduleReadingGenrePrune,
 } from "./reading-genres.mjs";
 import { backfillLinklogTags, refreshLinklogTags } from "./linklog-tags.mjs";
-import { hashtagWordsForTags } from "../scripts/lib/linklog-tags.mjs";
 import { getAnthropicUsageSummary } from "./anthropic-usage.mjs";
 import { serveMedia } from "./media.mjs";
 import { CONTACT_ACTIONS, handleContactAdmin, handleContactSubmit, handleInboundEmail } from "./contact.mjs";
@@ -1018,6 +1017,18 @@ async function handleRetryThinkingBluesky(payload, db, cors, env) {
       syndicationMedia,
     });
     await dbRun(db, "UPDATE thinking_posts SET bluesky_uri = ? WHERE slug = ?", sent.uri, slug);
+    // A shared link's note and its Sharing row are one post; keep the link's
+    // address in step so deleting it from /sharing/ deletes this post too.
+    try {
+      await dbRun(
+        db,
+        "UPDATE linklog SET bluesky_uri = ? WHERE id = (SELECT linklog_id FROM thinking_posts WHERE slug = ?)",
+        sent.uri,
+        slug
+      );
+    } catch {
+      /* before migrate-thinking-linklog.sql nothing is linked */
+    }
     await recordSyndicationSuccess(env, "Bluesky", slug);
     return json({ ok: true, blueskyUri: sent.uri, blueskyCompressed: sent.compressed }, 200, cors);
   } catch (err) {
@@ -1160,7 +1171,9 @@ async function handleThinking(payload, db, cors, env, ctx) {
   try {
     const now = new Date();
     const nowIso = now.toISOString();
-    const slug = thinkingSlugFromDate(now);
+    // A note in the same minute as a shared link moves to the next minute
+    // rather than overwriting it (freeThinkingSlug).
+    const slug = await freeThinkingSlug(db, now, (row) => !row.linklog_id);
     const postUrl = `${SITE_URL}/thinking/${slug}/`;
 
     let mediaUrl = null;
@@ -2648,9 +2661,24 @@ async function handleDeleteSharing(payload, db, cors, env, ctx) {
 
     await dbRun(db, "DELETE FROM linklog WHERE id = ?", id);
     await recordContentChange(db, CONTENT_KIND.LINKLOG, id, "delete");
+
+    // The same post in Thinking (addSharingToThinking) goes with it. Its
+    // cross-posts are the ones just deleted above.
+    let linkedNotes = [];
+    try {
+      ({ results: linkedNotes = [] } = await dbAll(db, "SELECT slug FROM thinking_posts WHERE linklog_id = ?", id));
+    } catch {
+      // Before migrate-thinking-linklog.sql no note is linked to a link.
+    }
+    for (const { slug } of linkedNotes) {
+      await dbRun(db, "DELETE FROM thinking_posts WHERE slug = ?", slug);
+      await recordContentChange(db, CONTENT_KIND.THINKING, slug, "delete");
+    }
+
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Sharing", triggerRebuild);
-    return json({ ok: true, deleted, warnings }, 200, cors);
+    if (linkedNotes.length) scheduleSectionHintRefresh(ctx, env, db, "Thinking", triggerRebuild);
+    return json({ ok: true, deleted, warnings, thinkingDeleted: linkedNotes.map((n) => n.slug) }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Delete failed" }, 500, cors);
   }
@@ -2670,11 +2698,17 @@ async function handleDeleteThinking(payload, db, cors, env, ctx) {
     typeof payload.microblog_url === "string" ? payload.microblog_url.trim() : "";
 
   try {
-    const row = await dbFirst(
-      db,
-      "SELECT microblog_url, bluesky_uri, mastodon_uri FROM thinking_posts WHERE slug = ?",
-      slug
-    );
+    let row;
+    try {
+      row = await dbFirst(
+        db,
+        "SELECT microblog_url, bluesky_uri, mastodon_uri, linklog_id FROM thinking_posts WHERE slug = ?",
+        slug
+      );
+    } catch {
+      // Before migrate-thinking-linklog.sql there is no linklog_id column.
+      row = await dbFirst(db, "SELECT microblog_url, bluesky_uri, mastodon_uri FROM thinking_posts WHERE slug = ?", slug);
+    }
     if (!row) {
       return json({ error: "Post not found" }, 404, cors);
     }
@@ -2729,6 +2763,15 @@ async function handleDeleteThinking(payload, db, cors, env, ctx) {
     await dbRun(db, "DELETE FROM thinking_posts WHERE slug = ?", slug);
     await recordContentChange(db, CONTENT_KIND.THINKING, slug, "delete");
 
+    // A note that is a shared link (addSharingToThinking) takes the link with
+    // it: one post, in two places. Its cross-posts went above, with the note's.
+    const linklogId = row.linklog_id || null;
+    if (linklogId) {
+      await dbRun(db, "DELETE FROM linklog WHERE id = ?", linklogId);
+      await recordContentChange(db, CONTENT_KIND.LINKLOG, linklogId, "delete");
+      scheduleSectionHintRefresh(ctx, env, db, "Sharing", triggerRebuild);
+    }
+
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Thinking", triggerRebuild);
 
@@ -2741,6 +2784,7 @@ async function handleDeleteThinking(payload, db, cors, env, ctx) {
         blueskySkipped,
         mastodonWarning,
         mastodonDeleted,
+        sharingDeleted: linklogId,
       },
       200,
       cors
@@ -3335,6 +3379,74 @@ async function handleUpdateReadingCover(payload, db, cors, env) {
 
 // ─── Sharing ──────────────────────────────────────────────────────────────────
 
+/**
+ * The first free Thinking slug for a post made at `date` (its own minute, else
+ * the next ones — thinkingSlugCandidates). `canTake(row)` says whether an
+ * existing row there may be overwritten: a shared link takes none, and a note
+ * takes any but a shared link's, keeping the overwrite handleThinking has
+ * always done for a second note in the same minute. Before
+ * migrate-thinking-linklog.sql there is no linklog_id column, and the post's
+ * own minute is used as before.
+ */
+async function freeThinkingSlug(db, date, canTake) {
+  const candidates = thinkingSlugCandidates(date);
+  let taken;
+  try {
+    const { results = [] } = await dbAll(
+      db,
+      `SELECT slug, linklog_id FROM thinking_posts WHERE slug IN (${candidates.map(() => "?").join(", ")})`,
+      ...candidates
+    );
+    taken = new Map(results.map((row) => [row.slug, row]));
+  } catch {
+    return candidates[0];
+  }
+  const slug = candidates.find((c) => !taken.has(c) || canTake(taken.get(c)));
+  if (!slug) throw new Error("No free Thinking permalink in the next ten minutes");
+  return slug;
+}
+
+/**
+ * Publish a just-shared link as a Thinking note: the same words the
+ * cross-posts carry (sharingPostText), the link unfurled into a card beneath
+ * them by the usual Thinking renderer, and the neighborhood like any note.
+ * The note stores the cross-posts' addresses because they are its
+ * cross-posts too — one post, shown in Sharing and in Thinking — and
+ * linklog_id ties the two rows so deleting either deletes both
+ * (handleDeleteSharing, handleDeleteThinking) and the cross-posts once.
+ * Returns the note's slug.
+ */
+async function addSharingToThinking(db, env, ctx, { linklogId, text, now, microblogUrl, blueskyUri, mastodonUrl }) {
+  const nowIso = now.toISOString();
+  const slug = await freeThinkingSlug(db, now, () => false);
+  const contentHtml = renderThinkingContentHtml(text, null, "", "", SITE_URL, { mediaUrls: [] });
+  let locationLabel = "";
+  try {
+    locationLabel = await resolveLocationLabelForDatetime(db, env, nowIso);
+  } catch {
+    /* omit location when lookup fails */
+  }
+  await dbRun(
+    db,
+    `INSERT INTO thinking_posts (slug, text, media_url, media_alt, media_type, media_urls, content_html, datetime, microblog_url, bluesky_uri, mastodon_uri, location_label, created_at, linklog_id)
+     VALUES (?, ?, NULL, '', NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    slug,
+    text,
+    contentHtml,
+    nowIso,
+    microblogUrl || null,
+    blueskyUri || null,
+    mastodonUrl || null,
+    locationLabel || null,
+    nowIso,
+    linklogId
+  );
+  await recordContentChange(db, CONTENT_KIND.THINKING, slug, "upsert");
+  ctx.waitUntil(warmThinkingCaches(env, { text, mediaUrl: null, mediaType: "", mediaUrls: [], contentHtml }));
+  scheduleSectionHintRefresh(ctx, env, db, "Thinking", triggerRebuild);
+  return slug;
+}
+
 async function handleSharing(body, db, cors, env, ctx) {
   const { url } = body;
   let { title } = body;
@@ -3394,12 +3506,7 @@ async function handleSharing(body, db, cors, env, ctx) {
       if (tagResult.saved) tags = tagResult.tags;
     }
 
-    const hashtags = hashtagWordsForTags(tags)
-      .map((w) => `#${w}`)
-      .join(" ");
-    const syndicationText = hashtags
-      ? `${entry.title} ${hashtags}\n\n${entry.url}`
-      : `${entry.title}\n\n${entry.url}`;
+    const syndicationText = sharingPostText({ title: entry.title, url: entry.url, tags });
 
     const { microblogWarning, blueskyWarning, mastodonWarning, microblogUrl, blueskyUri, mastodonUrl } =
       await syndicateText(env, syndicationText, entry.url);
@@ -3421,9 +3528,33 @@ async function handleSharing(body, db, cors, env, ctx) {
       }
     }
 
+    // Thinking is one more place the same post goes. Like a cross-post, a
+    // failure here is reported, never fails a link that is already shared.
+    let thinkingSlug = null;
+    let thinkingWarning = null;
+    if (linklogId) {
+      try {
+        thinkingSlug = await addSharingToThinking(db, env, ctx, {
+          linklogId,
+          text: syndicationText,
+          now,
+          microblogUrl,
+          blueskyUri,
+          mastodonUrl,
+        });
+      } catch (err) {
+        console.error("shared link not added to Thinking:", err?.message || err);
+        thinkingWarning = formatServiceWarning("Thinking", err?.message || "Could not add the link to Thinking.");
+      }
+    }
+
     await triggerRebuild(env);
     scheduleSectionHintRefresh(ctx, env, db, "Sharing", triggerRebuild);
-    return json({ ok: true, entry, tags, microblogWarning, blueskyWarning, mastodonWarning }, 200, cors);
+    return json(
+      { ok: true, entry, tags, thinkingSlug, microblogWarning, blueskyWarning, mastodonWarning, thinkingWarning },
+      200,
+      cors
+    );
   } catch (err) {
     return json({ error: err.message || "Update failed" }, 500, cors);
   }

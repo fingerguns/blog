@@ -97,8 +97,12 @@ CREATE TABLE IF NOT EXISTS thinking_posts (
   bluesky_uri TEXT,
   mastodon_uri TEXT,
   location_label TEXT,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  -- The Sharing link this note publishes (migrate-thinking-linklog.sql);
+  -- NULL for every other note.
+  linklog_id INTEGER
 );
+CREATE INDEX IF NOT EXISTS idx_thinking_posts_linklog_id ON thinking_posts (linklog_id);
 
 CREATE TABLE IF NOT EXISTS location_points (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

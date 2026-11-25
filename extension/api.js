@@ -52,6 +52,7 @@ export function warningsOf(result) {
     ["Micro.blog", result.microblogWarning],
     ["Bluesky", result.blueskyWarning],
     ["Mastodon", result.mastodonWarning],
+    ["Thinking", result.thinkingWarning],
   ]
     .filter(([, w]) => w)
     .map(([name, w]) => `${name}: ${w}`);

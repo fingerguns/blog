@@ -67,6 +67,12 @@ Record where each Sharing link was cross-posted (`microblog_url`, `bluesky_uri`,
 wrangler d1 execute rommy-blog-db --file=migrate-linklog-syndication.sql --remote
 ```
 
+Publish each new Sharing link as a Thinking note too (`linklog_id` on `thinking_posts`, tying the note to its link so deleting either deletes both). Until this runs, the Worker shares links as before and skips the Thinking note:
+
+```bash
+wrangler d1 execute rommy-blog-db --file=migrate-thinking-linklog.sql --remote
+```
+
 Add permalink view counts (`page_views`, filled by the Worker on each page load and seeded once from Google Analytics with `npm run seed-page-views`):
 
 ```bash

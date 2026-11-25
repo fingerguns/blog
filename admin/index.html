@@ -2668,7 +2668,9 @@
         } else if (result.blueskyCompressed) {
           lines.push("Bluesky: Posted a compressed copy (under 2 MB).");
         }
-        var warn = !!(result.microblogWarning || result.blueskyWarning);
+        // A shared link that didn't make it into Thinking (addSharingToThinking).
+        if (result.thinkingWarning) lines.push(result.thinkingWarning);
+        var warn = !!(result.microblogWarning || result.blueskyWarning || result.thinkingWarning);
         return { text: lines.join("\n"), warn: warn };
       }
 
