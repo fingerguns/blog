@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { d1Configured, d1Query, loadBlogDataFromD1 } from "./d1-client.mjs";
 import { escHtml, escXml } from "./lib/html.mjs";
 import { SECTION_HINTS } from "./lib/section-hints.mjs";
+import { versionStaticAssetLinks } from "./lib/static-asset-version.mjs";
 import { sectionLabelHtml, sectionTipHtml } from "./lib/section-icons.mjs";
 import { mergeReadingTabIntros } from "./lib/reading-tab-intros.mjs";
 import { thinkingGridThumbUrl, upgradeSpotifyImageUrl, videoFrameUrlFromVideoUrl, videoPosterKeyFromVideoUrl } from "./lib/media-url.mjs";
@@ -3260,6 +3261,15 @@ for (const entry of STATIC_ENTRIES) {
   const src = join(root, entry);
   if (existsSync(src)) {
     cpSync(src, join(outDir, entry), { recursive: true });
+  }
+}
+// The copied pages link styles.css and thinking-composer.js without a
+// version; stamp this build's, as the generated pages have (why:
+// scripts/lib/static-asset-version.mjs).
+for (const page of ["about", "admin", "colophon", "contact"]) {
+  const pagePath = join(outDir, page, "index.html");
+  if (existsSync(pagePath)) {
+    writeFileSync(pagePath, versionStaticAssetLinks(readFileSync(pagePath, "utf8"), cssV), "utf8");
   }
 }
 
