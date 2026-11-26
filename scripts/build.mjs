@@ -1365,18 +1365,17 @@ if(toggle){
 // homepage's sections show an icon in place of the word — the admin tab's
 // for the four content sections, a globe for Elsewhere (sectionLabelHtml in
 // scripts/lib/section-icons.mjs): the word stays as visually hidden heading
-// text, and the tooltip leads with it. With `archive` (a path), the label
-// becomes a link to that section's archive, and a small "All →" link to the
-// same place sits on the right of the heading's row.
+// text, and the tooltip leads with it. With `archive` (a path), a small
+// "All →" link to that section's archive sits on the right of the heading's
+// row. The label itself is never a link: on a phone, tapping it is how the
+// tooltip opens, and a link there navigated away before it could be read.
 const sectionHeading = (label, tag, id, actionsHtml = "", { icon = false, archive = "" } = {}) => {
   const hint = SECTION_HINTS[label];
   const idAttr = id ? ` id="${id}"` : "";
   const tipId = `hint-${String(label).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
   const hintClass = icon ? "section-hint section-hint-icon" : "section-hint";
   const labelHtml = sectionLabelHtml(label, { icon });
-  const hintHtml = archive
-    ? `<a class="${hintClass}" href="${archive}" aria-describedby="${tipId}">${labelHtml}</a>`
-    : `<span class="${hintClass}" tabindex="0" aria-describedby="${tipId}">${labelHtml}</span>`;
+  const hintHtml = `<span class="${hintClass}" tabindex="0" aria-describedby="${tipId}">${labelHtml}</span>`;
   const moreHtml = archive
     ? `<a class="section-more" href="${archive}" aria-label="All ${escHtml(String(label).toLowerCase())}">All<span class="section-more-arrow" aria-hidden="true">→</span></a>`
     : "";

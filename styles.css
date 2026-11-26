@@ -608,10 +608,6 @@ h2 {
   height: var(--fs-xl);
 }
 
-a.section-hint-icon {
-  text-decoration: none;
-}
-
 .section-hint-icon:hover,
 .section-hint-icon:focus-visible {
   color: var(--link-hover);
