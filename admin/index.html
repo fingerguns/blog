@@ -1682,7 +1682,7 @@
         // Basemap files load from rommy.blog/media/map/, not tiles.openfreemap.org,
         // which some content blockers refuse. Keep identical to MAP_TILE_REQUEST_JS
         // in scripts/lib/map-tiles.mjs — map-tiles.test.mjs fails if the two drift.
-        function mapTileRequest(url){var m=/^https:\/\/tiles\.openfreemap\.org\/([^\/?#]+)([^?#]*)/.exec(url);var n=m&&{styles:'styles',planet:'tiles',fonts:'fonts',sprites:'sprites',natural_earth:'natural_earth'}[m[1]];return n?{url:'https://rommy.blog/media/map/'+n+m[2]}:{url:url};}
+        function mapTileRequest(url){var m=/^https:\/\/tiles\.openfreemap\.org\/([^\/?#]+)([^?#]*)/.exec(url);var n=m&&({styles:'styles',planet:'tiles',fonts:'fonts',sprites:'sprites',natural_earth:'natural_earth'}[m[1]]||(/^[a-z0-9_]*planet[a-z0-9_]*$/.test(m[1])?m[1].replace('planet','tiles'):null));return n?{url:'https://rommy.blog/media/map/'+n+m[2]}:{url:url};}
 
         function recolorDarkBasemap(map){
           if(!map)return;

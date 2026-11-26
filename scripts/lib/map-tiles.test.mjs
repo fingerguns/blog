@@ -18,6 +18,9 @@ const OFM = {
   font: "https://tiles.openfreemap.org/fonts/Noto%20Sans%20Regular/0-255.pbf",
   sprite: "https://tiles.openfreemap.org/sprites/ofm_f384/ofm@2x.png",
   shaded: "https://tiles.openfreemap.org/natural_earth/ne2sr/0/0/0.png",
+  // OpenFreeMap's failover tileset, which its styles used on 2026-11-26.
+  backupIndex: "https://tiles.openfreemap.org/backup_planet",
+  backupTile: "https://tiles.openfreemap.org/backup_planet/20261122_124456_pt/14/4826/6161.pbf",
 };
 
 test("OpenFreeMap URLs move to rommy.blog, with planet renamed tiles", () => {
@@ -26,6 +29,8 @@ test("OpenFreeMap URLs move to rommy.blog, with planet renamed tiles", () => {
   assert.equal(proxyUrlFor(OFM.tile), "https://rommy.blog/media/map/tiles/20261122_124456_pt/14/4826/6161.pbf");
   assert.equal(proxyUrlFor(OFM.font), "https://rommy.blog/media/map/fonts/Noto%20Sans%20Regular/0-255.pbf");
   assert.equal(proxyUrlFor(`${OFM.style}?v=2`), "https://rommy.blog/media/map/styles/dark");
+  assert.equal(proxyUrlFor(OFM.backupIndex), "https://rommy.blog/media/map/backup_tiles");
+  assert.equal(proxyUrlFor(OFM.backupTile), "https://rommy.blog/media/map/backup_tiles/20261122_124456_pt/14/4826/6161.pbf");
 });
 
 test("nothing else is rewritten", () => {
@@ -42,6 +47,8 @@ test("every rewritten URL leads the Worker back to the same OpenFreeMap file", (
 
 test("the Worker forwards only OpenFreeMap's own folders", () => {
   assert.equal(upstreamUrlFor("/media/map/planet/x.pbf"), null, "only the renamed folder is forwarded");
+  assert.equal(upstreamUrlFor("/media/map/backup_planet/x.pbf"), null, "a tileset is only forwarded under its renamed folder");
+  assert.equal(upstreamUrlFor("/media/map/tiles-x/y"), null, "renamed folders keep OpenFreeMap's character set");
   assert.equal(upstreamUrlFor("/media/map/admin"), null);
   assert.equal(upstreamUrlFor("/media/map/"), null);
   assert.equal(upstreamUrlFor("/media/map/styles//dark"), null);
