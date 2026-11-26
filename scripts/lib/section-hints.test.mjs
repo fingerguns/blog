@@ -2,20 +2,20 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
-import { SECTION_NAMES, STATIC_SECTION_HINTS, mergeSectionHints } from "./section-hints.mjs";
+import { SECTION_HINTS } from "./section-hints.mjs";
 
-test("Elsewhere has a hand-written tooltip even with nothing stored", () => {
-  assert.equal(mergeSectionHints(null).Elsewhere, STATIC_SECTION_HINTS.Elsewhere);
-  assert.ok(STATIC_SECTION_HINTS.Elsewhere.length > 0);
+test("every homepage section has a hand-written tooltip", () => {
+  for (const name of ["Thinking", "Writing", "Reading", "Sharing", "Elsewhere"]) {
+    assert.equal(typeof SECTION_HINTS[name], "string", name);
+    assert.ok(SECTION_HINTS[name].trim().length > 0, name);
+  }
 });
 
-test("a stored copy of a static hint never shadows the hand-written one", () => {
-  const merged = mergeSectionHints({ Thinking: "fresh", Elsewhere: "old copy saved to D1" });
-  assert.equal(merged.Thinking, "fresh");
-  assert.equal(merged.Elsewhere, STATIC_SECTION_HINTS.Elsewhere);
-});
-
-test("static hints are never sent to Claude Fable for regeneration", () => {
-  for (const name of Object.keys(STATIC_SECTION_HINTS)) assert.ok(!SECTION_NAMES.includes(name));
+test("nothing regenerates the tooltips or reads them from D1", () => {
+  const read = (rel) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
+  assert.ok(!/section[-_]hints?|SectionHint/i.test(read("../../worker/update-thinking.js")));
+  assert.ok(!/section_hints/.test(read("../d1-client.mjs")));
 });

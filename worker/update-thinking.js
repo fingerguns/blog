@@ -20,12 +20,6 @@ import { warmThinkingCaches, warmLinklogCache } from "./live-warm.mjs";
 import { parseYouTubeUrl } from "../scripts/lib/youtube.mjs";
 import { LINK_UNFURL_USER_AGENT, fallbackUnfurlFromUrl } from "../scripts/lib/link-unfurl.mjs";
 import {
-  scheduleSectionHintRefresh,
-  refreshSectionHint,
-  loadSectionHints,
-  SECTION_NAMES,
-} from "./section-hints.mjs";
-import {
   scheduleReadingTabIntroRefresh,
   refreshReadingTabIntro,
   loadReadingTabIntros,
@@ -314,17 +308,6 @@ export default {
 
     if (action === "verify") {
       return json({ ok: true }, 200, cors);
-    }
-
-    if (action === "refresh-section-hints") {
-      const section =
-        typeof payload.section === "string" ? payload.section.trim() : "";
-      const sections = section && SECTION_NAMES.includes(section) ? [section] : [...SECTION_NAMES];
-      for (const name of sections) {
-        await refreshSectionHint(env, db, name, null);
-      }
-      await triggerRebuild(env);
-      return json({ ok: true, hints: await loadSectionHints(db) }, 200, cors);
     }
 
     if (action === "refresh-reading-tab-intros") {
@@ -1369,7 +1352,6 @@ async function handleThinking(payload, db, cors, env, ctx) {
     ctx.waitUntil(warmThinkingCaches(env, { text, mediaUrl, mediaType, mediaUrls: mediaType === "image" ? mediaUrls : [], contentHtml }));
 
     await triggerRebuild(env);
-    scheduleSectionHintRefresh(ctx, env, db, "Thinking", triggerRebuild);
 
     return json(
       {
@@ -2681,8 +2663,6 @@ async function handleDeleteSharing(payload, db, cors, env, ctx) {
     }
 
     await triggerRebuild(env);
-    scheduleSectionHintRefresh(ctx, env, db, "Sharing", triggerRebuild);
-    if (linkedNotes.length) scheduleSectionHintRefresh(ctx, env, db, "Thinking", triggerRebuild);
     return json({ ok: true, deleted, warnings, thinkingDeleted: linkedNotes.map((n) => n.slug) }, 200, cors);
   } catch (err) {
     return json({ error: err.message || "Delete failed" }, 500, cors);
@@ -2774,11 +2754,9 @@ async function handleDeleteThinking(payload, db, cors, env, ctx) {
     if (linklogId) {
       await dbRun(db, "DELETE FROM linklog WHERE id = ?", linklogId);
       await recordContentChange(db, CONTENT_KIND.LINKLOG, linklogId, "delete");
-      scheduleSectionHintRefresh(ctx, env, db, "Sharing", triggerRebuild);
     }
 
     await triggerRebuild(env);
-    scheduleSectionHintRefresh(ctx, env, db, "Thinking", triggerRebuild);
 
     return json(
       {
@@ -2867,7 +2845,6 @@ async function handlePost(body, db, cors, env, ctx) {
     );
 
     await triggerRebuild(env);
-    scheduleSectionHintRefresh(ctx, env, db, "Writing", triggerRebuild);
 
     return json({ ok: true, slug, url: postUrl, microblogWarning, blueskyWarning, mastodonWarning }, 200, cors);
   } catch (err) {
@@ -2923,7 +2900,6 @@ async function handleReading(body, db, cors, env, ctx) {
     );
 
     await triggerRebuild(env);
-    scheduleSectionHintRefresh(ctx, env, db, "Reading", triggerRebuild);
     scheduleReadingTabIntroRefresh(ctx, env, db, "latest", triggerRebuild);
     return json({ ok: true, entry, microblogWarning, blueskyWarning, mastodonWarning }, 200, cors);
   } catch (err) {
@@ -2959,7 +2935,6 @@ async function handleDeleteReading(payload, db, cors, env, ctx) {
     await recordContentChange(db, CONTENT_KIND.READING, id, "delete");
 
     await triggerRebuild(env);
-    scheduleSectionHintRefresh(ctx, env, db, "Reading", triggerRebuild);
     scheduleReadingTabIntroRefresh(ctx, env, db, "latest", triggerRebuild);
 
     return json({ ok: true }, 200, cors);
@@ -3014,7 +2989,6 @@ async function handleReadingFavorite(body, db, cors, env, ctx) {
     await recordContentChange(db, CONTENT_KIND.FAVORITE, favoriteId, "upsert");
 
     await triggerRebuild(env);
-    scheduleSectionHintRefresh(ctx, env, db, "Reading", triggerRebuild);
     scheduleReadingTabIntroRefresh(ctx, env, db, "mustReads", triggerRebuild);
     if (favoriteId) {
       scheduleReadingGenreAssignment(ctx, env, db, favoriteId, triggerRebuild);
@@ -3062,7 +3036,6 @@ async function handleDeleteReadingFavorite(payload, db, cors, env, ctx) {
     await recordContentChange(db, CONTENT_KIND.FAVORITE, id, "delete");
 
     await triggerRebuild(env);
-    scheduleSectionHintRefresh(ctx, env, db, "Reading", triggerRebuild);
     scheduleReadingTabIntroRefresh(ctx, env, db, "mustReads", triggerRebuild);
     scheduleReadingGenrePrune(ctx, env, db, triggerRebuild);
 
@@ -3448,7 +3421,6 @@ async function addSharingToThinking(db, env, ctx, { linklogId, text, now, microb
   );
   await recordContentChange(db, CONTENT_KIND.THINKING, slug, "upsert");
   ctx.waitUntil(warmThinkingCaches(env, { text, mediaUrl: null, mediaType: "", mediaUrls: [], contentHtml }));
-  scheduleSectionHintRefresh(ctx, env, db, "Thinking", triggerRebuild);
   return slug;
 }
 
@@ -3554,7 +3526,6 @@ async function handleSharing(body, db, cors, env, ctx) {
     }
 
     await triggerRebuild(env);
-    scheduleSectionHintRefresh(ctx, env, db, "Sharing", triggerRebuild);
     return json(
       { ok: true, entry, tags, thinkingSlug, microblogWarning, blueskyWarning, mastodonWarning, thinkingWarning },
       200,
@@ -3666,7 +3637,6 @@ async function handleEditPost(body, db, cors, env, ctx) {
     await recordContentChange(db, CONTENT_KIND.POST, cleanSlug, "upsert");
 
     await triggerRebuild(env);
-    scheduleSectionHintRefresh(ctx, env, db, "Writing", triggerRebuild);
 
     return json({ ok: true, url: `${SITE_URL}/posts/${cleanSlug}/` }, 200, cors);
   } catch (err) {
@@ -3695,7 +3665,6 @@ async function handleDeletePost(body, db, cors, env, ctx) {
     await recordContentChange(db, CONTENT_KIND.POST, cleanSlug, "delete");
 
     await triggerRebuild(env);
-    scheduleSectionHintRefresh(ctx, env, db, "Writing", triggerRebuild);
 
     return json({ ok: true }, 200, cors);
   } catch (err) {
@@ -3747,7 +3716,6 @@ async function handleUnpublishPost(body, db, cors, env, ctx) {
     await recordContentChange(db, CONTENT_KIND.POST, cleanSlug, "delete");
 
     await triggerRebuild(env);
-    scheduleSectionHintRefresh(ctx, env, db, "Writing", triggerRebuild);
 
     return json({ ok: true, draftId }, 200, cors);
   } catch (err) {

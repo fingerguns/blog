@@ -1,6 +1,6 @@
 # Cloudflare Worker: admin API for rommy.blog
 
-Content is stored in **Cloudflare D1**. Section hover tooltips (`section_hints`) and Reading tab intro copy (`reading_tab_intros`) are regenerated via **Claude Fable** (Anthropic API) after content changes. Both trigger a second site rebuild with the updated copy.
+Content is stored in **Cloudflare D1**. Reading tab intro copy (`reading_tab_intros`) is regenerated via **Claude Fable** (Anthropic API) after content changes, which triggers a second site rebuild with the updated copy. Section hover tooltips used to be regenerated the same way; they are fixed copy in `scripts/lib/section-hints.mjs` now, and the old `section_hints` row in `site_config` is no longer read.
 
 The static site is rebuilt via a **Pages deploy hook**.
 
@@ -23,12 +23,6 @@ If upgrading from an older install with `thinking` / `thinking_syndication` tabl
 
 ```bash
 wrangler d1 execute rommy-blog-db --file=migrate-thinking-consolidate.sql --remote
-```
-
-Seed section hover tooltips (optional — build falls back to defaults until Worker regenerates):
-
-```bash
-wrangler d1 execute rommy-blog-db --file=migrate-section-hints.sql --remote
 ```
 
 Seed Reading tab intro copy (optional — build falls back to defaults until Worker regenerates):
@@ -174,7 +168,6 @@ Output directory: `dist`
 | `save-draft` | Create/update draft |
 | `load-draft` | Load draft by id |
 | `delete-draft` | Delete draft |
-| `refresh-section-hints` | Regenerate homepage section tooltips (Claude Fable) |
 | `refresh-reading-tab-intros` | Regenerate Reading Latest / Must Reads tab intro copy (Claude Fable) |
 | `backfill-reading-genres` | Assign genre tags to Must Reads favorites missing a primary genre (Claude Fable) |
 | `backfill-linklog-tags` | Assign topic tags to Sharing links missing them (Claude Fable) |

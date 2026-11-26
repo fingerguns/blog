@@ -40,7 +40,7 @@ These aren't project-configured (Claude Code has no per-project skill enablement
 - `claude-in-chrome` — verify anything that renders client-side (the `/now/` and admin Location maps, Thinking lightbox, Sharing cards) instead of assuming from source — the CSP/MapLibre outage was only diagnosable this way.
 - `code-review` — after multi-file feature work, before calling it done.
 - `fewer-permission-prompts` — occasionally, to allowlist the routine read-only `wrangler`/`git`/`curl` commands that recur every session.
-- `claude-api` — when touching the Claude Fable integration (`worker/anthropic.mjs`, section hints, Reading tab intros, Must Reads genres).
+- `claude-api` — when touching the Claude Fable integration (`worker/anthropic.mjs`, Reading tab intros, Must Reads genres, Sharing tags).
 - `web-perf` — for an occasional Core Web Vitals / caching audit.
 
 ## Commands
@@ -50,7 +50,6 @@ npm run build                        # scripts/build.mjs -> dist/ (reads D1 if C
 npm run preview                      # serve dist/ at http://localhost:3000 (npx serve)
 
 npm run backfill-video-posters       # capture missing JPEG stills (grid poster, full frame) for existing Thinking videos (writes to R2)
-npm run refresh-section-hints        # regenerate homepage section tooltips via Claude Fable (Anthropic API)
 npm run refresh-reading-tab-intros   # regenerate Reading tab intro copy via Claude Fable
 npm run backfill-reading-genres      # assign Must Reads genre tags via Claude Fable
 npm run backfill-linklog-tags        # assign Sharing (linklog) topic tags via Claude Fable

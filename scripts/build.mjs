@@ -17,7 +17,7 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { d1Configured, d1Query, loadBlogDataFromD1 } from "./d1-client.mjs";
 import { escHtml, escXml } from "./lib/html.mjs";
-import { mergeSectionHints } from "./lib/section-hints.mjs";
+import { SECTION_HINTS } from "./lib/section-hints.mjs";
 import { sectionLabelHtml, sectionTipHtml } from "./lib/section-icons.mjs";
 import { mergeReadingTabIntros } from "./lib/reading-tab-intros.mjs";
 import { thinkingGridThumbUrl, upgradeSpotifyImageUrl, videoFrameUrlFromVideoUrl, videoPosterKeyFromVideoUrl } from "./lib/media-url.mjs";
@@ -166,12 +166,10 @@ const {
   linklog,
   links,
   optionalColophon,
-  sectionHints,
   readingTabIntros,
   ouraSteps = null,
 } = data;
 
-const SECTION_HINTS = mergeSectionHints(sectionHints);
 const READING_TAB_INTROS = mergeReadingTabIntros(readingTabIntros);
 
 const base = site.url.replace(/\/$/, "");

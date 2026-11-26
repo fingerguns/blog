@@ -671,7 +671,9 @@ h2 {
   left: 0;
   top: calc(100% + 0.45rem);
   z-index: 10;
-  width: min(22rem, calc(100vw - 2.5rem));
+  /* Shrinks to a short line's length; a long one wraps at the cap. */
+  width: max-content;
+  max-width: min(22rem, calc(100vw - 2.5rem));
   padding: 0.65rem 0.75rem;
   background: var(--bg);
   border: 1px solid color-mix(in srgb, var(--muted) 35%, transparent);
