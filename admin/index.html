@@ -9,6 +9,7 @@
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="stylesheet" href="/styles.css" />
     <script src="/thinking-composer.js"></script>
+    <script src="/admin/oura-dashboard.js"></script>
     <link rel="stylesheet" href="https://cdn.quilljs.com/1.3.7/quill.snow.css" />
     <style>
       /* Any element with an explicit `display` (flex/block/grid/etc.) below would
@@ -50,7 +51,7 @@
         justify-content: space-between;
         gap: 1rem;
       }
-      /* Every tab but Login is an icon, the seven sharing the row in equal
+      /* Every tab but Login is an icon, the eight sharing the row in equal
          cells. The name sits in .tab-word: visually hidden (still the
          button's name for screen readers) until the tab is hovered or
          focused from the keyboard, when it shows as a label under the icon. */
@@ -98,10 +99,10 @@
            overhanging the column. */
         .admin-tab[data-tab="thinking"]:hover .tab-word,
         .admin-tab[data-tab="thinking"]:focus-visible .tab-word { left: 0; transform: none; }
-        .admin-tab[data-tab="health"]:hover .tab-word,
-        .admin-tab[data-tab="health"]:focus-visible .tab-word { left: auto; right: 0; transform: none; }
+        .admin-tab[data-tab="status"]:hover .tab-word,
+        .admin-tab[data-tab="status"]:focus-visible .tab-word { left: auto; right: 0; transform: none; }
       }
-      /* Unread count and health dot hug the centred icon's top-right. */
+      /* Unread count and status dot hug the centred icon's top-right. */
       .admin-tab-icon .tab-count {
         position: absolute;
         top: 0.15rem;
@@ -232,7 +233,7 @@
       .admin-status.warn { color: var(--text); white-space: pre-line; line-height: 1.55; }
       .admin-status.err { color: #b44; white-space: pre-line; line-height: 1.55; }
       [data-theme="dark"] .admin-status.err { color: #e88; }
-      /* Health tab: the dot in the tab bar is the at-a-glance indicator, so
+      /* Status tab: the dot in the tab bar is the at-a-glance indicator, so
          it has to read from any tab, not just this one. */
       .tab-dot {
         display: inline-block;
@@ -254,7 +255,7 @@
       .tab-dot.ok, .job-dot.ok { background: #4a8; }
       .tab-dot.warn, .job-dot.warn { background: #c90; }
       .tab-dot.bad, .job-dot.bad { background: #b44; }
-      .health-summary {
+      .status-summary {
         display: flex;
         align-items: center;
         gap: 0.55rem;
@@ -262,11 +263,11 @@
         font-size: 0.85rem;
         color: var(--muted);
       }
-      .health-summary.bad { color: #b44; }
-      [data-theme="dark"] .health-summary.bad { color: #e88; }
-      .health-summary.warn { color: #8a6a12; }
-      [data-theme="dark"] .health-summary.warn { color: #e3b45c; }
-      .health-heading {
+      .status-summary.bad { color: #b44; }
+      [data-theme="dark"] .status-summary.bad { color: #e88; }
+      .status-summary.warn { color: #8a6a12; }
+      [data-theme="dark"] .status-summary.warn { color: #e3b45c; }
+      .status-heading {
         margin: 1.9rem 0 0.35rem;
         font-size: 0.7rem;
         font-weight: 600;
@@ -274,7 +275,7 @@
         text-transform: uppercase;
         color: var(--muted);
       }
-      .health-empty { font-size: 0.8rem; color: var(--muted); }
+      .status-empty { font-size: 0.8rem; color: var(--muted); }
       /* Inbox tab */
       .tab-count {
         display: inline-block;
@@ -934,6 +935,129 @@
         color: var(--muted);
         margin: 1.5rem 0 0.5rem;
       }
+
+      /* ── Health tab: the Oura dashboard (admin/oura-dashboard.js) ──────────
+         Chart colours, validated against both themes' page colours with the
+         dataviz palette checker: three series (readiness, sleep, activity)
+         and a one-hue ramp for sleep stages, darkest ink = deep sleep. Text
+         never takes these; it stays in --text and --muted. */
+      .oura-dash {
+        --viz-1: #257de0;
+        --viz-2: #f47230;
+        --viz-3: #00b894;
+        --stage-deep: #0e3d7e;
+        --stage-rem: #2370cd;
+        --stage-light: #6aabf1;
+        --stage-awake: var(--muted);
+        position: relative;
+        margin-top: 1rem;
+        transition: opacity 0.15s ease;
+      }
+      [data-theme="dark"] .oura-dash {
+        --viz-1: #338ced;
+        --viz-2: #e76624;
+        --viz-3: #00a888;
+        --stage-deep: #b6d5f8;
+        --stage-rem: #519ced;
+        --stage-light: #1b64be;
+      }
+      .oura-dash.is-loading { opacity: 0.55; }
+      .oura-heading {
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 1.75rem 0 0.6rem;
+      }
+      .oura-dash > .oura-heading:first-of-type { margin-top: 0; }
+      .oura-daynav { display: flex; align-items: center; gap: 0.75rem; }
+      .oura-daylabel { font-weight: 600; }
+      .oura-dash button {
+        font: inherit;
+        color: var(--text);
+        background: none;
+        border: 1px solid var(--rule);
+        border-radius: 0.25rem;
+        padding: 0.2rem 0.6rem;
+        cursor: pointer;
+      }
+      .oura-dash button:disabled { opacity: 0.35; cursor: default; }
+      .oura-dash .oura-navbtn { font-size: 1.1rem; line-height: 1; padding: 0.15rem 0.55rem 0.3rem; }
+      .oura-scores {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+        margin: 1rem 0 0.25rem;
+      }
+      .oura-score, .oura-stat { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+      .oura-score-value { font-size: 2rem; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+      .oura-stat-label { font-size: 0.75rem; color: var(--muted); }
+      .oura-stat-value { font-size: 1.1rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+      .oura-stat-note { font-size: 0.75rem; color: var(--muted); }
+      .oura-panel { margin-top: 1.25rem; padding-top: 0.75rem; border-top: 1px solid var(--rule); }
+      .oura-panel-title { font-size: 0.9rem; font-weight: 600; margin: 0 0 0.6rem; }
+      .oura-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); gap: 0.75rem 1rem; }
+      .oura-breakdown { margin: 0.9rem 0 0.4rem; display: grid; gap: 0.3rem; }
+      .oura-breakdown-row {
+        display: grid;
+        grid-template-columns: 5.5rem 1fr 4.5rem;
+        align-items: center;
+        gap: 0.6rem;
+        font-size: 0.8rem;
+      }
+      .oura-breakdown-label { color: var(--muted); }
+      .oura-breakdown-value { text-align: right; font-variant-numeric: tabular-nums; }
+      .oura-breakdown-track { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--rule) 60%, transparent); overflow: hidden; }
+      .oura-breakdown-fill { display: block; height: 100%; border-radius: 3px; }
+      .oura-chart { display: block; margin: 0.6rem 0 0.2rem; overflow: visible; touch-action: pan-y; }
+      .oura-chart-title { font-size: 0.75rem; color: var(--muted); margin: 0.75rem 0 0; }
+      .oura-axis { fill: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+      .oura-grid { stroke: var(--rule); stroke-width: 1; }
+      .oura-baseline { stroke: var(--muted); stroke-width: 1; }
+      .oura-cross { stroke: var(--muted); stroke-width: 1; pointer-events: none; }
+      .oura-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+      .oura-line-ink { stroke: var(--text); stroke-width: 1.5; }
+      .oura-dot { stroke: var(--bg); stroke-width: 2; }
+      .oura-legend { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; font-size: 0.75rem; color: var(--muted); }
+      .oura-legend-item { display: inline-flex; align-items: center; }
+      .oura-swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 0.4rem; flex: none; }
+      .oura-tip {
+        position: absolute;
+        z-index: 20;
+        pointer-events: none;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid color-mix(in srgb, var(--muted) 35%, transparent);
+        border-radius: 4px;
+        box-shadow: 0 4px 20px color-mix(in srgb, var(--text) 8%, transparent);
+        padding: 0.4rem 0.55rem;
+        font-size: 0.75rem;
+        line-height: 1.45;
+        white-space: nowrap;
+      }
+      .oura-tip-head { font-weight: 600; }
+      .oura-tip-row { display: flex; align-items: center; }
+      .oura-trends-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-top: 2rem; }
+      .oura-trends-head .oura-heading { margin: 0; }
+      .oura-ranges { display: flex; gap: 0.3rem; }
+      .oura-dash .oura-range { font-size: 0.75rem; color: var(--muted); padding: 0.15rem 0.5rem; }
+      .oura-dash .oura-range[aria-pressed="true"] { color: var(--bg); background: var(--text); border-color: var(--text); }
+      .oura-trend { margin-top: 1.25rem; padding-top: 0.75rem; border-top: 1px solid var(--rule); }
+      .oura-trend-stats { font-size: 0.78rem; color: var(--muted); margin: 0.3rem 0 0; line-height: 1.6; }
+      .oura-empty { font-size: 0.85rem; color: var(--muted); }
+      .oura-table-wrap { margin-top: 1.5rem; font-size: 0.85rem; overflow-x: auto; }
+      .oura-table-wrap summary { cursor: pointer; color: var(--muted); }
+      .oura-table-wrap[open] { max-height: 26rem; overflow: auto; }
+      .oura-table { border-collapse: collapse; width: 100%; font-size: 0.75rem; font-variant-numeric: tabular-nums; margin-top: 0.5rem; }
+      .oura-table th, .oura-table td { text-align: right; padding: 0.25rem 0.4rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+      .oura-table th:first-child, .oura-table td:first-child { text-align: left; }
+      .oura-table th { position: sticky; top: 0; background: var(--bg); color: var(--muted); font-weight: 600; }
+      .oura-footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.5rem; font-size: 0.8rem; color: var(--muted); }
+      @media (max-width: 30rem) {
+        .oura-score-value { font-size: 1.6rem; }
+        .oura-breakdown-row { grid-template-columns: 4.5rem 1fr 4rem; }
+      }
     </style>
     <link
       rel="stylesheet"
@@ -949,7 +1073,7 @@
         <button type="button" class="admin-signout-btn admin-header-signout auth-only" id="header-sign-out" hidden>Sign out</button>
       </div>
 
-      <!-- Content tabs as words on the left; Inbox, Location and Health as
+      <!-- Content tabs as words on the left; Inbox, Location, Health and Status as
            icons on the right. Login is a tab only while signed out. -->
       <div class="admin-tabs">
         <button class="admin-tab signed-out-only active" data-tab="login">Login</button>
@@ -959,7 +1083,8 @@
         <button class="admin-tab auth-only" data-tab="sharing" hidden><svg class="tab-glyph" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span class="tab-word">Sharing</span></button>
         <button class="admin-tab admin-tab-icon auth-only" data-tab="inbox" hidden><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg><span class="tab-word">Inbox<span id="inbox-tab-note"></span></span><span class="tab-count" id="inbox-tab-count" aria-hidden="true" hidden></span></button>
         <button class="admin-tab admin-tab-icon auth-only" data-tab="location" hidden><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg><span class="tab-word">Location</span></button>
-        <button class="admin-tab admin-tab-icon auth-only" data-tab="health" hidden><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg><span class="tab-word">Health<span id="health-tab-note"></span></span><span class="tab-dot" id="health-tab-dot"></span></button>
+        <button class="admin-tab admin-tab-icon auth-only" data-tab="health" hidden><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/></svg><span class="tab-word">Health</span></button>
+        <button class="admin-tab admin-tab-icon auth-only" data-tab="status" hidden><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg><span class="tab-word">Status<span id="status-tab-note"></span></span><span class="tab-dot" id="status-tab-dot"></span></button>
       </div>
 
       <!-- ── LOGIN ────────────────────────────────── -->
@@ -1151,7 +1276,7 @@
             <button type="button" class="admin-signout-btn" id="inbox-refresh">Refresh</button>
           </div>
           <ul class="drafts-list inbox-list" id="inbox-list"></ul>
-          <p class="health-empty" id="inbox-empty" hidden></p>
+          <p class="status-empty" id="inbox-empty" hidden></p>
         </div>
 
         <div id="inbox-thread" hidden>
@@ -1197,30 +1322,36 @@
         <p class="admin-status" id="loc-status" hidden></p>
       </div>
 
-      <!-- ── HEALTH ───────────────────────────────── -->
+      <!-- ── HEALTH (Oura) ───────────────────────── -->
       <div class="admin-section" id="tab-health">
+        <p class="lead">From the Oura Ring, synced every four hours: a day with the night after it, then trends. Nothing here is on the public site.</p>
+        <div id="oura-dashboard"></div>
+      </div>
+
+      <!-- ── STATUS ───────────────────────────────── -->
+      <div class="admin-section" id="tab-status">
         <p class="lead">Background jobs: cron syncs, site rebuilds, and each syndication attempt. A job whose <em>latest</em> run failed, or a scheduled one that has gone quiet, turns the dot on this tab red; one that failed earlier in the week but has run fine since turns it amber.</p>
 
         <div class="location-toolbar">
-          <button type="button" id="health-refresh">Refresh</button>
+          <button type="button" id="status-refresh">Refresh</button>
         </div>
 
-        <p class="health-summary" id="health-summary">
-          <span class="job-dot" id="health-dot"></span>
-          <span id="health-summary-text">Checking background jobs…</span>
+        <p class="status-summary" id="status-summary">
+          <span class="job-dot" id="status-dot"></span>
+          <span id="status-summary-text">Checking background jobs…</span>
         </p>
 
-        <div id="health-jobs"></div>
+        <div id="status-jobs"></div>
 
-        <div id="health-bluesky" hidden>
-          <p class="health-heading">Not on Bluesky</p>
-          <div id="health-bluesky-list"></div>
+        <div id="status-bluesky" hidden>
+          <p class="status-heading">Not on Bluesky</p>
+          <div id="status-bluesky-list"></div>
         </div>
 
-        <p class="health-heading">Recent runs</p>
-        <div id="health-recent"></div>
+        <p class="status-heading">Recent runs</p>
+        <div id="status-recent"></div>
 
-        <p class="admin-status" id="health-status" hidden></p>
+        <p class="admin-status" id="status-message" hidden></p>
       </div>
 
       <footer class="site-footer">
@@ -1331,7 +1462,7 @@
           // Deferred: the inbox's state is set up further down this script.
           setTimeout(function () { loadInbox(true); }, 0);
         } else {
-          setHealthDot(null);
+          setStatusDot(null);
           setInboxCount(0);
           var readingLatestWrap = document.getElementById("reading-latest-archive");
           if (readingLatestWrap) readingLatestWrap.hidden = true;
@@ -1433,6 +1564,7 @@
         inbox: "inbox",
         location: "location",
         health: "health",
+        status: "status",
       };
       var SLUG_TABS = {};
       Object.keys(TAB_SLUGS).forEach(function (t) { SLUG_TABS[TAB_SLUGS[t]] = t; });
@@ -1447,7 +1579,8 @@
       function runTabLoader(tab) {
         if (tab === "reading") loadReadingArchive();
         if (tab === "location") loadLocationViewer();
-        if (tab === "health") loadJobStatus();
+        if (tab === "status") loadJobStatus();
+        if (tab === "health") loadOuraDashboard();
         if (tab === "inbox") loadInbox();
       }
 
@@ -2204,28 +2337,28 @@
       // out, or not checked yet). The tab dot and the in-tab dot always agree.
       // Amber is the recency state: something failed recently but has since
       // recovered, so it is worth noting and not worth interrupting for.
-      var HEALTH_TITLES = {
+      var STATUS_TITLES = {
         ok: "Background jobs healthy",
         warn: "A background job failed recently but has recovered",
         bad: "A background job needs attention",
       };
 
-      function setHealthDot(health) {
+      function setStatusDot(health) {
         [
-          document.getElementById("health-tab-dot"),
-          document.getElementById("health-dot"),
+          document.getElementById("status-tab-dot"),
+          document.getElementById("status-dot"),
         ].forEach(function (dot) {
           if (!dot) return;
           dot.classList.remove("ok", "warn", "bad");
           if (health) dot.classList.add(health);
         });
-        var summary = document.getElementById("health-summary");
+        var summary = document.getElementById("status-summary");
         if (summary) {
           summary.classList.toggle("bad", health === "bad");
           summary.classList.toggle("warn", health === "warn");
         }
-        var note = document.getElementById("health-tab-note");
-        if (note) note.textContent = " · " + (HEALTH_TITLES[health] || "Background job status unknown");
+        var note = document.getElementById("status-tab-note");
+        if (note) note.textContent = " · " + (STATUS_TITLES[health] || "Background job status unknown");
       }
 
       // `tone` is "bad", "warn", or null — the row's own state, independent of
@@ -2260,13 +2393,13 @@
       }
 
       function renderJobStatus(data) {
-        var text = document.getElementById("health-summary-text");
-        var detail = document.getElementById("health-jobs");
-        var recentWrap = document.getElementById("health-recent");
+        var text = document.getElementById("status-summary-text");
+        var detail = document.getElementById("status-jobs");
+        var recentWrap = document.getElementById("status-recent");
         var jobs = data.jobs || [];
 
         var health = data.health || (data.healthy ? "ok" : "bad");
-        setHealthDot(health);
+        setStatusDot(health);
 
         // `broken` and `recovered` are decided server-side (job-runs.mjs) so the
         // dot, the summary line, and the rows can't disagree about what counts.
@@ -2320,7 +2453,7 @@
         var recent = data.recent || [];
         if (recent.length === 0) {
           var empty = document.createElement("p");
-          empty.className = "health-empty";
+          empty.className = "status-empty";
           empty.textContent = "No runs recorded in the last " + data.days + " days.";
           recentWrap.appendChild(empty);
           return;
@@ -2342,8 +2475,8 @@
       // Recent notes the Worker could not send to Bluesky, each with a Retry
       // button (the retry-thinking-bluesky action). Hidden when there are none.
       function renderBlueskyMissing(notes) {
-        var wrap = document.getElementById("health-bluesky");
-        var list = document.getElementById("health-bluesky-list");
+        var wrap = document.getElementById("status-bluesky");
+        var list = document.getElementById("status-bluesky-list");
         if (!wrap || !list) return;
         list.innerHTML = "";
         wrap.hidden = notes.length === 0;
@@ -2360,7 +2493,7 @@
           btn.type = "button";
           btn.textContent = "Retry";
           btn.addEventListener("click", async function () {
-            var status = document.getElementById("health-status");
+            var status = document.getElementById("status-message");
             btn.disabled = true;
             btn.textContent = "Sending…";
             try {
@@ -2384,13 +2517,24 @@
         });
       }
 
+      // Health tab: the Oura dashboard (/admin/oura-dashboard.js), mounted on
+      // first open and reloaded on every open after.
+      var ouraDashboard = null;
+      function loadOuraDashboard() {
+        if (!window.OuraDashboard || !loadSession()) return;
+        if (!ouraDashboard) {
+          ouraDashboard = window.OuraDashboard.mount(document.getElementById("oura-dashboard"), { callAPI: callAPI });
+        }
+        ouraDashboard.load();
+      }
+
       // Runs on sign-in as well as on tab open, so the dot is right before the
-      // Health tab has ever been looked at.
+      // Status tab has ever been looked at.
       async function loadJobStatus() {
-        var text = document.getElementById("health-summary-text");
+        var text = document.getElementById("status-summary-text");
         if (!text) return;
         if (!loadSession()) {
-          setHealthDot(null);
+          setStatusDot(null);
           return;
         }
         text.textContent = "Checking background jobs…";
@@ -2398,14 +2542,14 @@
           var data = await callAPI({ action: "job-status", days: 7 });
           renderJobStatus(data);
         } catch (err) {
-          setHealthDot("bad");
+          setStatusDot("bad");
           text.textContent =
             "Could not load job status — " + (err.message || "request failed");
         }
       }
 
       (function () {
-        var refresh = document.getElementById("health-refresh");
+        var refresh = document.getElementById("status-refresh");
         if (refresh) refresh.addEventListener("click", loadJobStatus);
       })();
 

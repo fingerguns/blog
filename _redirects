@@ -22,3 +22,5 @@
 /admin/location/    /admin/           200
 /admin/health       /admin/           200
 /admin/health/      /admin/           200
+/admin/status       /admin/           200
+/admin/status/      /admin/           200

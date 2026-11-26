@@ -147,7 +147,7 @@ Output directory: `dist`
 | `thinking-video-upload-url` | Presigned PUT URL for direct video upload to R2 |
 | `list-thinking` | List Thinking archive from D1 |
 | `contact-list` / `contact-thread` / `contact-reply` / `contact-status` / `contact-delete` | The admin Inbox: list a folder, open a conversation (marks it read), reply by email from `me@rommy.blog`, move to inbox/archived/spam or mark unread, delete. The public form posts to `POST /api/contact` (no password) |
-| `job-status` | Background job health for the /admin/ Health tab, plus recent notes missing from Bluesky |
+| `job-status` | Background job health for the /admin/ Status tab, plus recent notes missing from Bluesky |
 | `retry-thinking-bluesky` | Retry the Bluesky cross-post of one Thinking note (`slug`) |
 | `post` | Publish new writing post |
 | `edit-post` | Edit post (saves version history) |
@@ -305,27 +305,30 @@ Admin API: `action: "list-locations"` with optional `from`, `to`, `limit` (max 1
 
 Public API: `GET /api/locations/now` (no auth) returns the current neighborhood label, bounding box, the neighborhood's `outline` (GeoJSON Polygon or MultiPolygon) when one is known, and OpenStreetMap search URL — no exact coordinates.
 
-### Oura Ring (daily steps)
+### Oura Ring (steps and the Health tab)
 
-Sync daily step counts from the [Oura API v2](https://cloud.ouraring.com/docs/) into D1. The static `/now/` page shows the latest count in a **Walking** section; full history stays in D1.
+Sync from the [Oura API v2](https://cloud.ouraring.com/docs/) into D1. Daily step counts go to `oura_daily_activity`, and the static `/now/` page shows the latest in a **Walking** section. Everything the admin **Health** tab draws goes to `oura_daily` (Oura's daily activity, sleep, readiness, stress and SpO2 documents, one per kind per day) and `oura_sleep_sessions` (each sleep period, naps included). They are stored as Oura returns them, minus the per-minute and per-30-second arrays nothing draws (`DROPPED_FIELDS` in `oura.mjs`), and read only by the password-checked `oura-dashboard` action, never by the build.
 
-1. Create a Personal Access Token at [cloud.ouraring.com/personal-access-tokens](https://cloud.ouraring.com/personal-access-tokens).
+Oura deprecated personal access tokens in December 2025. The existing token still reads every collection the dashboard uses (checked 2026-11-26). If it stops, the fix is an OAuth2 refresh-token flow inside `ouraAuthHeader` in `oura.mjs`, the one place a request gets its `Authorization` header.
+
+1. Create a Personal Access Token at [cloud.ouraring.com/personal-access-tokens](https://cloud.ouraring.com/personal-access-tokens), if Oura still issues them.
 
 2. Apply migration and set the token:
 
    ```bash
    cd worker
    wrangler d1 execute rommy-blog-db --remote --file=migrate-oura.sql
+   wrangler d1 execute rommy-blog-db --remote --file=migrate-oura-dashboard.sql
    wrangler secret put OURA_ACCESS_TOKEN
    wrangler deploy
    ```
 
-3. Backfill historical data (~2 years) and trigger a rebuild:
+3. Backfill historical data (~2 years of steps, then every Health-tab kind in 60-day windows, since two years of everything in one request would outrun the Worker's CPU budget) and trigger a rebuild:
 
    ```bash
    npm run backfill-oura
    ```
 
-4. A cron job runs every 4 hours to sync the last 14 days and rebuild when new data arrives.
+4. A cron job runs every 4 hours to sync the last 14 days of steps (rebuilding when new data arrives) and the last 3 days of every Health-tab kind, since sleep and readiness land each morning and activity grows through the day.
 
-Admin API: `action: "sync-oura"` with optional `backfill: true` (password auth). `action: "oura-steps-summary"` returns latest steps and total days stored.
+Admin API (password auth): `action: "sync-oura"` with optional `backfill: true`, or a window `start`, `end` (at most 92 days) and optional `kinds`. `action: "oura-dashboard"` with `day` and `range` returns the Health tab's data. `action: "oura-steps-summary"` returns latest steps and total days stored.

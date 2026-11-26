@@ -15,6 +15,26 @@ test("styles.css and thinking-composer.js links get the build version", () => {
   );
 });
 
+test("the admin's Oura dashboard script is versioned too", () => {
+  assert.equal(
+    versionStaticAssetLinks('<script src="/admin/oura-dashboard.js"></script>', "v1"),
+    '<script src="/admin/oura-dashboard.js?v=v1"></script>'
+  );
+});
+
+test("every admin tab's URL is rewritten to the admin page", () => {
+  const root = (rel) => readFileSync(fileURLToPath(new URL(`../../${rel}`, import.meta.url)), "utf8");
+  const admin = root("admin/index.html");
+  const block = admin.match(/var TAB_SLUGS = \{([\s\S]*?)\};/)[1];
+  const slugs = [...block.matchAll(/:\s*"([a-z]+)"/g)].map((m) => m[1]);
+  assert.ok(slugs.includes("health") && slugs.includes("status"));
+  const redirects = root("_redirects");
+  for (const slug of slugs) {
+    assert.match(redirects, new RegExp(`^/admin/${slug}\\s+/admin/\\s+200$`, "m"), slug);
+    assert.match(redirects, new RegExp(`^/admin/${slug}/\\s+/admin/\\s+200$`, "m"), `${slug}/`);
+  }
+});
+
 test("a link that already has a query string, or another file, is left alone", () => {
   const html = '<link href="/styles.css?v=old" /><a href="/admin/">x</a><script src="https://cdn.example/quill.js"></script>';
   assert.equal(versionStaticAssetLinks(html, "new"), html);

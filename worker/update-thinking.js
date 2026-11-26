@@ -53,7 +53,7 @@ import {
   handleNowLocation,
   resolveLocationLabelForDatetime,
 } from "./location.mjs";
-import { syncOuraSteps, getOuraStepsSummary } from "./oura.mjs";
+import { syncOuraSteps, getOuraStepsSummary, syncOura, getOuraDashboard, OURA_KINDS } from "./oura.mjs";
 import {
   recordJobRun,
   runJob,
@@ -407,6 +407,29 @@ export default {
     }
 
     if (action === "sync-oura") {
+      // A window ({ start, end, kinds? }) fills the Health tab's documents for
+      // those days only — scripts/backfill-oura.mjs walks two years this way,
+      // 60 days a request. Without one, this is the scheduled sync.
+      if (payload.start || payload.end) {
+        const day = /^\d{4}-\d{2}-\d{2}$/;
+        const start = String(payload.start || "");
+        const end = String(payload.end || "");
+        if (!day.test(start) || !day.test(end) || start > end) {
+          return json({ error: "start and end must be YYYY-MM-DD, start first" }, 400, cors);
+        }
+        const spanDays = (Date.parse(end) - Date.parse(start)) / 86400000;
+        if (!Number.isFinite(spanDays)) return json({ error: "start and end must be real dates" }, 400, cors);
+        if (spanDays > 92) return json({ error: "Window too long (92 days at most)" }, 400, cors);
+        const kinds = Array.isArray(payload.kinds) && payload.kinds.length ? payload.kinds.map(String) : Object.keys(OURA_KINDS);
+        if (kinds.some((k) => !Object.hasOwn(OURA_KINDS, k))) {
+          return json({ error: `kinds must be from: ${Object.keys(OURA_KINDS).join(", ")}` }, 400, cors);
+        }
+        try {
+          return json({ ok: true, ...(await syncOura(db, env, { kinds, start, end })) }, 200, cors);
+        } catch (err) {
+          return json({ error: err.message || "Oura sync failed" }, 500, cors);
+        }
+      }
       try {
         const mode = payload.backfill ? "backfill" : undefined;
         const result = await syncOuraSteps(db, env, { mode });
@@ -416,6 +439,15 @@ export default {
         return json({ ok: true, ...result }, 200, cors);
       } catch (err) {
         return json({ error: err.message || "Oura sync failed" }, 500, cors);
+      }
+    }
+
+    if (action === "oura-dashboard") {
+      try {
+        const dashboard = await getOuraDashboard(db, { day: payload.day, range: payload.range });
+        return json({ ok: true, ...dashboard }, 200, cors);
+      } catch (err) {
+        return json({ error: err.message || "Oura dashboard failed" }, 500, cors);
       }
     }
 
