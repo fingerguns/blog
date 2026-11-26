@@ -209,7 +209,7 @@ const gaSnippet = `    <script async src="https://www.googletagmanager.com/gtag/
 
 const portraitPhotoToggleScript = `    <script>(function(){function init(){document.querySelectorAll(".post .body img:not(.thinking-photo)").forEach(function(img){if(img.dataset.portraitInit)return;function setup(){var w=img.naturalWidth,h=img.naturalHeight;if(!w||!h)return;img.dataset.portraitInit="1";if(h<=w)return;img.classList.add("photo-portrait");img.setAttribute("role","button");img.setAttribute("tabindex","0");img.setAttribute("aria-expanded","false");img.title="Click to enlarge";function toggle(){var ex=img.classList.toggle("photo-expanded");img.setAttribute("aria-expanded",ex?"true":"false");}img.addEventListener("click",toggle);img.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle();}});}if(img.complete)setup();else img.addEventListener("load",setup,{once:true});});}window.initPortraitPhotos=init;if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();}());</script>`;
 
-const socialsToggleScript = `    <script>(function(){var btn=document.querySelector(".socials-toggle");if(!btn)return;var list=document.getElementById("socials-sublist");btn.addEventListener("click",function(){var open=btn.getAttribute("aria-expanded")==="true";btn.setAttribute("aria-expanded",open?"false":"true");list.hidden=open;});}());</script>`;
+const linkDrawersScript = `    <script>(function(){document.querySelectorAll(".link-drawer-toggle").forEach(function(btn){var list=document.getElementById(btn.getAttribute("aria-controls"));if(!list)return;btn.addEventListener("click",function(){var open=btn.getAttribute("aria-expanded")==="true";btn.setAttribute("aria-expanded",open?"false":"true");list.hidden=open;});});}());</script>`;
 
 const thinkingLightboxScript = `    <script>(function(){
   var overlay=null,imgEl=null,counterEl=null,urls=[],index=0;
@@ -1462,22 +1462,36 @@ const linksHtml = (links || [])
   )
   .join("\n");
 
-const socialsHtml = `          <li class="link-list-socials">
-            <button type="button" class="socials-toggle" aria-expanded="false" aria-controls="socials-sublist">
-              Feeds<span class="socials-chevron" aria-hidden="true"></span>
+// Folded rows under Elsewhere: a button with a caret that opens an indented
+// list of links (linkDrawersScript). `me` marks a link as one of my own
+// identities (rel="me"); `note` is a muted word after it.
+const linkDrawerHtml = (label, id, items) => `          <li class="link-list-drawer">
+            <button type="button" class="link-drawer-toggle" aria-expanded="false" aria-controls="${id}">
+              ${escHtml(label)}<span class="link-drawer-chevron" aria-hidden="true"></span>
             </button>
-            <ul class="socials-sublist" id="socials-sublist" hidden>
-              <li>
-                <a href="https://bsky.app/profile/rommy.nyc" rel="me noopener" target="_blank">Bluesky</a>
-              </li>
-              <li>
-                <a href="https://mas.to/@rommy" rel="me noopener" target="_blank">Mastodon</a>
-              </li>
-              <li>
-                <a href="https://rommy.micro.blog/" rel="me noopener" target="_blank">micro.blog</a>
-              </li>
+            <ul class="link-drawer-list" id="${id}" hidden>
+${items
+  .map(
+    (it) => `              <li>
+                <a href="${escHtml(it.url)}" rel="${it.me ? "me noopener" : "noopener"}" target="_blank">${escHtml(it.label)}</a>${it.note ? ` <span class="link-drawer-note">(${escHtml(it.note)})</span>` : ""}
+              </li>`
+  )
+  .join("\n")}
             </ul>
           </li>`;
+
+const linkDrawersHtml = [
+  linkDrawerHtml("Feeds", "feeds-sublist", [
+    { label: "Bluesky", url: "https://bsky.app/profile/rommy.nyc", me: true },
+    { label: "Mastodon", url: "https://mas.to/@rommy", me: true },
+    { label: "micro.blog", url: "https://rommy.micro.blog/", me: true },
+  ]),
+  linkDrawerHtml("Other", "other-sublist", [
+    { label: "rommy.gha.ly", url: "https://rommy.gha.ly/", note: "photography", me: true },
+    { label: "rommy.io", url: "https://rommy.io/", note: "identity", me: true },
+    { label: "shout.nyc", url: "https://shout.nyc/", note: "local NYC social platform" },
+  ]),
+].join("\n");
 
 const descriptionText = typeof site.description === "string" ? site.description.trim() : "";
 const descriptionMeta = descriptionText
@@ -1646,7 +1660,7 @@ ${linklogHtml}
         ${sectionHeading("Elsewhere", "h2", "links-heading", "", { icon: true })}
         <ul class="link-list">
 ${linksHtml}
-${socialsHtml}
+${linkDrawersHtml}
         </ul>
       </section>
 
@@ -1657,7 +1671,7 @@ ${socialsHtml}
 
 ${colophonSection}    </main>
     <script>(function(){var b=document.getElementById('theme-toggle');if(!b)return;var h=document.documentElement;function set(t){h.setAttribute('data-theme',t);var l=t==='dark'?'Switch to light mode':'Switch to dark mode';b.innerHTML=t==='dark'?'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>':'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';b.setAttribute('aria-label',l);b.title=l;localStorage.setItem('theme',t);}set(localStorage.getItem('theme')||'dark');b.addEventListener('click',function(e){e.preventDefault();set(h.getAttribute('data-theme')==='dark'?'light':'dark');});}());</script>
-${socialsToggleScript}
+${linkDrawersScript}
 ${portraitPhotoToggleScript}
 ${thinkingLightboxScript}
 ${homeComposerScript}
