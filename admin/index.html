@@ -156,16 +156,17 @@
       .admin-form textarea.body-field {
         min-height: 18rem;
       }
-      /* Text fields always match :focus-visible, so, as in the Thinking
-         composer, they show focus with their border, not the site-wide ring. */
+      /* Text fields always match :focus-visible, even on a click. As in the
+         Thinking composer, the blinking caret is their only focus sign: no
+         ring, and the border keeps its muted rule colour. A select has no
+         caret, so it still darkens its border. */
       .admin-form input:not([type="checkbox"]):not([type="radio"]):focus-visible,
       .admin-form textarea:focus-visible,
-      .admin-form select:focus-visible,
       .ql-editor:focus-visible {
         outline: none;
-        border-color: var(--text);
       }
-      .ql-container.ql-snow:focus-within {
+      .admin-form select:focus-visible {
+        outline: none;
         border-color: var(--text);
       }
       .admin-form button {

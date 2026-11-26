@@ -286,11 +286,11 @@ a:hover {
   margin: 0 0 0.35rem;
 }
 
-/* A text field always matches :focus-visible, so it takes the quieter
-   border change rather than the site-wide ring. */
+/* A text field always matches :focus-visible, even on a click, and its
+   blinking caret already says where you are typing: no ring, and the border
+   keeps its muted rule colour. */
 .thinking-composer textarea:focus-visible {
   outline: none;
-  border-color: var(--text);
 }
 
 .thinking-composer-submit {
