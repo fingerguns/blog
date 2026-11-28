@@ -13,7 +13,7 @@
  * ctx: { base, siteTitle }
  */
 import { escHtml } from "../html.mjs";
-import { formatDayMonth, formatMbDate, readingMins, safeSlug, stripHtml, toETDate } from "./format.mjs";
+import { formatDayMonthYear, formatMbDate, readingMins, safeSlug, stripHtml, toETDate } from "./format.mjs";
 import { videoPosterUrlFromVideoUrl } from "../media-url.mjs";
 import {
   firstImageFromHtml,
@@ -157,7 +157,7 @@ export function postPermalinkParts(p, newer, older, ctx) {
     }),
     slug: escHtml(slug),
     heading: escHtml(p.title),
-    displayDate: escHtml(formatDayMonth(p)),
+    displayDate: escHtml(formatDayMonthYear(p)),
     isoDate: escHtml(toETDate(p)),
     readMins: String(readingMins(p.body_html)),
     body: bodyHtml,

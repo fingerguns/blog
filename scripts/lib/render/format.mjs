@@ -28,15 +28,14 @@ export function toETDate(p) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(d);
 }
 
-// ── Dates as readers see them (ET), without the year. Each section has its own form:
-//   Thinking  27 Nov // 21:10   (formatMbDate)
-//   Writing   21 Nov            (formatDayMonth)
-//   Sharing   27 Nov            (formatDayMonth)
-//   Reading   Nov               (formatMonth)
-// Machine-readable dates (datetime attributes, sorting, URLs) stay ISO, with
-// the year. Month names are spelled out here rather than taken from Intl,
-// whose en-GB short form for September is "Sept" in current ICU and "Sep" in
-// older ones.
+// ── Dates as readers see them (ET). Each section has its own form:
+//   Thinking  27 Nov 2026 // 21:10   (formatMbDate)
+//   Writing   21 Nov 2026       (formatDayMonthYear)
+//   Sharing   27 Nov 2026       (formatDayMonthYear)
+//   Reading   Nov 2026          (formatMonthYear)
+// Machine-readable dates (datetime attributes, sorting, URLs) stay ISO.
+// Month names are spelled out here rather than taken from Intl, whose en-GB
+// short form for September is "Sept" in current ICU and "Sep" in older ones.
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const etDateFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" });
 const etTimeFmt = new Intl.DateTimeFormat("en-US", {
@@ -46,27 +45,27 @@ const etTimeFmt = new Intl.DateTimeFormat("en-US", {
   hour12: false,
 });
 
-/** "2026-11-27" → "27 Nov" (a date string, no time zone shift). */
-export function dayMonthFromIsoDay(isoDay) {
+/** "2026-11-27" → "27 Nov 2026" (a date string, no time zone shift). */
+export function dayMonthYearFromIsoDay(isoDay) {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(isoDay || ""));
   if (!m) return String(isoDay || "");
-  return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]}`;
+  return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}`;
 }
 
-/** "2026-10" (or "2026-10-…") → "Oct". */
-export function formatMonth(ym) {
+/** "2026-10" (or "2026-10-…") → "Oct 2026". */
+export function formatMonthYear(ym) {
   const m = /^(\d{4})-(\d{2})/.exec(String(ym || ""));
   if (!m) return String(ym || "");
-  return MONTHS[Number(m[2]) - 1];
+  return `${MONTHS[Number(m[2]) - 1]} ${m[1]}`;
 }
 
-/** A Writing post or Sharing link → "21 Nov", its ET day. */
-export const formatDayMonth = (p) => dayMonthFromIsoDay(toETDate(p));
+/** A Writing post or Sharing link → "21 Nov 2026", its ET day. */
+export const formatDayMonthYear = (p) => dayMonthYearFromIsoDay(toETDate(p));
 
-/** A Thinking note's time → "27 Nov // 21:10" in ET. */
+/** A Thinking note's time → "27 Nov 2026 // 21:10" in ET. */
 export const formatMbDate = (iso) => {
   const d = new Date(iso);
-  return `${dayMonthFromIsoDay(etDateFmt.format(d))} // ${etTimeFmt.format(d)}`;
+  return `${dayMonthYearFromIsoDay(etDateFmt.format(d))} // ${etTimeFmt.format(d)}`;
 };
 
 export function readingMins(bodyHtml) {
