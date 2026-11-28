@@ -5,7 +5,7 @@
  * passed in, so the Worker can supply the same values from D1.
  */
 import { escHtml } from "../html.mjs";
-import { safeSlug, stripHashtags, toETDate, linkDomain, readingMins } from "./format.mjs";
+import { safeSlug, stripHashtags, toETDate, linkDomain, readingMins, formatDayMonthYear, formatMonthYear } from "./format.mjs";
 import { knownSiteName, unfurlHit } from "../link-unfurl.mjs";
 import { parseYouTubeUrl } from "../youtube.mjs";
 
@@ -32,11 +32,12 @@ export function youtubeLinkThumbnail(url) {
 export const renderPostItem = (p, absolute = false, { withBody = false } = {}) => {
   const href = absolute ? `/posts/${escHtml(safeSlug(p.slug))}/` : `posts/${escHtml(safeSlug(p.slug))}/`;
   const date = escHtml(toETDate(p));
+  const shown = escHtml(formatDayMonthYear(p));
   return `          <li>
-            <span class="post-date">${date}</span>
+            <span class="post-date">${shown}</span>
             <a href="${href}">${escHtml(p.title)}</a>${
               withBody && p.body_html ? `
-            <template class="post-feed-body"><h2 class="post-feed-title"><a href="${href}">${escHtml(p.title)}</a></h2><time class="post-feed-time" datetime="${date}"><span>${date}</span><span class="reading-time">${readingMins(p.body_html)} min read</span></time><div class="body">${p.body_html}</div></template>` : ""
+            <template class="post-feed-body"><h2 class="post-feed-title"><a href="${href}">${escHtml(p.title)}</a></h2><time class="post-feed-time" datetime="${date}"><span>${shown}</span><span class="reading-time">${readingMins(p.body_html)} min read</span></time><div class="body">${p.body_html}</div></template>` : ""
             }
           </li>`;
 };
@@ -44,7 +45,7 @@ export const renderPostItem = (p, absolute = false, { withBody = false } = {}) =
 /** `linkUrl` is the Bookshop affiliate link the build resolved for this book. */
 export const renderReadingItem = (r, linkUrl) =>
   `          <li>
-            <span class="post-date">${escHtml(r.ym)}</span>
+            <span class="post-date">${escHtml(formatMonthYear(r.ym))}</span>
             <a href="${escHtml(linkUrl)}" target="_blank" rel="noopener noreferrer">${escHtml(r.title)}</a>
           </li>`;
 
@@ -101,7 +102,7 @@ export const renderLinklogItem = (l) => {
   const tagSlugs = Array.isArray(l.tags) ? l.tags.filter(Boolean) : [];
   const tagAttr = tagSlugs.length ? ` data-tags="${escHtml(tagSlugs.join(" "))}"` : "";
   return `          <li${tagAttr}>
-            <span class="post-date">${escHtml(toETDate(l))}</span>
+            <span class="post-date">${escHtml(formatDayMonthYear(l))}</span>
             <a href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer">${escHtml(stripHashtags(l.title))}</a>
           </li>`;
 };
@@ -146,7 +147,7 @@ export const renderLinklogArchiveItem = (l, cached) => {
             <a class="linklog-card" href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer">
               ${imageHtml}${nameHtml}
               <span class="linklog-card-body">
-                <span class="linklog-card-meta"><span class="post-date">${escHtml(toETDate(l))}</span>${sourceLabel ? ` · ${escHtml(sourceLabel)}` : ""}</span>
+                <span class="linklog-card-meta"><span class="post-date">${escHtml(formatDayMonthYear(l))}</span>${sourceLabel ? ` · ${escHtml(sourceLabel)}` : ""}</span>
                 <span class="linklog-card-title">${escHtml(title)}</span>
                 ${descHtml}
               </span>

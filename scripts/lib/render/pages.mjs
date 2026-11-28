@@ -13,7 +13,7 @@
  * ctx: { base, siteTitle }
  */
 import { escHtml } from "../html.mjs";
-import { formatMbDate, readingMins, safeSlug, stripHtml, toETDate } from "./format.mjs";
+import { formatDayMonthYear, formatMbDate, readingMins, safeSlug, stripHtml, toETDate } from "./format.mjs";
 import { videoPosterUrlFromVideoUrl } from "../media-url.mjs";
 import {
   firstImageFromHtml,
@@ -37,6 +37,7 @@ export const LIVE_TOKENS = {
   postUrlJson: "__LIVE_POST_URL_JSON__",
   pager: "__LIVE_PAGER__",
   displayDate: "__LIVE_DISPLAY_DATE__",
+  isoDate: "__LIVE_ISO_DATE__",
   readMins: "__LIVE_READ_MINS__",
 };
 
@@ -156,7 +157,8 @@ export function postPermalinkParts(p, newer, older, ctx) {
     }),
     slug: escHtml(slug),
     heading: escHtml(p.title),
-    displayDate: escHtml(toETDate(p)),
+    displayDate: escHtml(formatDayMonthYear(p)),
+    isoDate: escHtml(toETDate(p)),
     readMins: String(readingMins(p.body_html)),
     body: bodyHtml,
     postUrlJson: JSON.stringify(postUrl),

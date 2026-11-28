@@ -883,7 +883,7 @@ ${gaSnippet}
     <article class="post" data-slug="${v.slug}">
       <a class="post-back" href="../../index.html" aria-label="Home">←</a>
       <h1 class="post-title">${v.heading}</h1>
-      <time datetime="${v.displayDate}"><span>${v.displayDate}</span><span class="reading-time">${v.readMins} min read</span></time>
+      <time datetime="${v.isoDate}"><span>${v.displayDate}</span><span class="reading-time">${v.readMins} min read</span></time>
       <div class="body">
         ${v.body}
       </div>
@@ -3246,6 +3246,9 @@ writeFileSync(join(outDir, "search-index.json"), JSON.stringify(searchDocs), "ut
 // takes in dist/ — that specifier is only ever resolved by the browser.
 cpSync(join(root, "scripts/lib/search.mjs"), join(outDir, "search-core.js"));
 cpSync(join(root, "scripts/lib/search-page.mjs"), join(outDir, "search.js"));
+// The date formats too, so search results show each kind's date as its
+// section does (also free of Node APIs; imported as "./date-format.js").
+cpSync(join(root, "scripts/lib/render/format.mjs"), join(outDir, "date-format.js"));
 
 // Writing post pages
 // `ordered` is newest-first, so the newer neighbour is i - 1.

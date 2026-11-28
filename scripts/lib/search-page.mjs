@@ -8,6 +8,8 @@
  */
 
 import { search, tokenize, excerpt, KIND_LABELS } from "./search-core.js";
+// render/format.mjs in the repo; copied to dist/date-format.js beside this file.
+import { dayMonthYearFromIsoDay, formatMbDate, formatMonthYear } from "./date-format.js";
 
 const input = document.getElementById("search-input");
 const status = document.getElementById("search-status");
@@ -21,11 +23,17 @@ function setStatus(message) {
   status.textContent = message;
 }
 
-function formatDate(iso) {
+// Each kind's date as its own section shows it (scripts/lib/render/format.mjs):
+// Thinking "27 Nov 2026 // 21:10", Writing and Sharing "21 Nov 2026", Reading and
+// Must Reads "Nov 2026".
+function formatDate(iso, kind) {
   if (!iso) return "";
+  if (kind === "reading" || kind === "must-read") return formatMonthYear(iso);
+  if (/^\d{4}-\d{2}$/.test(String(iso))) return formatMonthYear(iso);
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return String(iso).slice(0, 10);
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(d);
+  if (kind === "thinking") return formatMbDate(iso);
+  return dayMonthYearFromIsoDay(new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(d));
 }
 
 /** Wrap matched terms in <mark>, escaping everything else. */
@@ -81,7 +89,7 @@ function render(query) {
       `>${highlight(title, terms)}</a>` +
       `<span class="search-result-meta">` +
       `<span class="search-kind">${KIND_LABELS[doc.k] || doc.k}</span>` +
-      (doc.d ? `<time>${formatDate(doc.d)}</time>` : "") +
+      (doc.d ? `<time>${formatDate(doc.d, doc.k)}</time>` : "") +
       `</span>` +
       (snippet ? `<p class="search-result-snippet">${highlight(snippet, terms)}</p>` : "");
 
