@@ -354,6 +354,32 @@ a:hover {
   line-height: 1.5;
 }
 
+.thinking-still-warn {
+  font-size: 0.75rem;
+  margin: 0 0 1rem;
+  line-height: 1.5;
+  color: #b44;
+}
+
+[data-theme="dark"] .thinking-still-warn {
+  color: #e88;
+}
+
+.thinking-still-warn button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+}
+
+.thinking-still-warn button:disabled {
+  display: none;
+}
+
 .thinking-char-count {
   margin: 0;
   text-align: right;

@@ -147,7 +147,7 @@ Output directory: `dist`
 | `thinking-video-upload-url` | Presigned PUT URL for direct video upload to R2 |
 | `list-thinking` | List Thinking archive from D1 |
 | `contact-list` / `contact-thread` / `contact-reply` / `contact-status` / `contact-delete` | The admin Inbox: list a folder, open a conversation (marks it read), reply by email from `me@rommy.blog`, move to inbox/archived/spam or mark unread, delete. The public form posts to `POST /api/contact` (no password) |
-| `job-status` | Background job health for the /admin/ Status tab, plus recent notes missing from Bluesky |
+| `job-status` | Background job health for the /admin/ Status tab, plus recent notes missing from Bluesky and videos missing their stills |
 | `retry-thinking-bluesky` | Retry the Bluesky cross-post of one Thinking note (`slug`) |
 | `post` | Publish new writing post |
 | `edit-post` | Edit post (saves version history) |

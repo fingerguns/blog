@@ -43,6 +43,7 @@ import {
   uploadVideoPosterToR2,
   thinkingVideoFrameKey,
   uploadVideoFrameToR2,
+  thinkingVideosMissingStills,
 } from "./video-poster.mjs";
 import {
   handleLocationIngest,
@@ -362,8 +363,12 @@ export default {
       try {
         const days = Math.min(Math.max(Number(payload.days) || 7, 1), 90);
         const status = await getJobStatus(db, { days });
-        const blueskyMissing = await thinkingNotesMissingFromBluesky(db, env, { days });
-        return json({ ok: true, ...status, blueskyMissing }, 200, cors);
+        const [blueskyMissing, videoStillsMissing] = await Promise.all([
+          thinkingNotesMissingFromBluesky(db, env, { days }),
+          // An R2 hiccup here leaves the list out rather than failing the board.
+          thinkingVideosMissingStills(db, env.MEDIA).catch(() => null),
+        ]);
+        return json({ ok: true, ...status, blueskyMissing, videoStillsMissing }, 200, cors);
       } catch (err) {
         return json({ error: err.message || "Job status failed" }, 500, cors);
       }
@@ -957,7 +962,7 @@ function thinkingMediaKeyFromUrl(url) {
 }
 
 /**
- * Recent notes with no Bluesky post, for the admin Health tab's "Not on
+ * Recent notes with no Bluesky post, for the admin Status tab's "Not on
  * Bluesky" list and its Retry buttons. Empty when Bluesky is not configured.
  */
 async function thinkingNotesMissingFromBluesky(db, env, { days = 7 } = {}) {

@@ -380,6 +380,8 @@
       }
       .bluesky-missing-row .job-row-detail { color: var(--text); }
       .bluesky-missing-row button { flex: 0 0 auto; font-size: 0.75rem; }
+      .stills-missing-row a { margin-left: auto; font-size: 0.75rem; }
+      #status-stills .status-empty { margin: 0 0 0.5rem; }
       .job-row {
         display: flex;
         align-items: baseline;
@@ -1346,6 +1348,12 @@
         <div id="status-bluesky" hidden>
           <p class="status-heading">Not on Bluesky</p>
           <div id="status-bluesky-list"></div>
+        </div>
+
+        <div id="status-stills" hidden>
+          <p class="status-heading">Videos missing stills</p>
+          <p class="status-empty">Without its stills a video has no grid tile image or poster, and a portrait clip loses its blurred frame. Run <code>npm run backfill-video-posters</code> to make them from the video, then refresh.</p>
+          <div id="status-stills-list"></div>
         </div>
 
         <p class="status-heading">Recent runs</p>
@@ -2443,6 +2451,7 @@
         });
 
         renderBlueskyMissing(data.blueskyMissing || []);
+        renderStillsMissing(data.videoStillsMissing || []);
 
         // The run log the header strip had no room for: every recorded run in
         // the window, newest first, so a job that is failing intermittently
@@ -2513,6 +2522,35 @@
             }
           });
           row.appendChild(btn);
+          list.appendChild(row);
+        });
+      }
+
+      // Thinking videos without their grid poster or full-frame still in R2
+      // (the composer's capture failed). There is no button: the stills are
+      // made from the video with ffmpeg by npm run backfill-video-posters.
+      function renderStillsMissing(videos) {
+        var wrap = document.getElementById("status-stills");
+        var list = document.getElementById("status-stills-list");
+        if (!wrap || !list) return;
+        list.innerHTML = "";
+        wrap.hidden = videos.length === 0;
+        videos.forEach(function (video) {
+          var both = video.missing.length > 1;
+          var row = jobRow(
+            video.slug,
+            both ? "no stills" : "no " + video.missing[0],
+            jobRelativeTime(video.datetime),
+            null,
+            "bad"
+          );
+          row.classList.add("stills-missing-row");
+          var link = document.createElement("a");
+          link.href = "/thinking/" + video.slug + "/";
+          link.target = "_blank";
+          link.rel = "noopener";
+          link.textContent = "View";
+          row.appendChild(link);
           list.appendChild(row);
         });
       }

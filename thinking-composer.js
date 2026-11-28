@@ -504,6 +504,8 @@
       '<div class="thinking-photo-previews" data-role="previews" hidden></div>' +
       '<audio class="thinking-audio-preview" data-role="audio-preview" controls hidden></audio>' +
       '<video class="thinking-video-preview" data-role="video-preview" controls playsinline hidden></video>' +
+      '<p class="thinking-still-warn" data-role="still-warn" role="status" hidden><span data-role="still-warn-text"></span> ' +
+      '<button type="button" data-role="still-retry">Try again</button></p>' +
       '<button type="button" class="thinking-composer-secondary" data-role="remove" hidden>Remove media</button>' +
       '<button type="submit" class="thinking-composer-submit" data-role="submit">Save</button>' +
       '<div class="thinking-upload-progress" data-role="progress" hidden>' +
@@ -544,8 +546,15 @@
     var progressWrap = q("progress");
     var progressBar = progressWrap.querySelector("progress");
     var progressLabel = progressWrap.querySelector("p");
+    var stillWarn = q("still-warn");
+    var stillWarnText = q("still-warn-text");
+    var stillRetry = q("still-retry");
     var photoPreviewUrls = [];
     var videoPosterPromise = null;
+    // "pending" while the capture runs, then "ok" or "missing"; null with no video.
+    var videoStillsState = null;
+    // Set by the first Save that finds no stills, so a second Save posts anyway.
+    var postWithoutStills = false;
 
     function showStatus(msg, isErr, isOk, isWarn) {
       status.hidden = false;
@@ -651,13 +660,54 @@
       });
     }
 
+    function stillsComplete(stills) {
+      return !!(stills && stills.poster && stills.frame);
+    }
+
+    function setStillWarn(show) {
+      stillWarn.hidden = !show;
+      stillRetry.disabled = false;
+      stillWarnText.textContent =
+        "Couldn't grab a still from this video, so it would post with no preview image, and a portrait clip without its blurred frame.";
+    }
+
     function queueVideoPosterCapture() {
       // Start on selection and keep the promise, rather than assigning a
       // blob to a variable that submit reads whenever it happens to run.
       // Posting straight after choosing a file used to beat the capture and
       // upload no poster at all, leaving a permanently blank grid tile.
-      videoPosterPromise = captureVideoStills(videoPreview);
+      var capture = captureVideoStills(videoPreview);
+      videoPosterPromise = capture;
+      videoStillsState = "pending";
+      postWithoutStills = false;
+      capture.then(function (stills) {
+        if (videoPosterPromise !== capture) return;
+        videoStillsState = stillsComplete(stills) ? "ok" : "missing";
+        // A failed capture used to be silent: the post went out with no
+        // stills, and nothing said so until the page looked wrong.
+        setStillWarn(videoStillsState === "missing");
+      });
     }
+
+    stillRetry.addEventListener("click", function () {
+      if (!videoInput.files || !videoInput.files[0]) return;
+      stillRetry.disabled = true;
+      stillWarnText.textContent = "Trying again…";
+      // The tap is a user gesture, which lets iOS Safari start decoding a
+      // clip it would not load on its own: play it muted, then stop.
+      videoPreview.muted = true;
+      try {
+        var playing = videoPreview.play();
+        var unmute = function () {
+          videoPreview.pause();
+          videoPreview.muted = false;
+        };
+        if (playing && playing.then) playing.then(unmute, unmute);
+      } catch (err) {
+        videoPreview.muted = false;
+      }
+      queueVideoPosterCapture();
+    });
 
     function selectedPhotoFiles() {
       if (!photoInput.files || !photoInput.files.length) return [];
@@ -744,6 +794,9 @@
       revokeVideoPreviewUrl();
       videoName.textContent = "No video";
       videoPosterPromise = null;
+      videoStillsState = null;
+      postWithoutStills = false;
+      setStillWarn(false);
     }
 
     function clearMedia() {
@@ -892,6 +945,24 @@
         showStatus("Video must be 1 GB or smaller (yours is " + formatBytes(videoFile.size) + ").", true);
         return;
       }
+      // { poster, frame }: the grid's square crop and the feed's full frame.
+      var videoPoster = null;
+      if (videoFile && videoPosterPromise) {
+        submit.disabled = true;
+        if (videoStillsState === "pending") showStatus("Grabbing a still from the video…", false);
+        videoPoster = await videoPosterPromise;
+        if (!stillsComplete(videoPoster) && !postWithoutStills) {
+          postWithoutStills = true;
+          submit.disabled = false;
+          showStatus(
+            "No still from this video. Tap Try again, or Save again to post without one and run npm run backfill-video-posters afterwards.",
+            false,
+            false,
+            true
+          );
+          return;
+        }
+      }
       submit.disabled = true;
       var largestPhoto = photoFiles.reduce(function (max, f) {
         return !max || f.size > max.size ? f : max;
@@ -932,8 +1003,6 @@
               }
             }
           : null;
-        // { poster, frame }: the grid's square crop and the feed's full frame.
-        var videoPoster = videoFile && videoPosterPromise ? await videoPosterPromise : null;
         var result = await callThinkingAPI(
           apiUrl,
           pw,
