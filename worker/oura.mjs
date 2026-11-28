@@ -127,13 +127,19 @@ function activityRowFromRecord(record, syncedAt) {
   };
 }
 
+/**
+ * Daily steps for /now/, completed days only: today's count so far stays in
+ * the Health tab's documents (oura_daily), and its row here is written the
+ * first sync after the day ends.
+ */
 export async function upsertDailyActivity(db, records) {
   const syncedAt = new Date().toISOString();
+  const today = formatDateEt();
   const rows = [];
 
   for (const record of records) {
     const row = activityRowFromRecord(record, syncedAt);
-    if (row) rows.push(row);
+    if (row && row.day < today) rows.push(row);
   }
 
   for (let i = 0; i < rows.length; i += D1_BATCH_SIZE) {
@@ -183,7 +189,9 @@ export async function syncOuraSteps(db, env, { mode } = {}) {
   const startDate = useBackfill ? addDaysEt(today, -BACKFILL_DAYS) : addDaysEt(today, -INCREMENTAL_DAYS);
   const endDate = today;
 
-  const records = await fetchOuraCollection(auth, OURA_KINDS.activity, startDate, endDate);
+  // Oura treats daily_activity's end_date as exclusive: ask for tomorrow so
+  // today's activity so far comes too (the Health tab and /now/ show it).
+  const records = await fetchOuraCollection(auth, OURA_KINDS.activity, startDate, addDaysEt(today, 1));
   const upserted = await upsertDailyActivity(db, records);
   await upsertOuraDocs(db, "activity", records);
   const dashboard = await syncOura(db, env, {
@@ -309,8 +317,9 @@ const ACTIVITY_SERIES_FIELDS = ["steps", "activityScore", "activeCalories", "tot
 export const DASHBOARD_RANGES = { 7: 7, 30: 30, 90: 90, 365: 365, all: null };
 
 /**
- * Everything the Health tab draws, in one response: the chosen day (its
- * activity and the night after it, with the next morning's readiness), the
+ * Everything the Health tab draws, in one response: the chosen day (default
+ * today: its activity so far, and the night before it with that morning's
+ * readiness), the
  * series for the range, and each metric's stats against the period before.
  * Series come from json_extract on scalar fields, so the stored arrays are only
  * ever read for the one day on screen.
@@ -321,8 +330,7 @@ export async function getOuraDashboard(db, { day, range } = {}) {
   const firstRow = await db.prepare("SELECT MIN(day) AS day FROM oura_daily").first();
   const latestDay = latestRow?.day || null;
   const firstDay = firstRow?.day || null;
-  const fallbackDay = addDays(today, -1);
-  const shownDay = /^\d{4}-\d{2}-\d{2}$/.test(day || "") ? day : fallbackDay;
+  const shownDay = /^\d{4}-\d{2}-\d{2}$/.test(day || "") && day <= today ? day : today;
 
   const rangeKey = Object.hasOwn(DASHBOARD_RANGES, String(range)) ? String(range) : "30";
   const span = DASHBOARD_RANGES[rangeKey];
@@ -337,25 +345,31 @@ export async function getOuraDashboard(db, { day, range } = {}) {
     rows[kind] = results || [];
   }
   const all = buildSeries(rows);
-  // Today's activity is only part of a day, and would drag every average and
-  // "best" down; its sleep and readiness (last night) are complete and stay.
-  for (const row of all) {
-    if (row.day !== today) continue;
-    for (const k of ACTIVITY_SERIES_FIELDS) delete row[k];
-  }
+  // Today is drawn (marked `partial`), but its activity is only part of a day
+  // and would drag every average and "best" down, so the stats leave today's
+  // activity out. Its sleep and readiness (last night's) are complete and count.
+  for (const row of all) if (row.day === today) row.partial = true;
   const series = all.filter((r) => r.day >= start && r.day <= end);
+  const forStats = (list) =>
+    list.map((r) => {
+      if (!r.partial) return r;
+      const copy = { ...r };
+      for (const k of ACTIVITY_SERIES_FIELDS) delete copy[k];
+      return copy;
+    });
   const previous = span ? all.filter((r) => r.day >= prevStart && r.day < start) : [];
   const stats = {};
   for (const metric of Object.keys(SERIES_METRICS)) {
-    stats[metric] = rangeStats(series, previous, metric);
+    stats[metric] = rangeStats(forStats(series), previous, metric);
   }
 
-  // The day view: activity for the day, and the night that followed it, which
-  // Oura files under the next morning, with that morning's readiness.
-  const nextDay = addDays(shownDay, 1);
+  // The day view, the way Oura's own app reads a day: that day's activity, and
+  // the night before it (Oura files a night under the morning it ends) with
+  // that morning's readiness. Today, then, is last night, this morning's
+  // readiness and today's activity so far.
   const docRows = await db
-    .prepare("SELECT kind, day, data FROM oura_daily WHERE (kind IN ('activity','stress','spo2') AND day = ?) OR (kind IN ('sleep','readiness') AND day = ?)")
-    .bind(shownDay, nextDay)
+    .prepare("SELECT kind, day, data FROM oura_daily WHERE day = ?")
+    .bind(shownDay)
     .all();
   const docs = {};
   for (const r of docRows.results || []) {
@@ -365,7 +379,7 @@ export async function getOuraDashboard(db, { day, range } = {}) {
       /* a malformed row shows as missing */
     }
   }
-  const sessionRows = await db.prepare("SELECT data FROM oura_sleep_sessions WHERE day = ?").bind(nextDay).all();
+  const sessionRows = await db.prepare("SELECT data FROM oura_sleep_sessions WHERE day = ?").bind(shownDay).all();
   docs.sessions = (sessionRows.results || [])
     .map((r) => {
       try {
@@ -379,7 +393,6 @@ export async function getOuraDashboard(db, { day, range } = {}) {
   const syncState = await loadSyncState(db);
   return {
     day: shownDay,
-    nightOf: nextDay,
     today,
     firstDay,
     latestDay,

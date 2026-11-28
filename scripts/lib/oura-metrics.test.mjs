@@ -68,7 +68,7 @@ test("parseClass5Min and parseHypnogram collapse digits into labelled runs", () 
   ]);
 });
 
-test("dayDetail pairs a day's activity with the night after it", () => {
+test("dayDetail combines a day's activity with its night and readiness", () => {
   const d = dayDetail({
     activity: { score: 84, steps: 15275, active_calories: 830, class_5_min: "1123", timestamp: "2026-11-18T04:00:00.000-05:00", high_activity_time: 120 },
     sleep: { score: 89, contributors: { deep_sleep: 95 } },

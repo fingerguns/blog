@@ -171,9 +171,10 @@ function samples(obj) {
 }
 
 /**
- * One day's view from its documents: `activity`, `stress` and `spo2` for the
- * day itself; `sleep`, `readiness` and `sessions` for the night after it
- * (filed under the next morning). Missing documents come back as null.
+ * One day's view from its documents, all filed under that day: its
+ * `activity`, `stress` and `spo2`, and the night before it (`sleep`,
+ * `sessions`) with that morning's `readiness`. Missing documents come back as
+ * null.
  */
 export function dayDetail(docs = {}) {
   const a = docs.activity || null;

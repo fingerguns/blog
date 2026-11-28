@@ -250,6 +250,8 @@
         rows.forEach(function (r, i) {
           if (!has(r.steps)) return;
           var c = column(sc.x(i) - w / 2, w, sc.y(r.steps), sc.y(0), css("--viz-1"));
+          // Today is still under way: its bar is drawn lighter.
+          if (c && r.partial) c.setAttribute("fill-opacity", "0.45");
           if (c) g.appendChild(c);
         });
         var d = "";
@@ -263,7 +265,7 @@
       },
       tipLines: function (r, i) {
         return [
-          { text: int(r.steps) + " steps", swatch: css("--viz-1") },
+          { text: int(r.steps) + " steps" + (r.partial ? " so far" : ""), swatch: css("--viz-1") },
           { text: "7-day average " + int(avg[i]) },
         ];
       },
@@ -689,13 +691,13 @@
     function renderDay() {
       var d = state.data;
       var det = d.detail;
-      dayLabel.textContent = fmtDayLong.format(dayDate(d.day)) + " and the night after";
+      dayLabel.textContent = d.day === d.today ? "Today, " + fmtDayLong.format(dayDate(d.day)) : fmtDayLong.format(dayDate(d.day));
       prev.disabled = !!d.firstDay && d.day <= d.firstDay;
       next.disabled = d.day >= d.today;
       dayView.textContent = "";
 
       var scores = el("div", "oura-scores");
-      [["Readiness", det.scores.readiness, "next morning"], ["Sleep", det.scores.sleep, "that night"], ["Activity", det.scores.activity, d.day === d.today ? "so far" : ""]].forEach(function (s) {
+      [["Readiness", det.scores.readiness, "that morning"], ["Sleep", det.scores.sleep, "the night before"], ["Activity", det.scores.activity, d.day === d.today ? "so far" : ""]].forEach(function (s) {
         var t = el("div", "oura-score");
         t.appendChild(el("span", "oura-stat-label", s[0]));
         t.appendChild(el("span", "oura-score-value", has(s[1]) ? String(s[1]) : "—"));
@@ -752,9 +754,7 @@
         }
       } else {
         sl.appendChild(el("p", "oura-empty",
-          d.day >= d.today ? "Tonight's sleep isn't in yet." :
-          d.day === addDays(d.today, -1) ? "Last night isn't synced yet." :
-          "No sleep recorded for this night."));
+          d.day === d.today ? "Last night isn't synced yet." : "No sleep recorded for the night before."));
       }
       if (det.naps && det.naps.length) {
         sl.appendChild(el("p", "oura-stat-note", det.naps.map(function (n) {

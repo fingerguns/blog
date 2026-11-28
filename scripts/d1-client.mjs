@@ -137,8 +137,12 @@ export async function loadBlogDataFromD1() {
 
   let ouraSteps = null;
   try {
+    // Completed days only: /now/'s Walking line shows a whole day's steps,
+    // never today's count so far (the admin Health tab has that).
+    const todayEt = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
     const rows = await d1Query(
-      "SELECT day, steps FROM oura_daily_activity ORDER BY day DESC LIMIT 1"
+      "SELECT day, steps FROM oura_daily_activity WHERE day < ? ORDER BY day DESC LIMIT 1",
+      [todayEt]
     );
     if (rows[0]?.day) {
       ouraSteps = { day: rows[0].day, steps: Number(rows[0].steps) || 0 };

@@ -329,6 +329,6 @@ Oura deprecated personal access tokens in December 2025. The existing token stil
    npm run backfill-oura
    ```
 
-4. A cron job runs every 4 hours to sync the last 14 days of steps (rebuilding when new data arrives) and the last 3 days of every Health-tab kind, since sleep and readiness land each morning and activity grows through the day.
+4. A cron job runs every 4 hours to sync the last 14 days of activity (rebuilding when new data arrives). The request runs to tomorrow, since Oura treats `daily_activity`'s `end_date` as exclusive, so the Health tab gets today's activity so far; the steps table behind /now/ takes completed days only, and today's row is written by the first sync after midnight. and the last 3 days of every Health-tab kind, since sleep and readiness land each morning and activity grows through the day.
 
 Admin API (password auth): `action: "sync-oura"` with optional `backfill: true`, or a window `start`, `end` (at most 92 days) and optional `kinds`. `action: "oura-dashboard"` with `day` and `range` returns the Health tab's data. `action: "oura-steps-summary"` returns latest steps and total days stored.
